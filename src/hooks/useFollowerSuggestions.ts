@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
-import { CommunityDefinition } from './useCommunity'
+import type { CommunityDefinition } from './useCommunity'
 
 export const useFollowerSuggestions = () => {
   const { user } = useStore()

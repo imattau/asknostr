@@ -58,12 +58,15 @@ class NostrService {
 
   async subscribe(filters: Filter[], onEvent: (event: Event) => void, customRelays?: string[]) {
     const targetRelays = (customRelays || this.relays).slice(0, this.maxActiveRelays)
+    console.log('[Nostr] Subscribing to:', targetRelays, 'with filters:', JSON.stringify(filters))
     
     const wrappedCallback = async (event: Event) => {
-      // Offload verification to worker
+      console.log('[Nostr] Received event:', event.kind, 'from', event.pubkey.slice(0, 8))
       const isValid = await this.verifyInWorker(event)
       if (isValid) {
         onEvent(event)
+      } else {
+        console.warn('[Nostr] Event failed verification:', event.id)
       }
     }
 
@@ -109,11 +112,13 @@ class NostrService {
   }
 
   async fetchRelayList(pubkey: string) {
+    console.log('[Nostr] Fetching relay list for:', pubkey)
     return new Promise<string[]>((resolve) => {
       let found = false
       this.subscribe(
         [{ kinds: [10002], authors: [pubkey], limit: 1 }],
         (event: Event) => {
+          console.log('[Nostr] Found relay list event:', event.id)
           const relays = event.tags
             .filter(t => t[0] === 'r')
             .map(t => t[1])
@@ -123,16 +128,31 @@ class NostrService {
       ).then(sub => {
         setTimeout(() => {
           if (!found) {
+            console.warn('[Nostr] Relay list not found for', pubkey, 'after timeout')
             sub.close()
             resolve([])
           }
-        }, 3000)
+        }, 5000) // Increase timeout to 5s
       })
     })
   }
 
   async publish(event: Event) {
-    return Promise.all(this.pool.publish(this.relays, event))
+    if (this.relays.length === 0) {
+      throw new Error('No relays configured for broadcast.')
+    }
+    
+    console.log('[Nostr] Publishing:', event.kind, event.id)
+    
+    const promises = this.pool.publish(this.relays, event)
+    
+    // Wait for at least one successful publish
+    try {
+      await Promise.any(promises)
+      console.log('[Nostr] Event broadcasted successfully to at least one relay.')
+    } catch (e) {
+      console.warn('[Nostr] Event might not have reached all relays:', e)
+    }
   }
 
   async createAndPublishPost(content: string) {

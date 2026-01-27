@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
-import { Shield, Plus, Info, Globe, Image as ImageIcon, RefreshCw } from 'lucide-react'
+import { Shield, Plus, Info, Globe, Image as ImageIcon, RefreshCw, Hash } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
 const communitySchema = z.object({
@@ -14,7 +14,7 @@ const communitySchema = z.object({
   description: z.string().min(10, 'Description should be more descriptive'),
   rules: z.string().optional(),
   image: z.string().url('Must be a valid URL').optional().or(z.literal('')),
-  relays: z.string(), // Use string for the input field
+  relays: z.string(), 
 })
 
 type CommunityFormData = z.infer<typeof communitySchema>
@@ -22,12 +22,14 @@ type CommunityFormData = z.infer<typeof communitySchema>
 export const CommunityCreate: React.FC = () => {
   const { user } = useStore()
   const { popLayer } = useUiStore()
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<CommunityFormData>({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<CommunityFormData>({
     resolver: zodResolver(communitySchema),
     defaultValues: {
       relays: 'wss://relay.damus.io, wss://nos.lol'
     }
   })
+
+  const watchImage = watch('image')
 
   const onSubmit = async (data: CommunityFormData) => {
     if (!user.pubkey || !window.nostr) {
@@ -36,12 +38,12 @@ export const CommunityCreate: React.FC = () => {
     }
 
     try {
-      // eslint-disable-next-line react-hooks/purity
       const now = Math.floor(Date.now() / 1000)
       const relayList = data.relays.split(',').map(r => r.trim()).filter(r => r.startsWith('wss://'))
       
       const eventTemplate = {
         kind: 34550,
+        pubkey: user.pubkey,
         created_at: now,
         tags: [
           ['d', data.id],
@@ -50,7 +52,7 @@ export const CommunityCreate: React.FC = () => {
           ...(data.rules ? [['rules', data.rules]] : []),
           ...(data.image ? [['image', data.image]] : []),
           ...relayList.map(r => ['relay', r]),
-          ['p', user.pubkey] // Creator is the first moderator
+          ['p', user.pubkey] 
         ],
         content: '',
       }
@@ -78,6 +80,20 @@ export const CommunityCreate: React.FC = () => {
       </header>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="flex items-center gap-6 p-4 glassmorphism rounded-xl border-slate-800">
+          <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-dashed border-slate-700 flex-shrink-0 overflow-hidden flex items-center justify-center">
+            {watchImage ? (
+              <img src={watchImage} alt="Preview" className="w-full h-full object-cover" />
+            ) : (
+              <Hash size={32} className="text-slate-700" />
+            )}
+          </div>
+          <div className="flex-1 space-y-1">
+            <h3 className="text-sm font-bold text-slate-50 uppercase tracking-tight">Image_Preview</h3>
+            <p className="text-[10px] text-slate-500 font-mono">STATION_IDENTITY_BRANDING_MOCKUP</p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">

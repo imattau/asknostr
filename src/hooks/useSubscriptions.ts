@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import { triggerHaptic } from '../utils/haptics'
+import { get, set } from 'idb-keyval'
 
 export const useSubscriptions = () => {
   const { user } = useStore()
@@ -12,25 +13,36 @@ export const useSubscriptions = () => {
     queryKey: ['subscriptions', user.pubkey],
     queryFn: async () => {
       if (!user.pubkey) return null
+      
+      const cacheKey = `subs-${user.pubkey}`
+      const cached = await get(cacheKey)
+
       return new Promise<Event | null>((resolve) => {
         let latest: Event | null = null
+        let found = false
+
         nostrService.subscribe(
           [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
               latest = event
+              found = true
+              set(cacheKey, event)
             }
           }
         ).then(sub => {
           setTimeout(() => {
             sub.close()
-            resolve(latest)
-          }, 2000)
+            if (!found) {
+              resolve(cached || null)
+            } else {
+              resolve(latest)
+            }
+          }, 3000)
         })
       })
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes
+    staleTime: 1000 * 60 * 15,
     enabled: !!user.pubkey,
   })
 
@@ -44,6 +56,7 @@ export const useSubscriptions = () => {
 
       const eventTemplate = {
         kind: 30001,
+        pubkey: user.pubkey,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
           ['d', 'communities'],
@@ -54,10 +67,12 @@ export const useSubscriptions = () => {
 
       const signedEvent = await window.nostr.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
+      await set(`subs-${user.pubkey}`, signedEvent)
       return signedEvent
     },
     onSuccess: (newEvent) => {
       queryClient.setQueryData(['subscriptions', user.pubkey], newEvent)
+      queryClient.invalidateQueries({ queryKey: ['subscriptions', user.pubkey] })
       triggerHaptic(30)
     },
     onError: (error) => {
@@ -67,12 +82,13 @@ export const useSubscriptions = () => {
   })
 
   const toggleSubscription = (communityATag: string) => {
-    console.log('Toggling subscription for:', communityATag)
+    console.log('[Subs] Toggling:', communityATag)
     const current = subscribedCommunities
     const next = current.includes(communityATag)
       ? current.filter(a => a !== communityATag)
       : [...current, communityATag]
-    console.log('Next subscriptions list:', next)
+    
+    console.log('[Subs] Next state:', next)
     updateSubscriptions.mutate(next)
   }
 

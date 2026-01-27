@@ -54,6 +54,7 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
       
       const eventTemplate = {
         kind: 34550,
+        pubkey: user.pubkey,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
           ['d', communityId],

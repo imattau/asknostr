@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import { DEFAULT_RELAYS } from '../services/nostr'
 import { Server, Wifi, WifiOff, Info } from 'lucide-react'
 import { useRelayInfo } from '../hooks/useRelayInfo'
+import { useRelays } from '../hooks/useRelays'
 
 const RelayItem: React.FC<{ url: string, isConnected: boolean }> = ({ url, isConnected }) => {
   const { data: info } = useRelayInfo(url)
@@ -48,6 +49,7 @@ const RelayItem: React.FC<{ url: string, isConnected: boolean }> = ({ url, isCon
 
 export const RelayList: React.FC = () => {
   const { isConnected } = useStore()
+  const { data: userRelays = DEFAULT_RELAYS } = useRelays()
 
   return (
     <div className="p-6 space-y-6">
@@ -61,7 +63,7 @@ export const RelayList: React.FC = () => {
       </header>
 
       <div className="grid gap-4">
-        {DEFAULT_RELAYS.map((url) => (
+        {userRelays.map((url) => (
           <RelayItem key={url} url={url} isConnected={isConnected} />
         ))}
       </div>

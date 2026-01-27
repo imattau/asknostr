@@ -23,10 +23,20 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const { pushLayer } = useUiStore()
-  const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
-
-  const communityATag = `34550:${creator}:${communityId}`
-  const isSubscribed = subscribedCommunities.includes(communityATag)
+    const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
+    const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
+    const communityATag = `34550:${creator}:${communityId}`
+    
+    const isSubscribed = optimisticSub !== null ? optimisticSub : subscribedCommunities.includes(communityATag)
+  
+    const handleToggle = () => {
+      const nextState = !isSubscribed
+      setOptimisticSub(nextState)
+      toggleSubscription(communityATag)
+      // Revert optimistic state after 5 seconds if not synced, or let the hook handle it
+      setTimeout(() => setOptimisticSub(null), 5000)
+    }
+  
 
   const communityEvents = events.filter(e => 
     e.tags.some(t => t[0] === 'a' && t[1] === communityATag) ||
@@ -125,7 +135,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         
         <div className="flex items-start justify-between relative z-10">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 neon-bloom-violet">
+            <div className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 neon-bloom-violet shadow-lg shadow-purple-500/20">
               {community?.image ? (
                 <img src={community.image} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -153,7 +163,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             </div>
             {user.pubkey && (
               <button 
-                onClick={() => toggleSubscription(communityATag)}
+                onClick={handleToggle}
                 disabled={isUpdating}
                 className={`text-[10px] font-bold uppercase px-3 py-1 rounded border transition-all ${isSubscribed ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30' : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]'}`}
               >

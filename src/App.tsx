@@ -16,10 +16,15 @@ import { ModQueue } from './components/ModQueue'
 import { ModerationLog } from './components/ModerationLog'
 import { CommunityCreate } from './components/CommunityCreate'
 import { CommunityAdmin } from './components/CommunityAdmin'
+import { ProfileEditor } from './components/ProfileEditor'
 import { useDeletions } from './hooks/useDeletions'
+import { useSubscriptions } from './hooks/useSubscriptions'
+import { useRelays } from './hooks/useRelays'
 
 function App() {
   const { events, addEvent, isConnected, setConnected, user, login, logout } = useStore()
+  useSubscriptions() 
+  useRelays()
   const { layout, setLayout, theme, setTheme } = useUiStore()
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
@@ -142,6 +147,8 @@ function App() {
         return <CommunityAdmin communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'relays':
         return <RelayList />
+      case 'profile':
+        return <ProfileEditor />
       default:
         return <div className="p-4 opacity-50">[CONTENT_UNAVAILABLE]</div>
     }
@@ -149,7 +156,16 @@ function App() {
 
   if (layout === 'swipe') {
     return (
-      <div className={`h-screen w-full flex flex-col bg-black ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'}`}>
+      <div className={`h-screen w-full flex flex-col bg-[#05070A] ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'}`}>
+        <header className="h-14 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001]">
+          <div className="flex items-center gap-2">
+            <img src="/asknostr_logo.png" alt="" className="w-6 h-6 rounded-full border border-slate-800" />
+            <h1 className="text-sm font-black uppercase tracking-tighter gradient-text">AskNostr</h1>
+          </div>
+          <div className="flex gap-4">
+            {/* Minimal controls if needed */}
+          </div>
+        </header>
         <main className="flex-1 overflow-hidden relative">
           <SwipeStack renderLayer={renderLayerContent} />
         </main>
@@ -177,12 +193,12 @@ function App() {
 
   return (
     <div className={`min-h-screen p-4 flex flex-col items-center max-w-6xl mx-auto ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'}`}>
-      <header className="w-full border-b-2 border-[#00ff41] pb-4 mb-8 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <TerminalIcon size={32} />
+      <header className="w-full border-b-2 border-slate-800 pb-4 mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src="/asknostr_logo.png" alt="AskNostr Logo" className="w-10 h-10 shadow-[0_0_15px_rgba(168,85,247,0.3)] rounded-full border border-slate-800" />
           <div>
-            <h1 className="text-3xl font-bold tracking-tighter uppercase leading-none text-glow">AskNostr_v0.1</h1>
-            <span className="text-xs opacity-50">STATION: LOCALHOST | LAYOUT: CLASSIC</span>
+            <h1 className="text-3xl font-black tracking-tighter uppercase leading-none gradient-text">AskNostr_v0.1</h1>
+            <span className="text-[10px] font-mono opacity-50 uppercase tracking-widest mt-1 block">STATION: LOCALHOST | LAYOUT: CLASSIC</span>
           </div>
         </div>
         <nav className="flex gap-6 items-center uppercase font-bold text-sm">
@@ -251,7 +267,16 @@ function App() {
           </div>
 
           <div className="terminal-border glassmorphism p-4">
-            <h2 className="text-sm font-bold uppercase mb-4 border-b border-[#00ff41] pb-1">Network Info</h2>
+            <div className="flex justify-between items-center mb-4 border-b border-[#00ff41] pb-1">
+              <h2 className="text-sm font-bold uppercase">Network Info</h2>
+              <button 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onClick={() => (window as any).queryClient?.invalidateQueries()}
+                className="text-[10px] text-cyan-500 hover:text-cyan-400 font-mono uppercase"
+              >
+                [SYNC]
+              </button>
+            </div>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
                 <span>STATUS:</span>

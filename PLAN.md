@@ -26,7 +26,7 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 ## Core Features
 - [x] Feed display (Kind 1)
 - [x] Post creation (NIP-07 login)
-- [x] User profiles (Metadata display)
+- [x] User profiles (Metadata display & Editor)
 - [x] Relay management view
 - [x] Communities discovery view
 - [x] Responsive design
@@ -36,6 +36,7 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Trending tags calculation
 - [x] Thread view (NIP-10)
 - [x] Recursive Depth Management: Thread tree rendering
+- [x] System Menu: Functional navigation and session management
 
 ## Engagement & Ranking Logic
 - [x] Sorting Algorithms: Implement "Hot" (time-decay), "Top", and "New" filters

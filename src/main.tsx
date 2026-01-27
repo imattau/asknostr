@@ -14,6 +14,11 @@ const queryClient = new QueryClient({
   },
 })
 
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).queryClient = queryClient
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
