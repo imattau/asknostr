@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
+import { get, set } from 'idb-keyval'
 
 export interface CommunityDefinition {
   id: string // d tag
@@ -11,13 +12,17 @@ export interface CommunityDefinition {
   moderators: string[] // p tags
   relays: string[] // relay tags
   creator: string // pubkey
-  pinned: string[] // e tags with marker 'pinned' or just all 'e' tags
+  pinned: string[] // e tags
 }
 
 export const useCommunity = (communityId: string, creatorPubkey: string) => {
   return useQuery({
     queryKey: ['community', communityId, creatorPubkey],
     queryFn: async () => {
+      const cacheKey = `community-${creatorPubkey}-${communityId}`
+      const cached = await get(cacheKey)
+      if (cached) return cached as CommunityDefinition
+
       return new Promise<CommunityDefinition | null>((resolve) => {
         let found = false
         nostrService.subscribe(
@@ -50,6 +55,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
                 creator: event.pubkey
               }
               found = true
+              set(cacheKey, definition)
               resolve(definition)
             }
           }
@@ -63,7 +69,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
         })
       })
     },
-    staleTime: 1000 * 60 * 15, // 15 minutes
+    staleTime: 1000 * 60 * 60, // 1 hour
     enabled: !!communityId && !!creatorPubkey,
   })
 }

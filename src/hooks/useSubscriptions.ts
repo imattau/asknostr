@@ -15,7 +15,7 @@ export const useSubscriptions = () => {
       return new Promise<Event | null>((resolve) => {
         let latest: Event | null = null
         nostrService.subscribe(
-          [{ kinds: [30001], authors: [user.pubkey], '#d': ['communities'], limit: 1 }],
+          [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
               latest = event
@@ -29,6 +29,8 @@ export const useSubscriptions = () => {
         })
       })
     },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
     enabled: !!user.pubkey,
   })
 

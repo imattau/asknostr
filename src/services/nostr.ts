@@ -33,7 +33,8 @@ class NostrService {
 
   async subscribe(filters: Filter[], onEvent: (event: Event) => void, customRelays?: string[]) {
     const targetRelays = customRelays || this.relays
-    return this.pool.subscribeMany(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this.pool as any).subscribeMany(
       targetRelays,
       filters,
       {

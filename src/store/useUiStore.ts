@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ViewType = 'feed' | 'thread' | 'relays' | 'profile' | 'communities' | 'community' | 'modqueue' | 'modlog'
+export type ViewType = 'feed' | 'thread' | 'relays' | 'profile' | 'communities' | 'community' | 'modqueue' | 'modlog' | 'createcommunity' | 'communityadmin'
 
 export interface Layer {
   id: string

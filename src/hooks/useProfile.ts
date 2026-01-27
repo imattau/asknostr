@@ -1,11 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
+import { get, set } from 'idb-keyval'
 
 export const useProfile = (pubkey: string) => {
   return useQuery({
     queryKey: ['profile', pubkey],
     queryFn: async () => {
+      // Check cache first
+      const cached = await get(`profile-${pubkey}`)
+      if (cached) return cached
+
       return new Promise((resolve) => {
         let found = false
         nostrService.subscribe(
@@ -14,6 +19,7 @@ export const useProfile = (pubkey: string) => {
             try {
               const profile = JSON.parse(event.content)
               found = true
+              set(`profile-${pubkey}`, profile) // Save to cache
               resolve(profile)
             } catch (e) {
               console.error('Failed to parse profile', e)
@@ -30,7 +36,7 @@ export const useProfile = (pubkey: string) => {
         })
       })
     },
-    staleTime: 1000 * 60 * 30,
+    staleTime: 1000 * 60 * 60, // 1 hour (longer because we have local cache)
     enabled: !!pubkey,
   })
 }

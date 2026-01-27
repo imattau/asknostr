@@ -1,9 +1,11 @@
-import React from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
-import { Shield, AlertCircle } from 'lucide-react'
+import { Shield, AlertCircle, AlertTriangle } from 'lucide-react'
+import { nostrService } from '../services/nostr'
+import type { Event } from 'nostr-tools'
 
 interface ModQueueProps {
   communityId: string
@@ -13,6 +15,7 @@ interface ModQueueProps {
 export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
   const { data: community } = useCommunity(communityId, creator)
   const { events } = useStore()
+  const [reports, setReports] = useState<Event[]>([])
   
   // Get all events for this community
   const communityEvents = events.filter(e => 
@@ -21,12 +24,45 @@ export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
 
   const moderators = community?.moderators || []
   const eventIds = communityEvents.map(e => e.id)
-  const { data: approvals = [] } = useApprovals(eventIds, moderators)
+  const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
 
-  // Pending posts = posts with community tag but no approval from a moderator
-  const pendingPosts = communityEvents.filter(e => 
-    !approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === e.id))
-  )
+  // Advanced Status Logic for filtering
+  const eventStatusMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    approvals.forEach(a => {
+      const eTarget = a.tags.find(t => t[0] === 'e')?.[1]
+      const status = a.tags.find(t => t[0] === 'status')?.[1] || 'approved'
+      if (eTarget) {
+        if (!map[eTarget] || a.created_at > (approvals.find(old => old.id === eTarget)?.created_at || 0)) {
+          map[eTarget] = status
+        }
+      }
+    })
+    return map
+  }, [approvals])
+
+  // Pending posts = posts with community tag but no approval/status from a moderator
+  const pendingPosts = communityEvents.filter(e => !eventStatusMap[e.id])
+
+  useEffect(() => {
+    if (eventIds.length === 0) return
+    let sub: { close: () => void } | undefined
+
+    const fetchReports = async () => {
+      sub = await nostrService.subscribe(
+        [{ kinds: [1984], '#e': eventIds }],
+        (event: Event) => {
+          setReports(prev => {
+            if (prev.find(e => e.id === event.id)) return prev
+            return [...prev, event]
+          })
+        }
+      )
+    }
+
+    fetchReports()
+    return () => sub?.close()
+  }, [eventIds]) // Use eventIds to refetch when posts change
 
   return (
     <div className="p-4 space-y-6">
@@ -45,15 +81,33 @@ export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
           [QUEUE_IS_EMPTY]
         </div>
       ) : (
-        <div className="space-y-4">
-          {pendingPosts.map(event => (
-            <div key={event.id} className="relative">
-              <Post 
-                event={event} 
-                isModerator={moderators.includes(event.pubkey)} 
-              />
-            </div>
-          ))}
+        <div className="space-y-6">
+          {pendingPosts.map(event => {
+            const postReports = reports.filter(r => r.tags.some(t => t[0] === 'e' && t[1] === event.id))
+            return (
+              <div key={event.id} className="space-y-2">
+                {postReports.length > 0 && (
+                  <div className="flex items-center gap-2 text-orange-500 text-[10px] font-bold uppercase animate-pulse">
+                    <AlertTriangle size={14} /> Reported_{postReports.length}_Times
+                  </div>
+                )}
+                <Post 
+                  event={event} 
+                  isModerator={moderators.includes(event.pubkey)} 
+                />
+                {postReports.length > 0 && (
+                  <div className="ml-4 p-2 border-l border-orange-500/30 bg-orange-500/5 space-y-1">
+                    <p className="text-[8px] opacity-50 uppercase font-mono tracking-widest mb-1">Report_Reasons:</p>
+                    {postReports.map(r => (
+                      <p key={r.id} className="text-[9px] text-slate-400 italic font-sans">
+                        - "{r.content}"
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

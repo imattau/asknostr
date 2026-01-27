@@ -14,6 +14,8 @@ import { Thread } from './components/Thread'
 import { CommunityFeed } from './components/CommunityFeed'
 import { ModQueue } from './components/ModQueue'
 import { ModerationLog } from './components/ModerationLog'
+import { CommunityCreate } from './components/CommunityCreate'
+import { CommunityAdmin } from './components/CommunityAdmin'
 import { useDeletions } from './hooks/useDeletions'
 
 function App() {
@@ -92,7 +94,8 @@ function App() {
       case 'communities':
         return <Communities />
       case 'feed': {
-        const tagFilter = layer.params?.filter?.['#t'] as string[] | undefined
+        const params = layer.params as { filter?: { '#t'?: string[] } } | undefined
+        const tagFilter = params?.filter?.['#t']
         const firstTag = tagFilter?.[0]
         const filteredEvents = (firstTag 
           ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === firstTag.toLowerCase()))
@@ -133,6 +136,10 @@ function App() {
         return <ModQueue communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'modlog':
         return <ModerationLog communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
+      case 'createcommunity':
+        return <CommunityCreate />
+      case 'communityadmin':
+        return <CommunityAdmin communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'relays':
         return <RelayList />
       default:

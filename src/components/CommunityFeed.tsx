@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
-import { Shield, Info, Filter, RefreshCw, ListFilter, ListChecks, Pin } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, ListFilter, ListChecks, Pin, Settings } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
@@ -19,6 +19,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
   const { events, user } = useStore()
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
+  const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const { pushLayer } = useUiStore()
@@ -34,17 +35,34 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   const eventIds = communityEvents.map(e => e.id)
   const moderators = community?.moderators || []
-  const { data: approvals = [] } = useApprovals(eventIds, moderators)
+  const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
   const { data: deletedIds = [] } = useDeletions(eventIds)
 
-  const filteredEvents = (isModeratedOnly
-    ? communityEvents.filter(e => approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === e.id)))
-    : communityEvents).filter(e => !deletedIds.includes(e.id))
+  // Advanced Status Logic: Group approvals by event ID and find the latest one
+  const eventStatusMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    approvals.forEach(a => {
+      const eTarget = a.tags.find(t => t[0] === 'e')?.[1]
+      const status = a.tags.find(t => t[0] === 'status')?.[1] || 'approved'
+      if (eTarget) {
+        // Only override if this approval is newer
+        if (!map[eTarget] || a.created_at > (approvals.find(old => old.id === eTarget)?.created_at || 0)) {
+          map[eTarget] = status
+        }
+      }
+    })
+    return map
+  }, [approvals])
 
-  const pinnedEvents = filteredEvents.filter(e => community?.pinned.includes(e.id))
-  const regularEvents = filteredEvents.filter(e => !community?.pinned.includes(e.id))
+  const filteredEvents = (isModeratedOnly
+    ? communityEvents.filter(e => !!eventStatusMap[e.id] && eventStatusMap[e.id] !== 'spam')
+    : communityEvents).filter(e => !deletedIds.includes(e.id) && eventStatusMap[e.id] !== 'spam')
+
+  const pinnedEvents = filteredEvents.filter(e => community?.pinned.includes(e.id) || eventStatusMap[e.id] === 'pinned')
+  const regularEvents = filteredEvents.filter(e => !community?.pinned.includes(e.id) && eventStatusMap[e.id] !== 'pinned')
 
   const isUserModerator = moderators.includes(user.pubkey || '') || creator === user.pubkey
+  const isCreator = creator === user.pubkey
 
   useEffect(() => {
     if (community?.relays && community.relays.length > 0) {
@@ -158,6 +176,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
           >
             <Filter size={14} /> {isModeratedOnly ? 'ACTIVE_MODERATION' : 'RAW_NETWORK_FEED'}
           </button>
+
+          <div className="flex bg-white/5 rounded-lg border border-white/5 p-0.5">
+            {(['new', 'hot', 'top'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSortBy(s)}
+                className={`px-3 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${sortBy === s ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
           
           {isUserModerator && (
             <button 
@@ -183,6 +213,19 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
           >
             <ListChecks size={14} /> AUDIT_TRAIL
           </button>
+          {isCreator && (
+            <button 
+              onClick={() => pushLayer({ 
+                id: `admin-${communityId}`, 
+                type: 'communityadmin',
+                title: 'Station_Admin',
+                params: { communityId, creator }
+              })}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono text-[10px] font-bold hover:bg-cyan-500/20 transition-all"
+            >
+              <Settings size={14} /> ADMIN_PANEL
+            </button>
+          )}
         </div>
       </div>
 

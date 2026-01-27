@@ -1,6 +1,6 @@
 import React from 'react'
 import { useUiStore } from '../store/useUiStore'
-import { Hash, Users, TrendingUp, Shield, Star } from 'lucide-react'
+import { Hash, Users, TrendingUp, Shield, Star, Plus } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 
 // Example communities with their creator pubkeys (placeholders)
@@ -55,6 +55,19 @@ export const Communities: React.FC = () => {
           <TrendingUp size={14} /> Discovery_Nodes
         </h3>
         <div className="grid gap-2">
+          <button
+            onClick={() => pushLayer({ id: 'create-community', type: 'createcommunity', title: 'Station_Setup' })}
+            className="terminal-border p-4 text-left bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20 transition-all group flex items-center justify-between"
+          >
+            <div>
+              <span className="text-purple-400 font-bold flex items-center gap-1 uppercase tracking-tighter">
+                <Plus size={16} /> Create_New_Station
+              </span>
+              <p className="text-[10px] opacity-50 uppercase mt-1">Initialize a custom moderated node</p>
+            </div>
+            <Shield size={20} className="text-purple-500 opacity-30 group-hover:opacity-100 transition-opacity" />
+          </button>
+
           {SUGGESTED_COMMUNITIES.map((c) => (
             <button
               key={c.id}

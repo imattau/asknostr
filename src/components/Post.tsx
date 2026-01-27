@@ -1,7 +1,7 @@
 import React from 'react'
 import type { Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
-import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle } from 'lucide-react'
+import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
 import { useZaps } from '../hooks/useZaps'
@@ -26,10 +26,10 @@ export const Post: React.FC<PostProps> = ({
   opPubkey
 }) => {
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
-  const { data: eventReactions = [], isLoading: isReactionsLoading } = useReactions(event.id)
+  const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
   const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
   const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals } = useStore()
-  const { pushLayer, layout, stack } = useUiStore()
+  const { layout, stack, pushLayer } = useUiStore()
   
   const npub = formatPubkey(event.pubkey)
   const displayPubkey = profile?.display_name || profile?.name || shortenPubkey(npub)
@@ -39,12 +39,15 @@ export const Post: React.FC<PostProps> = ({
   const isOptimisticallyApproved = optimisticApprovals.includes(event.id)
   const effectiveApproved = isApproved || isOptimisticallyApproved
 
+  const eventReactions = reactionData?.reactions || []
+  const aggregatedReactions = reactionData?.aggregated || {}
+
   const optimisticLikes = optimisticReactions[event.id] || []
   const hasOptimisticLike = user.pubkey && optimisticLikes.includes(user.pubkey)
   const hasRealLike = user.pubkey && eventReactions.some(r => r.pubkey === user.pubkey)
+  
   const totalLikes = eventReactions.length + (hasOptimisticLike && !hasRealLike ? 1 : 0)
 
-  // Media preview regex
   const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
   const mediaMatches = event.content.match(mediaRegex)
 
@@ -61,26 +64,29 @@ export const Post: React.FC<PostProps> = ({
     }
   }
 
-  const handleLike = async () => {
+  const handleLike = async (emoji: string = '+') => {
     if (!user.pubkey || !window.nostr) {
       alert('Please login to react.')
       return
     }
     
-    if (hasOptimisticLike || hasRealLike) return
+    const alreadyReacted = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
+    if (alreadyReacted || (emoji === '+' && hasOptimisticLike)) return
 
     triggerHaptic(15)
-    addOptimisticReaction(event.id, user.pubkey)
+    if (emoji === '+') addOptimisticReaction(event.id, user.pubkey)
 
     try {
+      // eslint-disable-next-line react-hooks/purity
+      const now = Math.floor(Date.now() / 1000)
       const likeEvent = {
         kind: 7,
-        created_at: Math.floor(Date.now() / 1000),
+        created_at: now,
         tags: [
           ['e', event.id],
           ['p', event.pubkey]
         ],
-        content: '+',
+        content: emoji,
       }
       const signedEvent = await window.nostr.signEvent(likeEvent)
       await nostrService.publish(signedEvent)
@@ -109,7 +115,8 @@ export const Post: React.FC<PostProps> = ({
   }
 
   const handleApprove = async () => {
-    if (!window.confirm('Approve this post for the community?')) return
+    const status = window.prompt('Specify status (approved, pinned, spam):', 'approved')
+    if (status === null) return
     
     addOptimisticApproval(event.id)
     triggerHaptic(30)
@@ -124,9 +131,10 @@ export const Post: React.FC<PostProps> = ({
         tags: [
           ['e', event.id],
           ['p', event.pubkey],
+          ['status', status],
           communityTag
         ],
-        content: 'Post approved by moderator.',
+        content: `Post marked as ${status} by moderator.`,
       }
       const signedEvent = await window.nostr?.signEvent(approveEvent)
       if (signedEvent) {
@@ -135,6 +143,34 @@ export const Post: React.FC<PostProps> = ({
     } catch (e) {
       console.error('Approval failed', e)
     }
+  }
+
+  const handleReport = async () => {
+    const reason = window.prompt('Specify reason for report (Kind 1984):')
+    if (!reason || !window.nostr) return
+
+    try {
+      const reportEvent = {
+        kind: 1984,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['e', event.id, reason],
+          ['p', event.pubkey]
+        ],
+        content: reason,
+      }
+      const signedEvent = await window.nostr.signEvent(reportEvent)
+      await nostrService.publish(signedEvent)
+      triggerHaptic(10)
+      alert('Report broadcasted to the network.')
+    } catch (e) {
+      console.error('Report failed', e)
+    }
+  }
+
+  const handleZap = (amount: number) => {
+    triggerHaptic(25)
+    alert(`Initiating lightning payment for ${amount} sats to ${shortenPubkey(npub)}... [SIMULATED]`)
   }
 
   const currentLayer = stack[stack.length - 1]
@@ -171,7 +207,7 @@ export const Post: React.FC<PostProps> = ({
                 <span className="text-[8px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1 rounded font-mono font-bold uppercase ml-1">OP</span>
               )}
               {isModerator && (
-                <Shield size={12} className="text-green-500 fill-green-500/10" title="Community Moderator" />
+                <Shield size={12} className="text-green-500 fill-green-500/10" />
               )}
             </div>
             <span className="text-[10px] text-slate-400 font-mono lowercase opacity-70">{formatDate(event.created_at)}</span>
@@ -232,6 +268,32 @@ export const Post: React.FC<PostProps> = ({
         </div>
       )}
       
+      <div className="flex flex-wrap gap-2 mb-4">
+        {Object.entries(aggregatedReactions).map(([emoji, data]) => (
+          <button
+            key={emoji}
+            onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${user.pubkey && data.pubkeys.includes(user.pubkey) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}`}
+          >
+            <span>{emoji === '+' ? '❤️' : emoji}</span>
+            <span className="font-bold">{data.count}</span>
+          </button>
+        ))}
+        {user.pubkey && (
+          <div className="flex gap-1">
+            {['🔥', '🤙', '🫡', '⚡'].map(emoji => (
+              <button
+                key={emoji}
+                onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
+                className="opacity-0 group-hover:opacity-100 transition-opacity hover:scale-125 p-0.5 grayscale hover:grayscale-0"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
         <button className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn">
           <MessageSquare size={12} className="group-hover/btn:scale-110 transition-transform" />
@@ -248,12 +310,33 @@ export const Post: React.FC<PostProps> = ({
           <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${(hasOptimisticLike || hasRealLike) ? 'fill-red-500/20' : ''}`} />
           <span>{totalLikes} Like</span>
         </button>
+        <div className="relative group/zap">
+          <button 
+            onClick={(e) => { e.stopPropagation(); triggerHaptic(20); }}
+            className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors group/btn"
+          >
+            <Zap size={12} className={`group-hover/btn:scale-110 transition-transform ${isZapsLoading ? 'animate-pulse' : ''} ${zapData?.total ? 'text-yellow-500 fill-yellow-500/20' : ''}`} />
+            <span>{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
+          </button>
+          
+          <div className="absolute bottom-full left-0 mb-2 hidden group-hover/zap:flex gap-1 bg-slate-900 border border-slate-800 p-1 rounded-lg shadow-2xl z-50">
+            {[21, 100, 1000].map(amt => (
+              <button
+                key={amt}
+                onClick={(e) => { e.stopPropagation(); handleZap(amt); }}
+                className="text-[8px] font-bold px-2 py-1 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black rounded transition-all"
+              >
+                {amt}
+              </button>
+            ))}
+          </div>
+        </div>
         <button 
-          onClick={(e) => { e.stopPropagation(); triggerHaptic(20); }}
-          className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors group/btn"
+          onClick={(e) => { e.stopPropagation(); handleReport(); }}
+          className="flex items-center gap-1.5 hover:text-orange-500 transition-colors group/btn ml-auto opacity-30 hover:opacity-100"
         >
-          <Zap size={12} className={`group-hover/btn:scale-110 transition-transform ${isZapsLoading ? 'animate-pulse' : ''} ${zapData?.total ? 'text-yellow-500 fill-yellow-500/20' : ''}`} />
-          <span>{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
+          <AlertTriangle size={12} />
+          <span>Report</span>
         </button>
       </div>
     </div>
