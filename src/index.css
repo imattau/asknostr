@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  :root {
+    --background: #05070A;
+    --foreground: #F8FAFC;
+    --muted: #94A3B8;
+    --accent-violet: #A855F7;
+    --accent-magenta: #D946EF;
+    --accent-cyan: #06B6D4;
+    --terminal-green: #22C55E;
+    --border-slate: #1E293B;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    @apply font-sans selection:bg-purple-500/30;
+    background-image: 
+      linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+
+  h1, h2, h3, h4, .font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+}
+
+@theme {
+  --color-slate-950: #05070A;
+  --color-slate-50: #F8FAFC;
+  --color-slate-400: #94A3B8;
+  --color-slate-800: #1E293B;
+}
+
+.glassmorphism {
+  @apply backdrop-blur-xl bg-white/5 border border-white/10;
+}
+
+.neon-bloom-violet {
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+}
+
+.neon-bloom-cyan {
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+}
+
+.neon-text-violet {
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+}
+
+.terminal-border {
+  @apply border border-slate-800 transition-all duration-300;
+}
+
+.terminal-input {
+  @apply bg-slate-950/50 border border-slate-800 text-slate-50 focus:outline-none focus:border-purple-500/50 p-2 font-mono text-sm;
+}
+
+.terminal-button {
+  @apply bg-gradient-to-r from-[#A855F7] to-[#D946EF] text-white px-4 py-2 hover:opacity-90 transition-all font-bold uppercase tracking-wider text-xs;
+}
+
+.layer-border {
+  border-left: 1px solid #1E293B;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-slate-950;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-800 hover:bg-slate-700 transition-colors;
+}
+
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-[#A855F7] to-[#D946EF];
+}
