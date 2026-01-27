@@ -60,13 +60,19 @@ export const useSubscriptions = () => {
       queryClient.setQueryData(['subscriptions', user.pubkey], newEvent)
       triggerHaptic(30)
     },
+    onError: (error) => {
+      console.error('Subscription update failed:', error)
+      alert(`Subscription failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   })
 
   const toggleSubscription = (communityATag: string) => {
+    console.log('Toggling subscription for:', communityATag)
     const current = subscribedCommunities
     const next = current.includes(communityATag)
       ? current.filter(a => a !== communityATag)
       : [...current, communityATag]
+    console.log('Next subscriptions list:', next)
     updateSubscriptions.mutate(next)
   }
 

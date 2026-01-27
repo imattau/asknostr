@@ -18,7 +18,39 @@ interface ThreadNode {
 export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [allEvents, setAllEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { addEvent } = useStore()
+  const [replyContent, setReplyContent] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { addEvent, user } = useStore()
+
+  const handleReply = async () => {
+    if (!replyContent.trim() || !user.pubkey || !window.nostr) return
+    setIsSubmitting(true)
+    try {
+      const now = Math.floor(Date.now() / 1000)
+      const rootId = rootEvent?.id || eventId
+      
+      const eventTemplate = {
+        kind: 1,
+        created_at: now,
+        tags: [
+          ['e', rootId, '', 'root'],
+          ['e', eventId, '', 'reply'],
+          ['p', rootEvent?.pubkey || '']
+        ],
+        content: replyContent,
+      }
+
+      const signedEvent = await window.nostr.signEvent(eventTemplate)
+      await nostrService.publish(signedEvent)
+      setReplyContent('')
+      // Query will pick it up, or we add optimistically
+      setAllEvents(prev => [...prev, signedEvent])
+    } catch (e) {
+      console.error('Reply failed', e)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     let sub: { close: () => void } | undefined
@@ -107,17 +139,25 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
         </div>
       )}
       
+      {/* Quick Reply Box */}
       <section className="glassmorphism p-4 rounded-xl border-purple-500/20 bg-purple-500/5 mt-8">
         <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-400 uppercase mb-3 tracking-widest">
           <MessageSquare size={14} /> Append_To_Thread
         </h4>
         <textarea 
-          className="w-full bg-transparent text-slate-200 border border-slate-800 rounded-lg focus:border-purple-500/50 p-3 text-sm resize-none h-24 font-sans placeholder:text-slate-600 mb-3"
-          placeholder="Type your response..."
+          value={replyContent}
+          onChange={(e) => setReplyContent(e.target.value)}
+          disabled={!user.pubkey || isSubmitting}
+          className="w-full bg-transparent text-slate-200 border border-slate-800 rounded-lg focus:border-purple-500/50 p-3 text-sm resize-none h-24 font-sans placeholder:text-slate-600 mb-3 disabled:opacity-50"
+          placeholder={user.pubkey ? "Type your response..." : "Login required to participate in thread."}
         ></textarea>
         <div className="flex justify-end">
-          <button className="terminal-button rounded-lg py-1.5 px-6 shadow-lg shadow-purple-500/20">
-            Transmit_Reply
+          <button 
+            onClick={handleReply}
+            disabled={!user.pubkey || !replyContent.trim() || isSubmitting}
+            className="terminal-button rounded-lg py-1.5 px-6 shadow-lg shadow-purple-500/20 disabled:opacity-50"
+          >
+            {isSubmitting ? 'Transmitting...' : 'Transmit_Reply'}
           </button>
         </div>
       </section>

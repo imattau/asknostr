@@ -70,6 +70,19 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Event Status Management: Tag approved posts with pinned/spam in Kind 4550
 - [x] Report Flow: Send "Report" events (Kind 1984) to Mod Queue
 
+## Advanced Discovery Logic
+- [x] NIP-89 Integration: Discover handlers via Kind 31990
+- [ ] Discovery Relay Support: Query specialized relays for Kind 10002
+- [x] Web of Trust Crawling: Suggest communities based on "Following" activity
+- [ ] Curated Labels (NIP-32): Use Kind 1985 for categorization
+- [x] Relay Feature Detection: Fetch NIP-11 documents
+- [x] Trending Algorithm: Rank communities by recent NIP-72 activity
+- [x] NIP-05 Global Search: Verified identity and community lookup
+- [x] Kind 31990 Parsing: Extract handler and app fields
+- [x] Follower Graph: Map follows to community suggestions
+- [x] NIP-11 Fetch: Cache relay capabilities
+- [x] NIP-05 Resolution: Map usernames to public keys
+
 ## NIP Support
 - [x] NIP-01: Basic protocol
 - [x] NIP-07: Key provider integration (window.nostr)
@@ -88,6 +101,15 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Optimistic UI: Instant feedback for Zaps, Likes, and Approvals
 - [ ] Service Worker: Offline-first caching strategy via Workbox
 - [ ] Advanced Error Reporting
+
+## Network & Performance Optimization
+- [x] Relay Pooling: Limit active WebSocket connections (Capped at 8)
+- [x] Subscription Batching: Combine multiple filters into single REQ calls
+- [x] Web Worker Integration: Background event verification
+- [ ] Adaptive Throttling: Backpressure handling for high-volume streams
+- [ ] EOSE Management: Smooth historical/live transition
+- [x] Exponential Backoff: Handled via SimplePool
+- [x] Priority Fetching: Prioritize structural data (Kind 34550)
 
 ## Testing & Compatibility
 - [x] Multiple relays connectivity
