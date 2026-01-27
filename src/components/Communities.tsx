@@ -1,6 +1,7 @@
 import React from 'react'
 import { useUiStore } from '../store/useUiStore'
-import { Hash, Users, TrendingUp, Shield } from 'lucide-react'
+import { Hash, Users, TrendingUp, Shield, Star } from 'lucide-react'
+import { useSubscriptions } from '../hooks/useSubscriptions'
 
 // Example communities with their creator pubkeys (placeholders)
 const SUGGESTED_COMMUNITIES = [
@@ -11,6 +12,7 @@ const SUGGESTED_COMMUNITIES = [
 
 export const Communities: React.FC = () => {
   const { pushLayer } = useUiStore()
+  const { subscribedCommunities } = useSubscriptions()
 
   const selectCommunity = (id: string, creator: string) => {
     pushLayer({
@@ -23,6 +25,31 @@ export const Communities: React.FC = () => {
 
   return (
     <div className="p-4 space-y-6">
+      {subscribedCommunities.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
+            <Star size={14} className="text-yellow-500" /> Joined_Stations
+          </h3>
+          <div className="grid gap-2">
+            {subscribedCommunities.map((a) => {
+              const [kind, pubkey, id] = a.split(':')
+              return (
+                <button
+                  key={a}
+                  onClick={() => selectCommunity(id, pubkey)}
+                  className="terminal-border p-3 text-left glassmorphism border-yellow-500/20 hover:bg-yellow-500/10 transition-colors group flex justify-between items-center"
+                >
+                  <span className="text-slate-50 font-bold flex items-center gap-1">
+                    <Hash size={14} className="text-yellow-500" /> {id}
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">REF://{kind}</span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
       <section>
         <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
           <TrendingUp size={14} /> Discovery_Nodes

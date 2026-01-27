@@ -13,6 +13,8 @@ export interface UserProfile {
 
 interface NostrState {
   events: Event[]
+  optimisticReactions: Record<string, string[]> // eventId -> array of pubkeys who liked
+  optimisticApprovals: string[] // array of eventIds approved by current user (if moderator)
   relays: string[]
   isConnected: boolean
   user: {
@@ -21,6 +23,8 @@ interface NostrState {
   }
   setEvents: (events: Event[]) => void
   addEvent: (event: Event) => void
+  addOptimisticReaction: (eventId: string, pubkey: string) => void
+  addOptimisticApproval: (eventId: string) => void
   setRelays: (relays: string[]) => void
   setConnected: (connected: boolean) => void
   setUser: (pubkey: string | null) => void
@@ -40,6 +44,8 @@ declare global {
 
 export const useStore = create<NostrState>((set) => ({
   events: [],
+  optimisticReactions: {},
+  optimisticApprovals: [],
   relays: [],
   isConnected: false,
   user: {
@@ -51,6 +57,22 @@ export const useStore = create<NostrState>((set) => ({
     if (state.events.find(e => e.id === event.id)) return state
     const newEvents = [...state.events, event].sort((a, b) => b.created_at - a.created_at)
     return { events: newEvents }
+  }),
+  addOptimisticReaction: (eventId, pubkey) => set((state) => {
+    const current = state.optimisticReactions[eventId] || []
+    if (current.includes(pubkey)) return state
+    return {
+      optimisticReactions: {
+        ...state.optimisticReactions,
+        [eventId]: [...current, pubkey]
+      }
+    }
+  }),
+  addOptimisticApproval: (eventId) => set((state) => {
+    if (state.optimisticApprovals.includes(eventId)) return state
+    return {
+      optimisticApprovals: [...state.optimisticApprovals, eventId]
+    }
   }),
   setRelays: (relays) => set({ relays }),
   setConnected: (connected) => set({ isConnected: connected }),

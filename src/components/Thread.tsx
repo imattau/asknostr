@@ -1,88 +1,123 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import type { Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
 import { Post } from './Post'
 import { useStore } from '../store/useStore'
+import { MessageSquare } from 'lucide-react'
 
 interface ThreadProps {
   eventId: string
   rootEvent?: Event
 }
 
+interface ThreadNode {
+  event: Event
+  replies: ThreadNode[]
+}
+
 export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
-  const [replies, setReplies] = useState<Event[]>([])
+  const [allEvents, setAllEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { addEvent } = useStore()
 
   useEffect(() => {
     let sub: { close: () => void } | undefined
 
-    const fetchReplies = async () => {
+    const fetchThread = async () => {
       setIsLoading(true)
       sub = await nostrService.subscribe(
-        [{ kinds: [1], '#e': [eventId] }],
+        [
+          { ids: [eventId] },
+          { kinds: [1], '#e': [eventId] }
+        ],
         (event: Event) => {
-          setReplies(prev => {
+          setAllEvents(prev => {
             if (prev.find(e => e.id === event.id)) return prev
             return [...prev, event].sort((a, b) => a.created_at - b.created_at)
           })
-          addEvent(event) // Add to global store as well
+          addEvent(event)
         }
       )
       
-      // Assume basic fetch done after 2s for UI state
-      setTimeout(() => setIsLoading(false), 2000)
+      setTimeout(() => setIsLoading(false), 2500)
     }
 
-    fetchReplies()
+    fetchThread()
 
     return () => {
       sub?.close()
     }
   }, [eventId, addEvent])
 
+  const threadTree = useMemo(() => {
+    const nodes: Record<string, ThreadNode> = {}
+    const roots: ThreadNode[] = []
+
+    allEvents.forEach(event => {
+      nodes[event.id] = { event, replies: [] }
+    })
+
+    allEvents.forEach(event => {
+      const eTags = event.tags.filter(t => t[0] === 'e')
+      const parentId = eTags.length > 0 ? eTags[eTags.length - 1][1] : null
+      
+      if (parentId && nodes[parentId] && parentId !== event.id) {
+        nodes[parentId].replies.push(nodes[event.id])
+      } else if (event.id === eventId || !parentId) {
+        if (!roots.find(r => r.event.id === event.id)) {
+          roots.push(nodes[event.id])
+        }
+      }
+    })
+
+    return roots
+  }, [allEvents, eventId])
+
+  const renderNode = (node: ThreadNode, depth = 0) => {
+    return (
+      <div key={node.event.id} className="space-y-4">
+        <Post 
+          event={node.event} 
+          isThreadView={depth === 0} 
+          opPubkey={rootEvent?.pubkey || threadTree[0]?.event.pubkey} 
+        />
+        {node.replies.length > 0 && (
+          <div className="space-y-4 border-l-2 border-slate-800 ml-4 pl-4">
+            {node.replies.map(reply => renderNode(reply, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const mainNode = threadTree.find(n => n.event.id === eventId)
+
   return (
     <div className="p-4 space-y-6">
-      {/* The Focused Post */}
-      <section>
-        <h3 className="text-[10px] uppercase font-bold opacity-30 mb-2">Primary_Entry</h3>
-        {rootEvent ? (
-          <Post event={rootEvent} isThreadView={true} />
-        ) : (
-          <div className="terminal-border p-8 text-center animate-pulse opacity-50">
-            [RETRIEVING_ROOT_EVENT...]
-          </div>
-        )}
-      </section>
-
-      {/* Replies */}
-      <section className="space-y-4">
-        <h3 className="text-[10px] uppercase font-bold opacity-30 mb-2 flex items-center gap-2">
-          Replies_({replies.length}) {isLoading && <span className="animate-spin text-[#00ff41]">/</span>}
-        </h3>
-        {replies.length === 0 && !isLoading ? (
-          <div className="p-8 text-center border border-dashed border-[#00ff41]/20 opacity-30 text-xs">
-            [NO_REPLIES_FOUND_ON_NETWORK]
-          </div>
-        ) : (
-          <div className="space-y-4 border-l-2 border-[#00ff41]/10 ml-2 pl-4">
-            {replies.map(reply => (
-              <Post key={reply.id} event={reply} />
-            ))}
-          </div>
-        )}
-      </section>
+      {isLoading && allEvents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 opacity-20">
+          <div className="w-12 h-12 border-2 border-dashed border-purple-500 rounded-full mb-4 animate-spin-slow" />
+          <span className="font-mono text-[10px] uppercase">Tracing_Thread_Tree</span>
+        </div>
+      ) : mainNode ? (
+        renderNode(mainNode)
+      ) : (
+        <div className="space-y-6">
+          {threadTree.map(node => renderNode(node))}
+        </div>
+      )}
       
-      {/* Quick Reply Box */}
-      <section className="terminal-border p-4 bg-[#00ff41]/5">
-        <h4 className="text-[10px] uppercase font-bold opacity-50 mb-2">Quick_Reply</h4>
+      <section className="glassmorphism p-4 rounded-xl border-purple-500/20 bg-purple-500/5 mt-8">
+        <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-400 uppercase mb-3 tracking-widest">
+          <MessageSquare size={14} /> Append_To_Thread
+        </h4>
         <textarea 
-          className="w-full terminal-input min-h-[60px] text-xs resize-none mb-2"
-          placeholder="Append to this thread..."
+          className="w-full bg-transparent text-slate-200 border border-slate-800 rounded-lg focus:border-purple-500/50 p-3 text-sm resize-none h-24 font-sans placeholder:text-slate-600 mb-3"
+          placeholder="Type your response..."
         ></textarea>
         <div className="flex justify-end">
-          <button className="terminal-button text-[10px] py-1 px-4">
-            Transmit
+          <button className="terminal-button rounded-lg py-1.5 px-6 shadow-lg shadow-purple-500/20">
+            Transmit_Reply
           </button>
         </div>
       </section>

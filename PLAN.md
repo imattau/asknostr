@@ -20,6 +20,8 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Layout toggling (Classic / Swipe)
 - [x] Glassmorphism (backdrop-blur-md)
 - [x] Haptic Feedback for mobile PWA
+- [x] OP Highlighting: Visual marker for Original Poster in threads
+- [x] Media Previews: Auto-embed logic for images/video/NIP-94
 
 ## Core Features
 - [x] Feed display (Kind 1)
@@ -33,6 +35,7 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Network-wide search (NIP-50)
 - [x] Trending tags calculation
 - [x] Thread view (NIP-10)
+- [x] Recursive Depth Management: Thread tree rendering
 
 ## NIP-72 & Community Logic
 - [x] Kind 34550: Community Definitions (name, rules, moderator list)
@@ -41,25 +44,15 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Moderator Badge System: UI indicators for moderators
 - [x] Mod Queue: Dashboard for community owners to approve/ignore posts
 - [x] Community Rules Sidebar: Display rules and description from metadata
-- [ ] Relay Discovery: Prioritize "preferred relays" from community definition
+- [x] Relay Discovery: Prioritize "preferred relays" from community definition
+- [ ] Verification: Ensure Kind 4550 signatures match Kind 34550 moderator pubkeys
+- [x] Pinned Posts: Support for `status: pinned` tags from moderators
+- [ ] Multi-Relay Aggregation: Fetching approvals from community-specific relays
 
-## NIP Support
-- [x] NIP-01: Basic protocol
-- [x] NIP-07: Key provider integration (window.nostr)
-- [x] NIP-09: Event deletion
-- [x] NIP-10: Thread parsing
-- [x] NIP-19: Bech32 encoding (npub)
-- [x] NIP-25: Reactions
-- [x] NIP-50: Search
-
-## Future Considerations
-- [ ] NIP-51: Lists (Subscribe to communities)
-- [ ] NIP-65: Relay list metadata
-- [ ] NIP-57: Zaps (Lightning integration)
-- [ ] NIP-46: Nostr Connect (Remote Signing)
-- [ ] NIP-32: Labeling for community flairs
-- [ ] Moderation Transparency Log
-- [ ] PWA Optimizations
+## PWA & Performance
+- [ ] IndexedDB Caching: Local storage for Kind 0 (Profiles) and Kind 34550 (Metadata)
+- [x] Optimistic UI: Instant feedback for Zaps, Likes, and Approvals
+- [ ] Service Worker: Offline-first caching strategy via Workbox
 - [ ] Advanced Error Reporting
 
 ## Testing & Compatibility

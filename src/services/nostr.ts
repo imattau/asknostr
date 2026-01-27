@@ -22,9 +22,19 @@ class NostrService {
     return this.relays
   }
 
-  async subscribe(filters: Filter[], onEvent: (event: Event) => void) {
+  async addRelays(newRelays: string[]) {
+    const uniqueRelays = [...new Set([...this.relays, ...newRelays])]
+    this.relays = uniqueRelays
+  }
+
+  async setRelays(newRelays: string[]) {
+    this.relays = [...new Set(newRelays)]
+  }
+
+  async subscribe(filters: Filter[], onEvent: (event: Event) => void, customRelays?: string[]) {
+    const targetRelays = customRelays || this.relays
     return this.pool.subscribeMany(
-      this.relays,
+      targetRelays,
       filters,
       {
         onevent: onEvent,
@@ -33,6 +43,29 @@ class NostrService {
         }
       }
     )
+  }
+
+  async fetchRelayList(pubkey: string) {
+    return new Promise<string[]>((resolve) => {
+      let found = false
+      this.subscribe(
+        [{ kinds: [10002], authors: [pubkey], limit: 1 }],
+        (event: Event) => {
+          const relays = event.tags
+            .filter(t => t[0] === 'r')
+            .map(t => t[1])
+          found = true
+          resolve(relays)
+        }
+      ).then(sub => {
+        setTimeout(() => {
+          if (!found) {
+            sub.close()
+            resolve([])
+          }
+        }, 3000)
+      })
+    })
   }
 
   async publish(event: Event) {

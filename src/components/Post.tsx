@@ -4,6 +4,7 @@ import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
+import { useZaps } from '../hooks/useZaps'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
@@ -14,17 +15,38 @@ interface PostProps {
   isThreadView?: boolean
   isModerator?: boolean
   isApproved?: boolean
+  opPubkey?: string
 }
 
-export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModerator = false, isApproved = false }) => {
+export const Post: React.FC<PostProps> = ({
+  event,
+  isThreadView = false,
+  isModerator = false,
+  isApproved = false,
+  opPubkey
+}) => {
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
   const { data: eventReactions = [], isLoading: isReactionsLoading } = useReactions(event.id)
-  const { user } = useStore()
+  const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
+  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals } = useStore()
   const { pushLayer, layout, stack } = useUiStore()
   
   const npub = formatPubkey(event.pubkey)
   const displayPubkey = profile?.display_name || profile?.name || shortenPubkey(npub)
   const isOwnPost = user.pubkey === event.pubkey
+  const isOP = opPubkey === event.pubkey
+
+  const isOptimisticallyApproved = optimisticApprovals.includes(event.id)
+  const effectiveApproved = isApproved || isOptimisticallyApproved
+
+  const optimisticLikes = optimisticReactions[event.id] || []
+  const hasOptimisticLike = user.pubkey && optimisticLikes.includes(user.pubkey)
+  const hasRealLike = user.pubkey && eventReactions.some(r => r.pubkey === user.pubkey)
+  const totalLikes = eventReactions.length + (hasOptimisticLike && !hasRealLike ? 1 : 0)
+
+  // Media preview regex
+  const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
+  const mediaMatches = event.content.match(mediaRegex)
 
   const openThread = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return
@@ -36,6 +58,34 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
         title: 'Thread_Context',
         params: { eventId: event.id, rootEvent: event }
       })
+    }
+  }
+
+  const handleLike = async () => {
+    if (!user.pubkey || !window.nostr) {
+      alert('Please login to react.')
+      return
+    }
+    
+    if (hasOptimisticLike || hasRealLike) return
+
+    triggerHaptic(15)
+    addOptimisticReaction(event.id, user.pubkey)
+
+    try {
+      const likeEvent = {
+        kind: 7,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['e', event.id],
+          ['p', event.pubkey]
+        ],
+        content: '+',
+      }
+      const signedEvent = await window.nostr.signEvent(likeEvent)
+      await nostrService.publish(signedEvent)
+    } catch (e) {
+      console.error('Like failed', e)
     }
   }
 
@@ -60,6 +110,10 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
 
   const handleApprove = async () => {
     if (!window.confirm('Approve this post for the community?')) return
+    
+    addOptimisticApproval(event.id)
+    triggerHaptic(30)
+
     try {
       const communityTag = event.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
       if (!communityTag) return
@@ -77,7 +131,6 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
       const signedEvent = await window.nostr?.signEvent(approveEvent)
       if (signedEvent) {
         await nostrService.publish(signedEvent)
-        triggerHaptic(30)
       }
     } catch (e) {
       console.error('Approval failed', e)
@@ -92,9 +145,9 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
   return (
     <div 
       onClick={openThread}
-      className={`glassmorphism p-4 group transition-all duration-300 relative ${!isThreadView ? 'hover:bg-white/10 cursor-pointer' : ''} ${isApproved ? 'border-l-4 border-l-green-500' : 'border-l border-slate-800'}`}
+      className={`glassmorphism p-4 group transition-all duration-300 relative ${!isThreadView ? 'hover:bg-white/10 cursor-pointer' : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : 'border-l border-slate-800'}`}
     >
-      {isApproved && !isThreadView && (
+      {effectiveApproved && !isThreadView && (
         <div className="absolute -top-2 -left-2 bg-slate-950 text-green-500 border border-green-500/50 p-0.5 rounded-full z-10 shadow-[0_0_10px_rgba(34,197,94,0.4)]">
           <CheckCircle size={14} />
         </div>
@@ -114,6 +167,9 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
               <span className={`font-bold tracking-tight text-slate-50 ${isProfileLoading ? 'animate-pulse' : ''}`} title={npub}>
                 {displayPubkey}
               </span>
+              {isOP && (
+                <span className="text-[8px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1 rounded font-mono font-bold uppercase ml-1">OP</span>
+              )}
               {isModerator && (
                 <Shield size={12} className="text-green-500 fill-green-500/10" title="Community Moderator" />
               )}
@@ -122,7 +178,7 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {isUserModerator && !isApproved && (
+          {isUserModerator && !effectiveApproved && (
             <button 
               onClick={(e) => { e.stopPropagation(); handleApprove(); }}
               className="text-cyan-500 hover:text-cyan-400 px-1 rounded transition-all flex items-center gap-1 font-mono"
@@ -145,6 +201,36 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
       <div className={`whitespace-pre-wrap break-words text-slate-300 leading-relaxed mb-4 font-sans ${isThreadView ? 'text-lg text-slate-50' : 'text-sm'}`}>
         {event.content}
       </div>
+
+      {mediaMatches && mediaMatches.length > 0 && (
+        <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg">
+          {mediaMatches.map((url, idx) => {
+            const isVideo = url.match(/\.(mp4|webm|mov)$/i)
+            return (
+              <div key={idx} className="relative bg-slate-900 border border-slate-800 rounded-lg overflow-hidden group/media">
+                {isVideo ? (
+                  <video 
+                    src={url} 
+                    controls 
+                    className="max-h-[400px] w-full"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <img 
+                    src={url} 
+                    alt="Media content" 
+                    className="max-h-[500px] w-full object-contain cursor-zoom-in"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(url, '_blank')
+                    }}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
       
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
         <button className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn">
@@ -156,18 +242,18 @@ export const Post: React.FC<PostProps> = ({ event, isThreadView = false, isModer
           <span>Repost</span>
         </button>
         <button 
-          onClick={(e) => { e.stopPropagation(); triggerHaptic(15); }}
-          className="flex items-center gap-1.5 hover:text-red-500 transition-colors group/btn"
+          onClick={(e) => { e.stopPropagation(); handleLike(); }}
+          className={`flex items-center gap-1.5 transition-colors group/btn ${(hasOptimisticLike || hasRealLike) ? 'text-red-500' : 'hover:text-red-500 text-slate-400'}`}
         >
-          <Heart size={12} className={`${eventReactions.length > 0 ? 'text-red-500 fill-red-500/20' : ''} group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''}`} />
-          <span>{eventReactions.length} Like</span>
+          <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${(hasOptimisticLike || hasRealLike) ? 'fill-red-500/20' : ''}`} />
+          <span>{totalLikes} Like</span>
         </button>
         <button 
           onClick={(e) => { e.stopPropagation(); triggerHaptic(20); }}
           className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors group/btn"
         >
-          <Zap size={12} className="group-hover/btn:scale-110 transition-transform" />
-          <span>Zap</span>
+          <Zap size={12} className={`group-hover/btn:scale-110 transition-transform ${isZapsLoading ? 'animate-pulse' : ''} ${zapData?.total ? 'text-yellow-500 fill-yellow-500/20' : ''}`} />
+          <span>{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
         </button>
       </div>
     </div>

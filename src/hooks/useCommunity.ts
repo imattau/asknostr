@@ -11,6 +11,7 @@ export interface CommunityDefinition {
   moderators: string[] // p tags
   relays: string[] // relay tags
   creator: string // pubkey
+  pinned: string[] // e tags with marker 'pinned' or just all 'e' tags
 }
 
 export const useCommunity = (communityId: string, creatorPubkey: string) => {
@@ -31,6 +32,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
             if (dTag === communityId) {
               const moderators = event.tags.filter(t => t[0] === 'p').map(t => t[1])
               const relays = event.tags.filter(t => t[0] === 'relay').map(t => t[1])
+              const pinned = event.tags.filter(t => t[0] === 'e').map(t => t[1])
               const name = event.tags.find(t => t[0] === 'name')?.[1]
               const description = event.tags.find(t => t[0] === 'description')?.[1]
               const rules = event.tags.find(t => t[0] === 'rules')?.[1]
@@ -44,6 +46,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
                 image,
                 moderators,
                 relays,
+                pinned,
                 creator: event.pubkey
               }
               found = true

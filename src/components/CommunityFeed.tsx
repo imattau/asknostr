@@ -3,10 +3,12 @@ import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
-import { Shield, Info, Filter, RefreshCw, ListFilter } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, ListFilter, ListChecks, Pin } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
+import { useDeletions } from '../hooks/useDeletions'
+import { useSubscriptions } from '../hooks/useSubscriptions'
 
 interface CommunityFeedProps {
   communityId: string
@@ -20,35 +22,52 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const { pushLayer } = useUiStore()
+  const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
+
+  const communityATag = `34550:${creator}:${communityId}`
+  const isSubscribed = subscribedCommunities.includes(communityATag)
 
   const communityEvents = events.filter(e => 
-    e.tags.some(t => t[0] === 'a' && t[1] === `34550:${creator}:${communityId}`) ||
+    e.tags.some(t => t[0] === 'a' && t[1] === communityATag) ||
     e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === communityId.toLowerCase())
   )
 
   const eventIds = communityEvents.map(e => e.id)
   const moderators = community?.moderators || []
   const { data: approvals = [] } = useApprovals(eventIds, moderators)
+  const { data: deletedIds = [] } = useDeletions(eventIds)
 
-  const filteredEvents = isModeratedOnly
+  const filteredEvents = (isModeratedOnly
     ? communityEvents.filter(e => approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === e.id)))
-    : communityEvents
+    : communityEvents).filter(e => !deletedIds.includes(e.id))
+
+  const pinnedEvents = filteredEvents.filter(e => community?.pinned.includes(e.id))
+  const regularEvents = filteredEvents.filter(e => !community?.pinned.includes(e.id))
 
   const isUserModerator = moderators.includes(user.pubkey || '') || creator === user.pubkey
 
   useEffect(() => {
-    nostrService.subscribe(
+    if (community?.relays && community.relays.length > 0) {
+      nostrService.addRelays(community.relays)
+    }
+    
+    const sub = nostrService.subscribe(
       [{ kinds: [34550], authors: [creator], '#d': [communityId], limit: 1 }],
-      () => {}
+      () => {},
+      community?.relays
     )
-  }, [communityId, creator])
+
+    return () => {
+      sub.then(s => s.close())
+    }
+  }, [communityId, creator, community?.relays])
 
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
     try {
       const tags = [
-        ['a', `34550:${creator}:${communityId}`, '', 'root'],
+        ['a', communityATag, '', 'root'],
         ['t', communityId]
       ]
       
@@ -83,9 +102,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   return (
     <div className="flex flex-col h-full bg-[#05070A]">
-      {/* Community Header with Glassmorphism and Neon Bloom */}
       <div className="glassmorphism m-4 p-6 rounded-xl border-slate-800 shadow-2xl relative overflow-hidden group">
-        {/* Animated gradient accent */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full -mr-16 -mt-16 group-hover:bg-purple-500/20 transition-all duration-700" />
         
         <div className="flex items-start justify-between relative z-10">
@@ -116,6 +133,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-500 bg-green-500/5 px-2 py-1 rounded-full border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
               <Shield size={10} /> MODS:{moderators.length}
             </div>
+            {user.pubkey && (
+              <button 
+                onClick={() => toggleSubscription(communityATag)}
+                disabled={isUpdating}
+                className={`text-[10px] font-bold uppercase px-3 py-1 rounded border transition-all ${isSubscribed ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30' : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]'}`}
+              >
+                {isUpdating ? 'SYNCING...' : isSubscribed ? 'LEAVE_NODE' : 'JOIN_STATION'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -146,13 +172,22 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               <ListFilter size={14} /> ACCESS_MOD_QUEUE
             </button>
           )}
+          <button 
+            onClick={() => pushLayer({ 
+              id: `mod-log-${communityId}`, 
+              type: 'modlog',
+              title: 'Transparency_Log',
+              params: { communityId, creator }
+            })}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-slate-500 border border-white/5 font-mono text-[10px] font-bold hover:text-slate-300 transition-all ${!isUserModerator ? 'ml-auto' : ''}`}
+          >
+            <ListChecks size={14} /> AUDIT_TRAIL
+          </button>
         </div>
       </div>
 
-      {/* Main Feed with Virtualization Placeholder (simplified for now as FixedSizeList needs careful height management) */}
       <div className="flex-1 overflow-hidden px-4">
         <div className="h-full flex flex-col space-y-4">
-          {/* Quick Entry Box */}
           <div className="glassmorphism p-4 rounded-xl border-slate-800/50 mb-2 shrink-0">
             <textarea 
               value={postContent}
@@ -184,21 +219,41 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               </div>
             )}
 
-            {filteredEvents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 opacity-20">
-                <div className="w-12 h-12 border-2 border-dashed border-slate-500 rounded-full mb-4 animate-spin-slow" />
-                <span className="font-mono text-[10px] uppercase">Waiting_For_Valid_Signatures</span>
+            {pinnedEvents.length > 0 && (
+              <div className="space-y-4 mb-8">
+                <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2">
+                  <Pin size={12} className="rotate-45" /> Pinned_By_Moderators
+                </h4>
+                <div className="space-y-4">
+                  {pinnedEvents.map(event => (
+                    <Post 
+                      key={event.id} 
+                      event={event} 
+                      isModerator={moderators.includes(event.pubkey)}
+                      isApproved={true}
+                    />
+                  ))}
+                </div>
+                <div className="h-px bg-slate-800 mx-4" />
               </div>
-            ) : (
-              filteredEvents.map(event => (
-                <Post 
-                  key={event.id} 
-                  event={event} 
-                  isModerator={moderators.includes(event.pubkey)}
-                  isApproved={approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === event.id))}
-                />
-              ))
             )}
+
+            <div className="space-y-4">
+              {regularEvents.length === 0 ? (
+                <div className="text-center p-12 opacity-30 italic text-[10px]">
+                  {pinnedEvents.length === 0 ? '[NO_POSTS_MATCHING_CRITERIA]' : '[END_OF_TRANSMISSION]'}
+                </div>
+              ) : (
+                regularEvents.map(event => (
+                  <Post 
+                    key={event.id} 
+                    event={event} 
+                    isModerator={moderators.includes(event.pubkey)}
+                    isApproved={approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === event.id))}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -13,14 +13,17 @@ import { Communities } from './components/Communities'
 import { Thread } from './components/Thread'
 import { CommunityFeed } from './components/CommunityFeed'
 import { ModQueue } from './components/ModQueue'
+import { ModerationLog } from './components/ModerationLog'
+import { useDeletions } from './hooks/useDeletions'
 
 function App() {
-  const { events, addEvent, setConnected, user, login, logout } = useStore()
+  const { events, addEvent, isConnected, setConnected, user, login, logout } = useStore()
   const { layout, setLayout, theme, setTheme } = useUiStore()
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const trendingTags = useTrendingTags()
+  const { data: deletedIds = [] } = useDeletions(events.map(e => e.id))
 
   const fetchEvents = useCallback(async (until?: number, additionalFilter: Partial<Filter> = {}) => {
     if (until) setIsLoadingMore(true)
@@ -91,9 +94,9 @@ function App() {
       case 'feed': {
         const tagFilter = layer.params?.filter?.['#t'] as string[] | undefined
         const firstTag = tagFilter?.[0]
-        const filteredEvents = firstTag 
+        const filteredEvents = (firstTag 
           ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === firstTag.toLowerCase()))
-          : events
+          : events).filter(e => !deletedIds.includes(e.id))
 
         return (
           <div className="p-4 space-y-4">
@@ -128,6 +131,8 @@ function App() {
         return <CommunityFeed communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'modqueue':
         return <ModQueue communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
+      case 'modlog':
+        return <ModerationLog communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'relays':
         return <RelayList />
       default:
@@ -207,7 +212,7 @@ function App() {
           </div>
 
           <div className="space-y-4">
-            {events.map((event) => <Post key={event.id} event={event} />)}
+            {events.filter(e => !deletedIds.includes(e.id)).map((event) => <Post key={event.id} event={event} />)}
             <button onClick={handleLoadMore} className="w-full terminal-border p-2 uppercase text-xs font-bold hover:bg-[#00ff41] hover:text-black transition-colors">
               Load More
             </button>
