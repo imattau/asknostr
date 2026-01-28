@@ -31,7 +31,7 @@ const PostComponent: React.FC<PostProps> = ({
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
   const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
-  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, addEvent } = useStore()
+  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, addEvent, optimisticDeletions, addOptimisticDeletion } = useStore()
   const { subscribedCommunities } = useSubscriptions()
   const { layout, stack, pushLayer } = useUiStore()
   
@@ -48,7 +48,7 @@ const PostComponent: React.FC<PostProps> = ({
   const isOptimisticallyApproved = optimisticApprovals.includes(event.id)
   const effectiveApproved = isApproved || isOptimisticallyApproved
 
-  const eventReactions = reactionData?.reactions || []
+  const eventReactions = (reactionData?.reactions || []).filter(r => !optimisticDeletions.includes(r.id))
   const aggregatedReactions = reactionData?.aggregated || {}
 
   const postOptimistic = optimisticReactions[event.id] || {}
@@ -57,14 +57,22 @@ const PostComponent: React.FC<PostProps> = ({
     if (!user.pubkey) return false
     const real = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
     const optimistic = postOptimistic[emoji]?.includes(user.pubkey)
-    return real || optimistic
+    return (real || optimistic)
   }
 
   const getReactionCount = (emoji: string, baseCount: number) => {
     if (!user.pubkey) return baseCount
-    const real = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
+    
+    // Count real reactions that aren't deleted
+    const realCount = (reactionData?.reactions || [])
+      .filter(r => r.content === emoji && !optimisticDeletions.includes(r.id))
+      .length
+    
     const optimistic = postOptimistic[emoji]?.includes(user.pubkey)
-    return baseCount + (optimistic && !real ? 1 : 0)
+    const alreadyHasReal = (reactionData?.reactions || [])
+      .some(r => r.pubkey === user.pubkey && r.content === emoji && !optimisticDeletions.includes(r.id))
+
+    return realCount + (optimistic && !alreadyHasReal ? 1 : 0)
   }
 
   const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
@@ -86,7 +94,7 @@ const PostComponent: React.FC<PostProps> = ({
     pushLayer({
       id: `profile-${event.pubkey}-${Date.now()}`,
       type: 'profile-view',
-      title: `Profile_${shortenPubkey(npub)}`,
+      title: `Profile_${shortenPubkey(formatPubkey(event.pubkey))}`,
       params: { pubkey: event.pubkey }
     })
   }
@@ -100,10 +108,31 @@ const PostComponent: React.FC<PostProps> = ({
       return
     }
     
-    const alreadyReacted = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
-    if (alreadyReacted || hasUserReacted(emoji)) return
+    const existingReaction = (reactionData?.reactions || []).find(
+      r => r.pubkey === user.pubkey && r.content === emoji && !optimisticDeletions.includes(r.id)
+    )
 
     triggerHaptic(15)
+
+    if (existingReaction) {
+      // Toggle off: Send deletion request
+      addOptimisticDeletion(existingReaction.id)
+      try {
+        const deleteEvent = {
+          kind: 5,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['e', existingReaction.id]],
+          content: 'Removing reaction.',
+        }
+        const signedEvent = await signerService.signEvent(deleteEvent)
+        await nostrService.publish(signedEvent)
+      } catch (e) {
+        console.error('Failed to remove reaction', e)
+      }
+      return
+    }
+
+    // Toggle on: Add reaction
     addOptimisticReaction(event.id, user.pubkey, emoji)
 
     try {

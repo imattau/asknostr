@@ -33,6 +33,7 @@ const MAX_EVENTS = 2000
 interface NostrState {
   events: Event[]
   optimisticReactions: Record<string, Record<string, string[]>> // eventId -> { emoji -> pubkeys[] }
+  optimisticDeletions: string[] // array of event IDs to treat as deleted
   optimisticApprovals: string[]
   relays: string[]
   mediaServers: MediaServer[]
@@ -51,6 +52,7 @@ interface NostrState {
   addEvent: (event: Event) => void
   addEvents: (events: Event[]) => void
   addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => void
+  addOptimisticDeletion: (eventId: string) => void
   addOptimisticApproval: (eventId: string) => void
   setRelays: (relays: string[]) => void
   setMediaServers: (servers: MediaServer[]) => void
@@ -79,6 +81,7 @@ export const useStore = create<NostrState>()(
     (set, get) => ({
       events: [],
       optimisticReactions: {},
+      optimisticDeletions: [],
       optimisticApprovals: [],
       relays: [],
       mediaServers: DEFAULT_MEDIA_SERVERS,
@@ -126,6 +129,10 @@ export const useStore = create<NostrState>()(
             }
           }
         }
+      }),
+      addOptimisticDeletion: (eventId) => set((state) => {
+        if (state.optimisticDeletions.includes(eventId)) return state
+        return { optimisticDeletions: [...state.optimisticDeletions, eventId] }
       }),
       addOptimisticApproval: (eventId) => set((state) => {
         if (state.optimisticApprovals.includes(eventId)) return state
