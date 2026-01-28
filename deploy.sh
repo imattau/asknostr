@@ -78,10 +78,18 @@ setup_app() {
         useradd -r -s /bin/false $APP_NAME
     fi
 
-    # Create Install Dir if not exists (if running from outside)
-    if [ ! -d "$INSTALL_DIR" ]; then
-        log_info "Cloning repository to $INSTALL_DIR..."
-        git clone https://github.com/dskvr/asknostr.git "$INSTALL_DIR"
+    # Determine source directory (where script is running from)
+    SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+    # Create Install Dir
+    mkdir -p "$INSTALL_DIR"
+
+    if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
+        log_info "Deploying from $SCRIPT_DIR to $INSTALL_DIR..."
+        # Copy all files including hidden ones (.git, .env) but preserve attributes
+        cp -aT "$SCRIPT_DIR" "$INSTALL_DIR"
+    else
+        log_info "Script running from target directory. Skipping copy."
     fi
 
     # Set permissions
