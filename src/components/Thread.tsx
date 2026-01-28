@@ -23,21 +23,42 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [replyContent, setReplyContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
-  const { addEvent, user } = useStore()
+  const { addEvent, user, events } = useStore()
+
+  const getETags = (source?: Event) => source?.tags.filter(t => t[0] === 'e') || []
 
   const deriveRootId = (fallbackId: string, source?: Event) => {
     if (!source) return fallbackId
-    const eTags = source.tags.filter(t => t[0] === 'e')
+    const eTags = getETags(source)
     const rootTag = eTags.find(t => t[3] === 'root')
     if (rootTag?.[1]) return rootTag[1]
-    if (eTags.length > 0) return eTags[0][1]
+    if (eTags.length > 0 && eTags[0][1]) return eTags[0][1]
     return fallbackId
   }
 
-  const rootId = useMemo(() => deriveRootId(eventId, rootEvent), [eventId, rootEvent])
-  const rootPubkey = useMemo(() => {
-    return allEvents.find(e => e.id === rootId)?.pubkey || rootEvent?.pubkey || ''
-  }, [allEvents, rootId, rootEvent])
+  const deriveParentId = (event: Event) => {
+    const eTags = getETags(event)
+    const hasMarkers = eTags.some(t => t[3])
+    const replyTag = eTags.find(t => t[3] === 'reply')
+    if (replyTag?.[1]) return replyTag[1]
+    if (!hasMarkers) {
+      if (eTags.length > 1) return eTags[eTags.length - 1][1]
+      if (eTags.length === 1) return eTags[0][1]
+    }
+    return null
+  }
+
+  const sourceEvent = useMemo(() => {
+    return rootEvent || events.find(e => e.id === eventId)
+  }, [rootEvent, events, eventId])
+
+  const rootId = useMemo(() => deriveRootId(eventId, sourceEvent), [eventId, sourceEvent])
+
+  const rootEventResolved = useMemo(() => {
+    return allEvents.find(e => e.id === rootId) || (sourceEvent?.id === rootId ? sourceEvent : undefined)
+  }, [allEvents, rootId, sourceEvent])
+
+  const rootPubkey = rootEventResolved?.pubkey || ''
 
   useEffect(() => {
     let sub: { close: () => void } | undefined
@@ -49,9 +70,12 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       console.log('[Thread] Fetching events for ID:', eventId)
       setIsLoading(true)
       
+      const eTagIds = getETags(sourceEvent).map(t => t[1]).filter(Boolean)
+      const ids = Array.from(new Set([rootId, eventId, ...eTagIds]))
+
       sub = await nostrService.subscribe(
         [
-          { ids: [rootId, eventId] },
+          { ids },
           { kinds: [1], '#e': [rootId] },
           { kinds: [1], '#e': [eventId] }
         ],
@@ -90,7 +114,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       if (timeoutId) clearTimeout(timeoutId)
       sub?.close()
     }
-  }, [eventId, rootId, addEvent])
+  }, [eventId, rootId, addEvent, sourceEvent])
 
   const handleReply = async () => {
     console.log('[Thread] handleReply initiated')
@@ -110,7 +134,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     try {
       const now = Math.floor(Date.now() / 1000)
       const parentId = eventId
-      const parentPubkey = allEvents.find(e => e.id === parentId)?.pubkey || rootEvent?.pubkey || ''
+      const parentPubkey = allEvents.find(e => e.id === parentId)?.pubkey || rootEventResolved?.pubkey || ''
       
       const tags: string[][] = [
         ['e', rootId, '', 'root'],
@@ -124,7 +148,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       pTags.forEach(pubkey => tags.push(['p', pubkey]))
 
       // Inherit community context if present
-      const communityTag = rootEvent?.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
+      const communityTag = rootEventResolved?.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
       if (communityTag) {
         console.log('[Thread] Inheriting community tag:', communityTag[1])
         tags.push(communityTag)
@@ -179,11 +203,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
     allEvents.forEach(event => {
       const eTags = event.tags.filter(t => t[0] === 'e')
-      // NIP-10: 'reply' marker or last 'e' tag
-      const replyTag = eTags.find(t => t[3] === 'reply') || (eTags.length > 1 ? eTags[eTags.length - 1] : null)
-      const rootTag = eTags.find(t => t[3] === 'root') || (eTags.length > 0 ? eTags[0] : null)
-      
-      const parentId = replyTag ? replyTag[1] : (rootTag && rootTag[1] !== event.id ? rootTag[1] : null)
+      const parentId = deriveParentId(event)
       
       if (parentId && nodes[parentId] && parentId !== event.id) {
         nodes[parentId].replies.push(nodes[event.id])

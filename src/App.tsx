@@ -8,6 +8,7 @@ import type { Event, Filter } from 'nostr-tools'
 import { Post } from './components/Post'
 import { useTrendingTags } from './hooks/useTrendingTags'
 import { RelayList } from './components/RelayList'
+import { MediaServers } from './components/MediaServers'
 import { SwipeStack } from './components/SwipeStack'
 import { Communities } from './components/Communities'
 import { Thread } from './components/Thread'
@@ -199,6 +200,8 @@ function App() {
         return <Search />
       case 'relays':
         return <RelayList />
+      case 'mediaservers':
+        return <MediaServers />
       case 'profile':
         return <ProfileEditor />
       default:

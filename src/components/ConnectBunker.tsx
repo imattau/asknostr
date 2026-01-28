@@ -14,8 +14,6 @@ export const ConnectBunker: React.FC = () => {
   
   // Client-Initiated Flow (NIP-46)
   const [generatedUri, setGeneratedUri] = useState<string>('')
-  const [generatedRelay, setGeneratedRelay] = useState<string>('')
-  const [generatedSecret, setGeneratedSecret] = useState<string>('')
   const generatedRelayRef = useRef<string>('')
   const generatedSecretRef = useRef<string>('')
   
@@ -29,8 +27,6 @@ export const ConnectBunker: React.FC = () => {
     // Use a high-availability relay for the handshake
     const relay = 'wss://relay.damus.io' 
     const secret = Math.random().toString(36).substring(2, 15)
-    setGeneratedRelay(relay)
-    setGeneratedSecret(secret)
     generatedRelayRef.current = relay
     generatedSecretRef.current = secret
     

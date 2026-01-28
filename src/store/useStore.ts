@@ -13,6 +13,20 @@ export interface UserProfile {
   nip05?: string
 }
 
+export type MediaServerType = 'blossom' | 'generic'
+
+export interface MediaServer {
+  id: string
+  url: string
+  type: MediaServerType
+}
+
+const DEFAULT_MEDIA_SERVERS: MediaServer[] = [
+  { id: 'blossom-nostr-wine', url: 'https://blossom.nostr.wine', type: 'blossom' },
+  { id: 'blossom-primal', url: 'https://blossom.primal.net', type: 'blossom' },
+  { id: 'media-nostr-build', url: 'https://nostr.build', type: 'generic' },
+]
+
 const MAX_EVENTS = 2000
 
 interface NostrState {
@@ -20,6 +34,7 @@ interface NostrState {
   optimisticReactions: Record<string, Record<string, string[]>> // eventId -> { emoji -> pubkeys[] }
   optimisticApprovals: string[]
   relays: string[]
+  mediaServers: MediaServer[]
   isConnected: boolean
   loginMethod: 'nip07' | 'nip46' | null
   remoteSigner: {
@@ -36,6 +51,9 @@ interface NostrState {
   addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => void
   addOptimisticApproval: (eventId: string) => void
   setRelays: (relays: string[]) => void
+  setMediaServers: (servers: MediaServer[]) => void
+  addMediaServer: (server: MediaServer) => void
+  removeMediaServer: (id: string) => void
   setConnected: (connected: boolean) => void
   setUser: (pubkey: string | null) => void
   setProfile: (profile: UserProfile) => void
@@ -61,6 +79,7 @@ export const useStore = create<NostrState>()(
       optimisticReactions: {},
       optimisticApprovals: [],
       relays: [],
+      mediaServers: DEFAULT_MEDIA_SERVERS,
       isConnected: false,
       loginMethod: null,
       remoteSigner: {
@@ -101,6 +120,15 @@ export const useStore = create<NostrState>()(
         return { optimisticApprovals: [...state.optimisticApprovals, eventId] }
       }),
       setRelays: (relays) => set({ relays }),
+      setMediaServers: (mediaServers) => set({ mediaServers }),
+      addMediaServer: (server) => set((state) => ({
+        mediaServers: state.mediaServers.find(s => s.id === server.id || s.url === server.url)
+          ? state.mediaServers
+          : [...state.mediaServers, server]
+      })),
+      removeMediaServer: (id) => set((state) => ({
+        mediaServers: state.mediaServers.filter(server => server.id !== id)
+      })),
       setConnected: (connected) => set({ isConnected: connected }),
       setUser: (pubkey) => set((state) => ({ user: { ...state.user, pubkey } })),
       setProfile: (profile) => set((state) => ({ user: { ...state.user, profile } })),
@@ -137,6 +165,7 @@ export const useStore = create<NostrState>()(
       partialize: (state) => ({ 
         user: state.user, 
         relays: state.relays, 
+        mediaServers: state.mediaServers,
         loginMethod: state.loginMethod,
         remoteSigner: state.remoteSigner
       }),

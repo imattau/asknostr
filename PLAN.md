@@ -40,6 +40,7 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [ ] Threading Fixes: Derive true root IDs (NIP-10), fetch full thread, and correct OP labeling
 - [ ] Reply Tagging: Always include root+reply markers for direct replies
 - [ ] Thread State Hygiene: Clear thread state on navigation and use EOSE/timeout to end loading
+- [ ] Media Servers: Add system menu entry for managing media/blossom servers with sane defaults and saved list
 
 ## Engagement & Ranking Logic
 - [x] Sorting Algorithms: Implement "Hot" (time-decay), "Top", and "New" filters
