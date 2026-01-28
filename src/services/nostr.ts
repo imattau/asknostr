@@ -167,7 +167,6 @@ class NostrService {
               eosed = true
               console.log('[Nostr] Subscription EOSE')
               onEose()
-              subscription.close()
             },
             onclose: (reasons: string[]) => {
               console.log('[Nostr] Subscription closed:', reasons)
