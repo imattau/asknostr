@@ -1,50 +1,44 @@
 import { useQuery } from '@tanstack/react-query'
+import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import type { CommunityDefinition } from './useCommunity'
+import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useGlobalDiscovery = () => {
+  const { events } = useStore()
+
   return useQuery({
-    queryKey: ['global-community-discovery'],
+    queryKey: ['global-community-discovery', events.length],
     queryFn: async () => {
+      console.log('[Discovery] Initiating network scan for Kind 34550...')
+      
+      // 1. Check local store first
+      const localDiscovered: CommunityDefinition[] = events
+        .filter(e => e.kind === 34550)
+        .map(e => parseCommunityEvent(e))
+        .filter((c): c is CommunityDefinition => !!c)
+
       return new Promise<CommunityDefinition[]>((resolve) => {
-        const discovered: CommunityDefinition[] = []
+        const discovered = [...localDiscovered]
         
         nostrService.subscribe(
-          [{ kinds: [34550], limit: 50 }],
+          [{ kinds: [34550], limit: 100 }],
           (event: Event) => {
-            const dTag = event.tags.find(t => t[0] === 'd')?.[1]
-            if (!dTag) return
-
-            const moderators = event.tags.filter(t => t[0] === 'p').map(t => t[1])
-            const relays = event.tags.filter(t => t[0] === 'relay').map(t => t[1])
-            const name = event.tags.find(t => t[0] === 'name')?.[1]
-            const description = event.tags.find(t => t[0] === 'description')?.[1]
-            const image = event.tags.find(t => t[0] === 'image')?.[1]
-
-            const definition: CommunityDefinition = {
-              id: dTag,
-              name,
-              description,
-              image,
-              moderators,
-              relays,
-              pinned: event.tags.filter(t => t[0] === 'e').map(t => t[1]),
-              creator: event.pubkey
-            }
-
-            if (!discovered.find(s => s.id === definition.id && s.creator === definition.creator)) {
+            const definition = parseCommunityEvent(event)
+            if (definition && !discovered.find(s => s.id === definition.id && s.creator === definition.creator)) {
               discovered.push(definition)
             }
-          }
+          },
+          nostrService.getDiscoveryRelays()
         ).then(sub => {
           setTimeout(() => {
             sub.close()
             resolve(discovered)
-          }, 3000)
+          }, 6000)
         })
       })
     },
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 5,
   })
 }

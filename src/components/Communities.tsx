@@ -1,14 +1,15 @@
 import React from 'react'
 import { useUiStore } from '../store/useUiStore'
-import { Hash, Users, TrendingUp, Shield, Star, Plus, Zap } from 'lucide-react'
+import { Hash, Users, TrendingUp, Shield, Star, Plus, Zap, Search as SearchIcon, Globe } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useFollowerSuggestions } from '../hooks/useFollowerSuggestions'
 import { useTrendingCommunities } from '../hooks/useTrendingCommunities'
 import { useGlobalDiscovery } from '../hooks/useGlobalDiscovery'
 import { useMyCommunities } from '../hooks/useMyCommunities'
+import { useHandlers } from '../hooks/useHandlers'
 import { formatPubkey, shortenPubkey } from '../utils/nostr'
+import type { CommunityDefinition } from '../hooks/useCommunity'
 
-// Example communities with their creator pubkeys (placeholders)
 const SUGGESTED_COMMUNITIES = [
   { id: 'nostr', title: 'Nostr General', description: 'The global town square', creator: '82341f882b6eabcd2baed10abc274e1744161f3647b2c019904d9e262973752e' },
   { id: 'asknostr', title: 'AskNostr', description: 'Q&A for the protocol', creator: '82341f882b6eabcd2baed10abc274e1744161f3647b2c019904d9e262973752e' },
@@ -22,6 +23,9 @@ export const Communities: React.FC = () => {
   const { data: trending = [] } = useTrendingCommunities()
   const { data: globalNodes = [], isLoading: isGlobalLoading } = useGlobalDiscovery()
   const { data: myNodes = [] } = useMyCommunities()
+  const { data: handlers = [] } = useHandlers([1, 34550])
+
+  console.log('[CommunitiesUI] myNodes:', myNodes.length, 'globalNodes:', globalNodes.length)
 
   const selectCommunity = (id: string, creator: string) => {
     pushLayer({
@@ -34,13 +38,14 @@ export const Communities: React.FC = () => {
 
   return (
     <div className="p-4 space-y-6">
+      {/* 1. Admin Section */}
       {myNodes.length > 0 && (
         <section>
           <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
             <Shield size={14} className="text-cyan-400" /> My_Administered_Stations
           </h3>
           <div className="grid gap-2">
-            {myNodes.map((s) => (
+            {myNodes.map((s: CommunityDefinition) => (
               <button
                 key={`${s.creator}:${s.id}`}
                 onClick={() => selectCommunity(s.id, s.creator)}
@@ -57,6 +62,7 @@ export const Communities: React.FC = () => {
         </section>
       )}
 
+      {/* 2. Subscribed Section */}
       {subscribedCommunities.length > 0 && (
         <section>
           <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
@@ -73,9 +79,12 @@ export const Communities: React.FC = () => {
                   onClick={() => selectCommunity(id, pubkey)}
                   className="terminal-border p-3 text-left glassmorphism border-yellow-500/20 hover:bg-yellow-500/10 transition-colors group flex justify-between items-center"
                 >
-                  <span className="text-slate-50 font-bold flex items-center gap-1">
-                    <Hash size={14} className="text-yellow-500" /> {id}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+                      <Hash size={14} className="text-yellow-500" />
+                    </div>
+                    <span className="text-slate-50 font-bold">{id}</span>
+                  </div>
                   <span className="text-[9px] text-slate-500 font-mono">REF://{kind}</span>
                 </button>
               )
@@ -84,6 +93,7 @@ export const Communities: React.FC = () => {
         </section>
       )}
 
+      {/* 3. Trending Section */}
       {trending.length > 0 && (
         <section>
           <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
@@ -110,6 +120,42 @@ export const Communities: React.FC = () => {
         </section>
       )}
 
+      {/* 4. Handlers Section */}
+      {handlers.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
+            <Globe size={14} className="text-cyan-500" /> Specialized_Network_Apps
+          </h3>
+          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+            {handlers.map((h) => (
+              <a
+                key={h.id}
+                href={h.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 w-48 terminal-border p-4 glassmorphism border-slate-800 hover:border-cyan-500/30 transition-all flex flex-col items-center text-center"
+              >
+                <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 overflow-hidden mb-3 flex items-center justify-center">
+                  {h.image ? (
+                    <img src={h.image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Globe size={24} className="text-cyan-500/50" />
+                  )}
+                </div>
+                <span className="text-[10px] font-bold text-slate-50 uppercase tracking-tighter mb-1 line-clamp-1">{h.name || h.id}</span>
+                <p className="text-[8px] text-slate-500 line-clamp-2 italic h-6">{h.about || 'No app description.'}</p>
+                <div className="mt-3 flex gap-1">
+                  {h.kTags.slice(0, 3).map(k => (
+                    <span key={k} className="text-[7px] bg-cyan-500/10 text-cyan-500 px-1 rounded border border-cyan-500/20">K:{k}</span>
+                  ))}
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 5. Trust Suggestions */}
       {suggestions.length > 0 && (
         <section>
           <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
@@ -135,11 +181,25 @@ export const Communities: React.FC = () => {
         </section>
       )}
 
+      {/* 6. Discovery Nodes */}
       <section>
         <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
           <TrendingUp size={14} /> Discovery_Nodes
         </h3>
         <div className="grid gap-2">
+          <button
+            onClick={() => pushLayer({ id: 'search-global', type: 'search', title: 'Global_Search' })}
+            className="terminal-border p-4 text-left bg-cyan-500/10 border-cyan-500/30 hover:bg-cyan-500/20 transition-all group flex items-center justify-between"
+          >
+            <div>
+              <span className="text-cyan-400 font-bold flex items-center gap-1 uppercase tracking-tighter">
+                <SearchIcon size={16} /> Global_Network_Query
+              </span>
+              <p className="text-[10px] opacity-50 uppercase mt-1">Search keywords, hashtags, and verified IDs</p>
+            </div>
+            <Zap size={20} className="text-cyan-500 opacity-30 group-hover:opacity-100 transition-opacity" />
+          </button>
+
           <button
             onClick={() => pushLayer({ id: 'create-community', type: 'createcommunity', title: 'Station_Setup' })}
             className="terminal-border p-4 text-left bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20 transition-all group flex items-center justify-between"
@@ -182,7 +242,6 @@ export const Communities: React.FC = () => {
             </button>
           ))}
 
-          {/* Fallback to suggestions if global discovery fails or is empty */}
           {globalNodes.length === 0 && !isGlobalLoading && SUGGESTED_COMMUNITIES.map((c) => (
             <button
               key={c.id}
@@ -198,38 +257,6 @@ export const Communities: React.FC = () => {
               <p className="text-[10px] text-slate-500">{c.description}</p>
             </button>
           ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
-          <Shield size={14} /> System_Menu
-        </h3>
-        <div className="grid gap-2 text-sm uppercase font-bold">
-          <button 
-            onClick={() => pushLayer({ id: 'profile-editor', type: 'profile', title: 'Identity_Config' })}
-            className="terminal-border p-3 text-left hover:bg-white/5 transition-all"
-          >
-            [0] Profile_Editor
-          </button>
-          <button 
-            onClick={() => pushLayer({ id: 'relays-config', type: 'relays', title: 'Node_Network' })}
-            className="terminal-border p-3 text-left hover:bg-white/5 transition-all"
-          >
-            [1] Relay_Configuration
-          </button>
-          <button 
-            onClick={() => {
-              if (window.confirm('Terminate session and disconnect from local nodes?')) {
-                const { logout } = useStore.getState();
-                logout();
-                triggerHaptic(50);
-              }
-            }}
-            className="terminal-border p-3 text-left hover:bg-red-500/10 text-red-500/70 hover:text-red-500 transition-all"
-          >
-            [2] System_Logout
-          </button>
         </div>
       </section>
     </div>

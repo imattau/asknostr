@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ViewType = 'feed' | 'thread' | 'relays' | 'profile' | 'communities' | 'community' | 'modqueue' | 'modlog' | 'createcommunity' | 'communityadmin'
+export type ViewType = 'feed' | 'thread' | 'relays' | 'profile' | 'communities' | 'community' | 'modqueue' | 'modlog' | 'createcommunity' | 'communityadmin' | 'search' | 'claimstation' | 'sidebar' | 'connectbunker'
 
 export interface Layer {
   id: string
@@ -23,14 +23,14 @@ interface UiState {
 export const useUiStore = create<UiState>((set) => ({
   theme: 'terminal',
   layout: 'swipe',
-  stack: [{ id: 'root', type: 'communities', title: 'Communities' }],
+  // Start with Global Feed as the default active layer
+  stack: [{ id: 'root-feed', type: 'feed', title: 'Global_Feed' }],
   setTheme: (theme) => set({ theme }),
   setLayout: (layout) => set({ layout }),
-  pushLayer: (layer) => set((state) => ({ 
-    stack: [...state.stack, layer] 
-  })),
+  pushLayer: (layer) => set((state) => ({ stack: [...state.stack, layer] })),
   popLayer: () => set((state) => ({ 
-    stack: state.stack.length > 1 ? state.stack.slice(0, -1) : state.stack 
+    // Allow stack to go empty so implicit Sidebar becomes the only layer visible
+    stack: state.stack.slice(0, -1) 
   })),
   resetStack: (layer) => set({ stack: [layer] }),
 }))

@@ -3,12 +3,14 @@ import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
-import { Shield, Info, Filter, RefreshCw, ListFilter, ListChecks, Pin, Settings } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, ListFilter, ListChecks, Pin, Settings, Hammer } from 'lucide-react'
 import { nostrService } from '../services/nostr'
+import { signerService } from '../services/signer'
 import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
 import { useDeletions } from '../hooks/useDeletions'
 import { useSubscriptions } from '../hooks/useSubscriptions'
+import type { Event } from 'nostr-tools'
 
 interface CommunityFeedProps {
   communityId: string
@@ -17,26 +19,45 @@ interface CommunityFeedProps {
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creator }) => {
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
-  const { events, user } = useStore()
+  const { events, user, addEvent } = useStore()
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const { pushLayer } = useUiStore()
-    const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
-    const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
-    const communityATag = `34550:${creator}:${communityId}`
+  const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
+  const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
+  
+  const communityATag = `34550:${creator}:${communityId}`
+
+  // Dedicated Community Post Fetching
+  useEffect(() => {
+    let sub: { close: () => void } | undefined
     
-    const isSubscribed = optimisticSub !== null ? optimisticSub : subscribedCommunities.includes(communityATag)
-  
-    const handleToggle = () => {
-      const nextState = !isSubscribed
-      setOptimisticSub(nextState)
-      toggleSubscription(communityATag)
-      // Revert optimistic state after 5 seconds if not synced, or let the hook handle it
-      setTimeout(() => setOptimisticSub(null), 5000)
+    const fetchCommunityPosts = async () => {
+      sub = await nostrService.subscribe(
+        [{ kinds: [1, 4550], '#a': [communityATag], limit: 100 }],
+        (event: Event) => {
+          addEvent(event)
+        },
+        community?.relays
+      )
     }
-  
+
+    fetchCommunityPosts()
+    return () => {
+      sub?.close()
+    }
+  }, [communityATag, community?.relays, addEvent])
+
+  const isSubscribed = optimisticSub !== null ? optimisticSub : subscribedCommunities.includes(communityATag)
+
+  const handleToggle = () => {
+    const nextState = !isSubscribed
+    setOptimisticSub(nextState)
+    toggleSubscription(communityATag)
+    setTimeout(() => setOptimisticSub(null), 5000)
+  }
 
   const communityEvents = events.filter(e => 
     e.tags.some(t => t[0] === 'a' && t[1] === communityATag) ||
@@ -48,14 +69,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
   const { data: deletedIds = [] } = useDeletions(eventIds)
 
-  // Advanced Status Logic: Group approvals by event ID and find the latest one
   const eventStatusMap = useMemo(() => {
     const map: Record<string, string> = {}
     approvals.forEach(a => {
       const eTarget = a.tags.find(t => t[0] === 'e')?.[1]
       const status = a.tags.find(t => t[0] === 'status')?.[1] || 'approved'
       if (eTarget) {
-        // Only override if this approval is newer
         if (!map[eTarget] || a.created_at > (approvals.find(old => old.id === eTarget)?.created_at || 0)) {
           map[eTarget] = status
         }
@@ -73,6 +92,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   const isUserModerator = moderators.includes(user.pubkey || '') || creator === user.pubkey
   const isCreator = creator === user.pubkey
+  const isUnmoderated = moderators.length === 0
 
   useEffect(() => {
     if (community?.relays && community.relays.length > 0) {
@@ -106,12 +126,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         content: postContent,
       }
 
-      const signedEvent = await window.nostr?.signEvent(eventTemplate)
-      if (signedEvent) {
-        await nostrService.publish(signedEvent)
-        setPostContent('')
-        triggerHaptic(20)
-      }
+      const signedEvent = await signerService.signEvent(eventTemplate)
+      await nostrService.publish(signedEvent)
+      setPostContent('')
+      triggerHaptic(20)
     } catch (e) {
       console.error('Failed to publish', e)
     } finally {
@@ -179,15 +197,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
           </p>
         )}
 
-        <div className="mt-6 flex items-center gap-4 border-t border-white/5 pt-4">
+        <div className="mt-6 flex items-center gap-4 border-t border-white/5 pt-4 overflow-x-auto custom-scrollbar">
           <button 
             onClick={() => setIsModeratedOnly(!isModeratedOnly)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-mono text-[10px] font-bold transition-all border ${isModeratedOnly ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-white/5 text-slate-500 border-white/5 hover:text-slate-300'}`}
+            className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg font-mono text-[10px] font-bold transition-all border ${isModeratedOnly ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-white/5 text-slate-500 border-white/5 hover:text-slate-300'}`}
           >
             <Filter size={14} /> {isModeratedOnly ? 'ACTIVE_MODERATION' : 'RAW_NETWORK_FEED'}
           </button>
 
-          <div className="flex bg-white/5 rounded-lg border border-white/5 p-0.5">
+          <div className="flex-shrink-0 flex bg-white/5 rounded-lg border border-white/5 p-0.5">
             {(['new', 'hot', 'top'] as const).map((s) => (
               <button
                 key={s}
@@ -207,7 +225,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
                 title: 'Moderator_Control_Panel',
                 params: { communityId, creator, moderators }
               })}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 font-mono text-[10px] font-bold hover:bg-red-500/20 transition-all ml-auto"
+              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 font-mono text-[10px] font-bold hover:bg-red-500/20 transition-all ml-auto"
             >
               <ListFilter size={14} /> ACCESS_MOD_QUEUE
             </button>
@@ -219,7 +237,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               title: 'Transparency_Log',
               params: { communityId, creator }
             })}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-slate-500 border border-white/5 font-mono text-[10px] font-bold hover:text-slate-300 transition-all ${!isUserModerator ? 'ml-auto' : ''}`}
+            className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-slate-500 border border-white/5 font-mono text-[10px] font-bold hover:text-slate-300 transition-all ${!isUserModerator ? 'ml-auto' : ''}`}
           >
             <ListChecks size={14} /> AUDIT_TRAIL
           </button>
@@ -231,9 +249,22 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
                 title: 'Station_Admin',
                 params: { communityId, creator }
               })}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono text-[10px] font-bold hover:bg-cyan-500/20 transition-all"
+              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono text-[10px] font-bold hover:bg-cyan-500/20 transition-all"
             >
               <Settings size={14} /> ADMIN_PANEL
+            </button>
+          )}
+          {isUnmoderated && community && (
+            <button 
+              onClick={() => pushLayer({ 
+                id: `claim-${communityId}`, 
+                type: 'claimstation',
+                title: 'Authority_Claim',
+                params: { community }
+              })}
+              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 font-mono text-[10px] font-bold hover:bg-orange-500/20 transition-all"
+            >
+              <Hammer size={14} /> CLAIM_AUTHORITY
             </button>
           )}
         </div>
@@ -250,7 +281,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               placeholder={`Share data with c/${communityId.toLowerCase()}...`}
             ></textarea>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-              <span className="text-[9px] font-mono text-slate-600 uppercase">Input_Mode: Secure_NIP07</span>
+              <span className="text-[9px] font-mono text-slate-600 uppercase">Input_Mode: Secure_Remote</span>
               <button 
                 onClick={handlePublish}
                 disabled={!user.pubkey || !postContent.trim() || isPublishing}

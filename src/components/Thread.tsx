@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import type { Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
+import { signerService } from '../services/signer'
 import { Post } from './Post'
 import { useStore } from '../store/useStore'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, RefreshCw } from 'lucide-react'
+import { triggerHaptic } from '../utils/haptics'
 
 interface ThreadProps {
   eventId: string
@@ -22,64 +24,108 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { addEvent, user } = useStore()
 
-  const handleReply = async () => {
-    if (!replyContent.trim() || !user.pubkey || !window.nostr) return
-    setIsSubmitting(true)
-    try {
-      const now = Math.floor(Date.now() / 1000)
-      const rootId = rootEvent?.id || eventId
-      
-      const eventTemplate = {
-        kind: 1,
-        created_at: now,
-        tags: [
-          ['e', rootId, '', 'root'],
-          ['e', eventId, '', 'reply'],
-          ['p', rootEvent?.pubkey || '']
-        ],
-        content: replyContent,
-      }
-
-      const signedEvent = await window.nostr.signEvent(eventTemplate)
-      await nostrService.publish(signedEvent)
-      setReplyContent('')
-      // Query will pick it up, or we add optimistically
-      setAllEvents(prev => [...prev, signedEvent])
-    } catch (e) {
-      console.error('Reply failed', e)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   useEffect(() => {
     let sub: { close: () => void } | undefined
 
     const fetchThread = async () => {
+      console.log('[Thread] Fetching events for ID:', eventId)
       setIsLoading(true)
+      
+      // We want direct replies to this event
+      // Also if we have a rootEvent, we might want all replies to the root to build a full tree
+      const rootId = rootEvent?.id || eventId
+
       sub = await nostrService.subscribe(
         [
-          { ids: [eventId] },
-          { kinds: [1], '#e': [eventId] }
+          { ids: [rootId, eventId] },
+          { kinds: [1], '#e': [rootId] }
         ],
         (event: Event) => {
+          console.log('[Thread] Event received:', event.id, 'kind:', event.kind)
           setAllEvents(prev => {
             if (prev.find(e => e.id === event.id)) return prev
-            return [...prev, event].sort((a, b) => a.created_at - b.created_at)
+            const next = [...prev, event].sort((a, b) => a.created_at - b.created_at)
+            return next
           })
           addEvent(event)
         }
       )
       
-      setTimeout(() => setIsLoading(false), 2500)
+      setTimeout(() => {
+        console.log(`[Thread] Fetch timeout reached. Total events:`, allEvents.length)
+        setIsLoading(false)
+      }, 3500)
     }
 
     fetchThread()
 
     return () => {
+      console.log('[Thread] Closing subscription')
       sub?.close()
     }
-  }, [eventId, addEvent])
+  }, [eventId, rootEvent, addEvent])
+
+  const handleReply = async () => {
+    console.log('[Thread] handleReply initiated')
+    if (!replyContent.trim()) {
+      console.warn('[Thread] Empty content, aborting')
+      return
+    }
+    if (!user.pubkey) {
+      console.warn('[Thread] No user pubkey, aborting')
+      alert('Login required to reply.')
+      return
+    }
+
+    setIsSubmitting(true)
+    triggerHaptic(10)
+
+    try {
+      const now = Math.floor(Date.now() / 1000)
+      const rootId = rootEvent?.id || eventId
+      
+      const tags: string[][] = [
+        ['e', rootId, '', 'root'],
+        ['p', rootEvent?.pubkey || '']
+      ]
+
+      // If this is a reply to a reply (not to the root)
+      if (eventId !== rootId) {
+        tags.push(['e', eventId, '', 'reply'])
+      }
+
+      // Inherit community context if present
+      const communityTag = rootEvent?.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
+      if (communityTag) {
+        console.log('[Thread] Inheriting community tag:', communityTag[1])
+        tags.push(communityTag)
+      }
+
+      const eventTemplate = {
+        kind: 1,
+        created_at: now,
+        tags,
+        content: replyContent,
+      }
+
+      console.log('[Thread] Requesting signature for template:', eventTemplate)
+      const signedEvent = await signerService.signEvent(eventTemplate)
+      console.log('[Thread] Event signed successfully:', signedEvent.id)
+      
+      await nostrService.publish(signedEvent)
+      console.log('[Thread] Broadcast success')
+
+      setReplyContent('')
+      setAllEvents(prev => [...prev, signedEvent])
+      addEvent(signedEvent)
+      triggerHaptic(50)
+    } catch (e) {
+      console.error('[Thread] Reply failed:', e)
+      alert(`Failed to transmit reply: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const threadTree = useMemo(() => {
     const nodes: Record<string, ThreadNode> = {}
@@ -91,13 +137,20 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
     allEvents.forEach(event => {
       const eTags = event.tags.filter(t => t[0] === 'e')
-      const parentId = eTags.length > 0 ? eTags[eTags.length - 1][1] : null
+      // NIP-10: 'reply' marker or last 'e' tag
+      const replyTag = eTags.find(t => t[3] === 'reply') || (eTags.length > 1 ? eTags[eTags.length - 1] : null)
+      const rootTag = eTags.find(t => t[3] === 'root') || (eTags.length > 0 ? eTags[0] : null)
+      
+      const parentId = replyTag ? replyTag[1] : (rootTag && rootTag[1] !== event.id ? rootTag[1] : null)
       
       if (parentId && nodes[parentId] && parentId !== event.id) {
         nodes[parentId].replies.push(nodes[event.id])
-      } else if (event.id === eventId || !parentId) {
-        if (!roots.find(r => r.event.id === event.id)) {
-          roots.push(nodes[event.id])
+      } else {
+        // If no parent or parent not found, and it's either the requested event or has no e-tags
+        if (event.id === eventId || (eTags.length === 0)) {
+          if (!roots.find(r => r.event.id === event.id)) {
+            roots.push(nodes[event.id])
+          }
         }
       }
     })
@@ -114,32 +167,35 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
           opPubkey={rootEvent?.pubkey || threadTree[0]?.event.pubkey} 
         />
         {node.replies.length > 0 && (
-          <div className="space-y-4 border-l-2 border-slate-800 ml-4 pl-4">
-            {node.replies.map(reply => renderNode(reply, depth + 1))}
+          <div className="space-y-4 border-l-2 border-slate-800 ml-4 pl-4 mt-4">
+            {node.replies.sort((a,b) => a.event.created_at - b.event.created_at).map(reply => renderNode(reply, depth + 1))}
           </div>
         )}
       </div>
     )
   }
 
-  const mainNode = threadTree.find(n => n.event.id === eventId)
+  // Fallback if mainNode not found but we have events
+  const displayNodes = useMemo(() => {
+    const main = threadTree.find(n => n.event.id === eventId)
+    if (main) return [main]
+    // Show all roots if specific ID not found yet
+    return threadTree
+  }, [threadTree, eventId])
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 pb-32">
       {isLoading && allEvents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 opacity-20">
-          <div className="w-12 h-12 border-2 border-dashed border-purple-500 rounded-full mb-4 animate-spin-slow" />
+          <RefreshCw size={32} className="animate-spin text-purple-500 mb-4" />
           <span className="font-mono text-[10px] uppercase">Tracing_Thread_Tree</span>
         </div>
-      ) : mainNode ? (
-        renderNode(mainNode)
       ) : (
         <div className="space-y-6">
-          {threadTree.map(node => renderNode(node))}
+          {displayNodes.map(node => renderNode(node))}
         </div>
       )}
       
-      {/* Quick Reply Box */}
       <section className="glassmorphism p-4 rounded-xl border-purple-500/20 bg-purple-500/5 mt-8">
         <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-400 uppercase mb-3 tracking-widest">
           <MessageSquare size={14} /> Append_To_Thread

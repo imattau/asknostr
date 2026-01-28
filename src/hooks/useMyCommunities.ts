@@ -3,54 +3,47 @@ import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import type { CommunityDefinition } from './useCommunity'
+import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useMyCommunities = () => {
-  const { user } = useStore()
+  const { user, events } = useStore()
 
   return useQuery({
-    queryKey: ['my-communities', user.pubkey],
+    queryKey: ['my-communities', user.pubkey, events.length],
     queryFn: async () => {
       if (!user.pubkey) return []
+      console.log('[MyCommunities] Scanning for owned stations for:', user.pubkey)
       
+      // 1. Check local store first for instant results
+      const localOwned: CommunityDefinition[] = events
+        .filter(e => e.kind === 34550 && e.pubkey === user.pubkey)
+        .map(e => parseCommunityEvent(e))
+        .filter((c): c is CommunityDefinition => !!c)
+
       return new Promise<CommunityDefinition[]>((resolve) => {
-        const owned: CommunityDefinition[] = []
+        const owned = [...localOwned]
         
         nostrService.subscribe(
-          [{ kinds: [34550], authors: [user.pubkey as string] }],
+          [
+            { kinds: [34550], authors: [user.pubkey as string] },
+            { kinds: [34550], '#p': [user.pubkey as string] }
+          ],
           (event: Event) => {
-            const dTag = event.tags.find(t => t[0] === 'd')?.[1]
-            if (!dTag) return
-
-            const moderators = event.tags.filter(t => t[0] === 'p').map(t => t[1])
-            const relays = event.tags.filter(t => t[0] === 'relay').map(t => t[1])
-            const name = event.tags.find(t => t[0] === 'name')?.[1]
-            const description = event.tags.find(t => t[0] === 'description')?.[1]
-            const image = event.tags.find(t => t[0] === 'image')?.[1]
-
-            const definition: CommunityDefinition = {
-              id: dTag,
-              name,
-              description,
-              image,
-              moderators,
-              relays,
-              pinned: event.tags.filter(t => t[0] === 'e').map(t => t[1]),
-              creator: event.pubkey
-            }
-
-            if (!owned.find(s => s.id === definition.id)) {
+            const definition = parseCommunityEvent(event)
+            if (definition && !owned.find(s => s.id === definition.id)) {
               owned.push(definition)
             }
-          }
+          },
+          nostrService.getDiscoveryRelays()
         ).then(sub => {
           setTimeout(() => {
             sub.close()
             resolve(owned)
-          }, 2000)
+          }, 3000)
         })
       })
     },
     enabled: !!user.pubkey,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds
   })
 }

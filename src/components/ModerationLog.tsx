@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import type { Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
-import { Shield, Clock } from 'lucide-react'
+import { useStore } from '../store/useStore'
+import { Shield, Clock, AlertTriangle, CheckCircle, Trash2, User } from 'lucide-react'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 
 interface ModerationLogProps {
@@ -10,71 +11,144 @@ interface ModerationLogProps {
 }
 
 export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creator }) => {
-  const [approvals, setApprovals] = useState<Event[]>([])
+  const { events } = useStore()
+  const [networkEvents, setNetworkEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  const communityATag = `34550:${creator}:${communityId}`
 
   useEffect(() => {
     let sub: { close: () => void } | undefined
-    const communityATag = `34550:${creator}:${communityId}`
 
     const fetchLog = async () => {
       setIsLoading(true)
+      // Fetch Kind 4550 (Approvals) and Kind 1984 (Reports)
       sub = await nostrService.subscribe(
-        [{ kinds: [4550], '#a': [communityATag], limit: 50 }],
+        [
+          { kinds: [4550, 1984], '#a': [communityATag], limit: 100 },
+          { kinds: [1984], '#e': events.filter(e => e.tags.some(t => t[0] === 'a' && t[1] === communityATag)).map(e => e.id), limit: 50 }
+        ],
         (event: Event) => {
-          setApprovals(prev => {
+          setNetworkEvents(prev => {
             if (prev.find(e => e.id === event.id)) return prev
-            return [event, ...prev].sort((a, b) => b.created_at - a.created_at)
+            return [event, ...prev]
           })
         }
       )
-      setTimeout(() => setIsLoading(false), 2000)
+      setTimeout(() => setIsLoading(false), 3000)
     }
 
     fetchLog()
     return () => sub?.close()
-  }, [communityId, creator])
+  }, [communityATag, events])
+
+  // Merge local and network events
+  const allModEvents = React.useMemo(() => {
+    const localModEvents = events.filter(e => 
+      (e.kind === 4550 || e.kind === 1984) && 
+      e.tags.some(t => t[0] === 'a' && t[1] === communityATag)
+    )
+
+    const combined = [...new Map([...networkEvents, ...localModEvents].map(e => [e.id, e])).values()]
+    return combined.sort((a, b) => b.created_at - a.created_at)
+  }, [networkEvents, events, communityATag])
+
+  const renderLogEntry = (log: Event) => {
+    const targetId = log.tags.find(t => t[0] === 'e')?.[1]
+    const targetAuthor = log.tags.find(t => t[0] === 'p')?.[1]
+    
+    if (log.kind === 4550) {
+      const status = log.tags.find(t => t[0] === 'status')?.[1] || 'approved'
+      const isNegative = status === 'spam' || status === 'rejected'
+      
+      return (
+        <div key={log.id} className={`glassmorphism p-4 text-[10px] font-mono border-l-2 ${isNegative ? 'border-l-red-500 bg-red-500/5' : 'border-l-green-500 bg-green-500/5'}`}>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2">
+              {isNegative ? <Trash2 size={14} className="text-red-500" /> : <CheckCircle size={14} className="text-green-500" />}
+              <span className={`font-bold uppercase ${isNegative ? 'text-red-500' : 'text-green-500'}`}>
+                MODERATION_{status.toUpperCase()}
+              </span>
+            </div>
+            <span className="opacity-50 flex items-center gap-1"><Clock size={10} /> {formatDate(log.created_at)}</span>
+          </div>
+          <div className="space-y-1 opacity-70">
+            <div className="flex items-center gap-2">
+              <User size={10} />
+              <span>MODERATOR: {shortenPubkey(formatPubkey(log.pubkey))}</span>
+            </div>
+            <p className="pl-4 border-l border-white/5">TARGET_ID: {targetId || 'UNKNOWN'}</p>
+            {targetAuthor && <p className="pl-4 border-l border-white/5">AUTHOR: {shortenPubkey(formatPubkey(targetAuthor))}</p>}
+          </div>
+          {log.content && <p className="mt-3 p-2 bg-black/20 rounded italic text-slate-400">"{log.content}"</p>}
+        </div>
+      )
+    }
+
+    if (log.kind === 1984) {
+      return (
+        <div key={log.id} className="glassmorphism p-4 text-[10px] font-mono border-l-2 border-l-orange-500 bg-orange-500/5">
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2 text-orange-500">
+              <AlertTriangle size={14} />
+              <span className="font-bold uppercase">REPORT_LOGGED</span>
+            </div>
+            <span className="opacity-50 flex items-center gap-1"><Clock size={10} /> {formatDate(log.created_at)}</span>
+          </div>
+          <div className="space-y-1 opacity-70">
+            <span>REPORTER: {shortenPubkey(formatPubkey(log.pubkey))}</span>
+            <p className="pl-4 border-l border-white/5">TARGET_ID: {targetId || 'UNKNOWN'}</p>
+          </div>
+          {log.content && <p className="mt-3 p-2 bg-black/20 rounded italic text-orange-400/70">REASON: "{log.content}"</p>}
+        </div>
+      )
+    }
+
+    return null
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <header className="flex items-center justify-between border-b border-[#00ff41]/20 pb-2">
-        <h3 className="text-xs font-bold uppercase text-[#00ff41] flex items-center gap-2">
-          <Shield size={14} /> Audit_Trail: {communityId}
+    <div className="p-6 space-y-6">
+      <header className="terminal-border p-4 bg-slate-900/50 border-slate-800">
+        <h3 className="text-sm font-black uppercase text-slate-50 flex items-center gap-3">
+          <Shield size={20} className="text-cyan-500" /> Audit_Trail: {communityId}
         </h3>
-        {isLoading && <Clock size={12} className="animate-spin text-[#00ff41]/50" />}
+        <p className="text-[10px] opacity-50 uppercase mt-1 font-mono tracking-widest">
+          Transparent record of all administrative actions and network reports
+        </p>
       </header>
 
-      {approvals.length === 0 && !isLoading ? (
-        <div className="p-8 text-center opacity-30 italic text-[10px]">
-          [NO_MODERATION_HISTORY_LOGGED]
+      {allModEvents.length === 0 && !isLoading ? (
+        <div className="py-20 text-center opacity-20 italic font-mono text-xs border border-dashed border-slate-800 rounded-xl">
+          [STATION_RECORDS_EMPTY_NO_ADMIN_ACTIONS_DETECTED]
         </div>
       ) : (
-        <div className="space-y-2">
-          {approvals.map(log => {
-            const targetId = log.tags.find(t => t[0] === 'e')?.[1]
-            const targetAuthor = log.tags.find(t => t[0] === 'p')?.[1]
-            
-            return (
-              <div key={log.id} className="glassmorphism p-3 text-[10px] font-mono border-slate-800">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="text-green-500 font-bold">EVENT_AUTHORIZED</span>
-                  <span className="opacity-50">{formatDate(log.created_at)}</span>
-                </div>
-                <div className="grid gap-1 opacity-70">
-                  <p>MODERATOR: {shortenPubkey(formatPubkey(log.pubkey))}</p>
-                  <p>TARGET_ID: {targetId?.slice(0, 16)}...</p>
-                  <p>TARGET_AUTHOR: {targetAuthor ? shortenPubkey(formatPubkey(targetAuthor)) : 'UNKNOWN'}</p>
-                </div>
-                {log.content && (
-                  <p className="mt-2 p-1 bg-white/5 border-l border-[#00ff41]/30 italic">
-                    "{log.content}"
-                  </p>
-                )}
-              </div>
-            )
-          })}
+        <div className="space-y-3">
+          {allModEvents.map(log => renderLogEntry(log))}
+          {isLoading && (
+            <div className="p-12 flex flex-col items-center justify-center space-y-3 opacity-50">
+              <RefreshCw size={24} className="animate-spin text-cyan-500" />
+              <span className="text-[9px] font-mono uppercase tracking-[0.2em]">Synchronizing_Archive...</span>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
+
+const RefreshCw = ({ size, className }: { size: number, className?: string }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+  </svg>
+)

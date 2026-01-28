@@ -9,31 +9,39 @@ export const useRelays = () => {
   return useQuery({
     queryKey: ['user-relays', user.pubkey],
     queryFn: async () => {
-      if (!user.pubkey) return DEFAULT_RELAYS
+      if (!user.pubkey) {
+        console.log('[RelaysHook] No pubkey, using defaults')
+        return DEFAULT_RELAYS
+      }
       
       const cacheKey = `relays-${user.pubkey}`
       const cached = await get(cacheKey)
-      console.log('[RelaysHook] Initial cached list:', cached)
+      console.log('[RelaysHook] Initial cached list:', cached?.length || 0, 'relays')
 
       try {
         const relays = await nostrService.fetchRelayList(user.pubkey)
         
         if (relays && relays.length > 0) {
-          console.log('[RelaysHook] Fetched fresh relays:', relays)
+          console.log('[RelaysHook] Fetched fresh relays:', relays.length)
           await set(cacheKey, relays)
           nostrService.setRelays(relays)
           setStoreRelays(relays)
           return relays
+        } else {
+          console.log('[RelaysHook] No relays found on network for this pubkey')
         }
       } catch (e) {
-        console.error('[RelaysHook] Fetch failed:', e)
+        console.error('[RelaysHook] Network fetch failed:', e)
       }
 
-      const finalRelays = cached || DEFAULT_RELAYS
-      console.log('[RelaysHook] Returning:', finalRelays)
-      return finalRelays
+      const result = cached || DEFAULT_RELAYS
+      console.log('[RelaysHook] Final relay list size:', result.length)
+      nostrService.setRelays(result)
+      setStoreRelays(result)
+      return result
     },
+
     enabled: !!user.pubkey,
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 15, // 15 mins
   })
 }

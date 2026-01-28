@@ -2,7 +2,8 @@ import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useUiStore } from '../store/useUiStore'
 import type { Layer } from '../store/useUiStore'
-import { ChevronLeft, MoreHorizontal } from 'lucide-react'
+import { Sidebar } from './Sidebar'
+import { triggerHaptic } from '../utils/haptics'
 
 interface SwipeStackProps {
   renderLayer: (layer: Layer) => React.ReactNode
@@ -10,78 +11,76 @@ interface SwipeStackProps {
 
 export const SwipeStack: React.FC<SwipeStackProps> = ({ renderLayer }) => {
   const { stack, popLayer } = useUiStore()
+
+  // Full stack including the implicit Sidebar at index 0
+  const fullStack = React.useMemo(() => [
+    { id: 'system-sidebar', type: 'sidebar' as const, title: 'System_Control' },
+    ...stack
+  ], [stack])
+
+  // Desktop Keyboard Navigation
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && stack.length > 0) {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '')) return
+        popLayer()
+        triggerHaptic(10)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [stack.length, popLayer])
   
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#05070A]">
-      {/* Peeking Header Scaffolding (scrolled-under hint) */}
-      <div className="absolute top-0 left-0 w-full h-14 border-b border-slate-800 bg-slate-950/50 flex items-center px-6 z-0">
-        {stack.length > 1 && (
-          <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest overflow-hidden">
-            <span className="truncate max-w-[150px]">{stack[stack.length - 2].title}</span>
-            <span className="text-purple-500">/</span>
-            <MoreHorizontal size={12} className="animate-pulse" />
-          </div>
-        )}
-      </div>
-
-      <AnimatePresence initial={false}>
-        {stack.map((layer, index) => {
-          const isTop = index === stack.length - 1
-          const isUnder = index === stack.length - 2
+    <div className="relative h-full w-full overflow-hidden bg-black">
+      <AnimatePresence mode="popLayout" initial={false}>
+        {fullStack.map((layer, index) => {
+          const isTop = index === fullStack.length - 1
+          const isUnder = index === fullStack.length - 2
           
           return (
             <motion.div
               key={layer.id}
-              initial={{ x: '100%' }}
+              initial={index === 0 ? false : { x: '100%' }}
               animate={{ 
-                x: isTop ? 0 : isUnder ? '-25%' : '-100%',
-                scale: isTop ? 1 : isUnder ? 0.96 : 0.9,
-                opacity: isTop ? 1 : isUnder ? 0.3 : 0,
-                filter: isTop ? 'blur(0px)' : 'blur(4px)'
+                x: isTop ? 0 : isUnder ? '-20%' : '-100%',
+                scale: isTop ? 1 : 0.95,
+                opacity: isTop ? 1 : 0.5,
+                zIndex: index
               }}
-              exit={{ x: '100%', transition: { type: 'spring', damping: 30, stiffness: 350 } }}
-              transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-              drag={index > 0 ? "x" : false}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              drag={isTop && index > 0 ? "x" : false}
               dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={{ left: 0, right: 0.5 }}
               onDragEnd={(_, info) => {
-                if (info.offset.x > 70) {
+                if (info.offset.x > 100) {
                   popLayer()
+                  triggerHaptic(30)
                 }
               }}
-              className={`absolute inset-0 w-full h-full bg-[#05070A] flex flex-col ${index > 0 ? 'shadow-[-20px_0_50px_rgba(0,0,0,0.5)] layer-border' : ''}`}
-              style={{ zIndex: index + 1 }}
+              className="absolute inset-0 bg-[#05070A] shadow-2xl overflow-hidden flex flex-col"
             >
-              {/* Modern Layer Header */}
-              <div className="flex items-center gap-4 p-4 h-16 border-b border-slate-800 bg-slate-950 shrink-0 relative overflow-hidden">
-                {/* Decorative accent for active layer */}
-                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-purple-500 to-magenta-500 opacity-50" />
-                
-                {index > 0 ? (
-                  <button onClick={popLayer} className="p-2 -ml-2 hover:bg-white/5 text-purple-500 rounded-lg transition-all active:scale-95">
-                    <ChevronLeft size={24} />
+              <header className="h-14 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md flex items-center px-4 gap-4 shrink-0">
+                {index > 0 && (
+                  <button 
+                    onClick={popLayer}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-tighter transition-colors"
+                  >
+                    [BACK]
                   </button>
-                ) : (
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-magenta-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
-                    <span className="font-mono font-bold">A</span>
-                  </div>
                 )}
-                
-                <div className="flex flex-col min-w-0">
-                  {index > 0 && (
-                    <span className="text-[9px] uppercase font-mono font-bold text-slate-500 leading-none mb-1 tracking-tighter truncate">
-                      root://{stack[index - 1].title.toLowerCase()}
-                    </span>
-                  )}
-                  <h2 className="text-base font-bold text-slate-50 leading-none truncate tracking-tight">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] truncate text-slate-400">
                     {layer.title}
                   </h2>
                 </div>
-              </div>
-              
-              {/* Content with subtle grid background */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#05070A] relative">
-                <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-                {renderLayer(layer)}
+                <div className="text-[8px] font-mono opacity-30 uppercase">
+                  L:{index}
+                </div>
+              </header>
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {layer.type === 'sidebar' ? <Sidebar /> : renderLayer(layer)}
               </div>
             </motion.div>
           )

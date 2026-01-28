@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
+import { signerService } from '../services/signer'
 import { Shield, Plus, Info, Globe, Image as ImageIcon, RefreshCw, Hash } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
@@ -22,6 +23,8 @@ type CommunityFormData = z.infer<typeof communitySchema>
 export const CommunityCreate: React.FC = () => {
   const { user } = useStore()
   const { popLayer } = useUiStore()
+  const [logs, setLogs] = useState<string[]>([])
+  
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<CommunityFormData>({
     resolver: zodResolver(communitySchema),
     defaultValues: {
@@ -30,23 +33,26 @@ export const CommunityCreate: React.FC = () => {
   })
 
   const watchImage = watch('image')
+  const addLog = (msg: string) => setLogs(prev => [...prev, `> ${msg}`])
 
   const onSubmit = async (data: CommunityFormData) => {
-    if (!user.pubkey || !window.nostr) {
+    if (!user.pubkey) {
       alert('Login required to initialize community node.')
       return
     }
 
     try {
+      addLog('INITIATING_BROADCAST_SEQUENCE...')
       const now = Math.floor(Date.now() / 1000)
       const relayList = data.relays.split(',').map(r => r.trim()).filter(r => r.startsWith('wss://'))
       
       const eventTemplate = {
         kind: 34550,
-        pubkey: user.pubkey,
         created_at: now,
         tags: [
           ['d', data.id],
+          ['a', `34550:${user.pubkey}:${data.id}`],
+          ['t', data.id],
           ['name', data.name],
           ['description', data.description],
           ...(data.rules ? [['rules', data.rules]] : []),
@@ -57,13 +63,31 @@ export const CommunityCreate: React.FC = () => {
         content: '',
       }
 
-      const signedEvent = await window.nostr.signEvent(eventTemplate)
+      const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
+      
+      // THE FIX: Add to local store immediately so it shows up without discovery lag
+      const { addEvent } = useStore.getState()
+      addEvent(signedEvent)
+
+      addLog('STATION_DEFINED: BROADCAST_SUCCESS')
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const qc = (window as any).queryClient
+      if (qc) {
+        setTimeout(() => {
+          qc.invalidateQueries({ queryKey: ['my-communities'] })
+          qc.invalidateQueries({ queryKey: ['global-community-discovery'] })
+          addLog('UI_STATE_SYNCHRONIZED')
+        }, 2000)
+      }
+
       triggerHaptic(50)
       alert(`Community station ${data.id} successfully initialized.`)
       popLayer()
     } catch (e) {
       console.error('Initialization failed', e)
+      addLog('CRITICAL_ERROR: BROADCAST_FAILED')
       alert('Failed to broadcast community definition.')
     }
   }
@@ -79,9 +103,15 @@ export const CommunityCreate: React.FC = () => {
         </p>
       </header>
 
+      {logs.length > 0 && (
+        <div className="bg-black border border-slate-800 rounded-lg p-3 font-mono text-[9px] text-purple-400/70 space-y-1">
+          {logs.map((l, i) => <p key={i}>{l}</p>)}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex items-center gap-6 p-4 glassmorphism rounded-xl border-slate-800">
-          <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-dashed border-slate-700 flex-shrink-0 overflow-hidden flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-dashed border-slate-700 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-lg shadow-purple-500/10">
             {watchImage ? (
               <img src={watchImage} alt="Preview" className="w-full h-full object-cover" />
             ) : (

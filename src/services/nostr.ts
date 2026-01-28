@@ -1,23 +1,39 @@
-import { SimplePool } from 'nostr-tools'
+import { SimplePool, utils } from 'nostr-tools'
 import type { Filter, Event } from 'nostr-tools'
+import { signerService } from './signer'
 
 export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
+  'wss://relay.primal.net',
   'wss://relay.snort.social',
   'wss://offchain.pub',
-  'wss://relay.nostr.band'
+  'wss://relay.nostr.band',
+  'wss://nostr.wine',
+  'wss://nostr.mom',
+  'wss://purplerelay.com'
+]
+
+export const DISCOVERY_RELAYS = [
+  ...DEFAULT_RELAYS,
+  'wss://purplepag.es',
+  'wss://relay.nostr.band',
+  'wss://relay.primal.net',
+  'wss://nostr.land'
+]
+
+export const SEARCH_RELAYS = [
+  'wss://relay.nostr.band',
+  'wss://nostr.wine',
+  'wss://search.nos.lol',
+  'wss://relay.noswhere.com'
 ]
 
 class NostrService {
   private pool: SimplePool
   private relays: string[]
-  private batchTimeout: number = 100
-  private pendingFilters: Filter[] = []
-  private pendingCallbacks: ((event: Event) => void)[] = []
-  private batchTimer: ReturnType<typeof setTimeout> | null = null
   private worker: Worker | null = null
-  private maxActiveRelays: number = 8
+  private maxActiveRelays: number = 20
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
@@ -32,8 +48,15 @@ class NostrService {
     return this.relays
   }
 
+  getDiscoveryRelays() {
+    return [...new Set([...this.relays, ...DISCOVERY_RELAYS])].slice(0, this.maxActiveRelays)
+  }
+
+  getSearchRelays() {
+    return [...new Set([...this.relays, ...SEARCH_RELAYS])].slice(0, this.maxActiveRelays)
+  }
+
   async addRelays(newRelays: string[]) {
-    // Limit total active relays for pooling optimization
     const combined = [...new Set([...this.relays, ...newRelays])]
     this.relays = combined.slice(0, this.maxActiveRelays)
   }
@@ -43,7 +66,7 @@ class NostrService {
   }
 
   private async verifyInWorker(event: Event): Promise<boolean> {
-    if (!this.worker) return true // Fallback if no worker
+    if (!this.worker) return true
     return new Promise((resolve) => {
       const handler = (e: MessageEvent) => {
         if (e.data.id === event.id) {
@@ -57,82 +80,87 @@ class NostrService {
   }
 
   async subscribe(filters: Filter[], onEvent: (event: Event) => void, customRelays?: string[]) {
-    const targetRelays = (customRelays || this.relays).slice(0, this.maxActiveRelays)
-    console.log('[Nostr] Subscribing to:', targetRelays, 'with filters:', JSON.stringify(filters))
+    const urls = (customRelays || this.relays).slice(0, this.maxActiveRelays).map(u => utils.normalizeURL(u))
     
+    if (!Array.isArray(filters) || filters.length === 0) {
+      return { close: () => {} }
+    }
+
+    const cleanFilters = filters.filter(f => f && typeof f === 'object' && Object.keys(f).length > 0)
+    if (cleanFilters.length === 0) {
+      return { close: () => {} }
+    }
+
+    console.log('[Nostr] Subscribe:', { urls, filters: cleanFilters })
+
     const wrappedCallback = async (event: Event) => {
-      console.log('[Nostr] Received event:', event.kind, 'from', event.pubkey.slice(0, 8))
       const isValid = await this.verifyInWorker(event)
       if (isValid) {
         onEvent(event)
-      } else {
-        console.warn('[Nostr] Event failed verification:', event.id)
       }
     }
 
-    if (customRelays) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (this.pool as any).subscribeMany(
-        targetRelays,
-        filters,
+    try {
+      // THE FIX: Use pool.subscribe (array of filters) which is the most stable v2 method
+      // for sending multi-filter REQs that relays actually understand.
+      const sub = this.pool.subscribe(
+        urls,
+        cleanFilters,
         {
           onevent: wrappedCallback,
-          oneose: () => {}
+          oneose: () => {
+            console.log('[Nostr] Subscription EOSE')
+          },
+          onclosed: (reasons) => {
+            console.log('[Nostr] Subscription closed:', reasons)
+          }
         }
       )
+
+      return sub
+    } catch (e) {
+      console.error('[Nostr] Subscription critical failure:', e)
+      return { close: () => {} }
     }
-
-    return new Promise<{ close: () => void }>((resolve) => {
-      this.pendingFilters.push(...filters)
-      this.pendingCallbacks.push(wrappedCallback)
-
-      if (this.batchTimer) clearTimeout(this.batchTimer)
-      
-      this.batchTimer = setTimeout(async () => {
-        const filtersToRun = [...this.pendingFilters]
-        const callbacksToRun = [...this.pendingCallbacks]
-        this.pendingFilters = []
-        this.pendingCallbacks = []
-        this.batchTimer = null
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sub = (this.pool as any).subscribeMany(
-          this.relays,
-          filtersToRun,
-          {
-            onevent: (event: Event) => {
-              callbacksToRun.forEach(cb => cb(event))
-            },
-            oneose: () => {}
-          }
-        )
-        resolve(sub)
-      }, this.batchTimeout)
-    })
   }
 
   async fetchRelayList(pubkey: string) {
-    console.log('[Nostr] Fetching relay list for:', pubkey)
     return new Promise<string[]>((resolve) => {
-      let found = false
+      let latestEvent: Event | null = null
+      
       this.subscribe(
-        [{ kinds: [10002], authors: [pubkey], limit: 1 }],
+        [{ kinds: [10002, 10001, 3], authors: [pubkey], limit: 1 }],
         (event: Event) => {
-          console.log('[Nostr] Found relay list event:', event.id)
-          const relays = event.tags
-            .filter(t => t[0] === 'r')
-            .map(t => t[1])
-          found = true
-          resolve(relays)
-        }
+          if (!latestEvent || event.created_at > latestEvent.created_at) {
+            latestEvent = event
+          }
+        },
+        this.getDiscoveryRelays()
       ).then(sub => {
         setTimeout(() => {
-          if (!found) {
-            console.warn('[Nostr] Relay list not found for', pubkey, 'after timeout')
-            sub.close()
+          sub.close()
+          if (!latestEvent) {
             resolve([])
+            return
           }
-        }, 5000) // Increase timeout to 5s
+
+          let relays: string[] = []
+          if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
+            relays = latestEvent.tags
+              .filter(t => t[0] === 'r')
+              .map(t => t[1])
+          } else if (latestEvent.kind === 3) {
+            try {
+              const content = JSON.parse(latestEvent.content)
+              relays = Object.keys(content)
+            } catch {
+              // Ignore
+            }
+          }
+
+          const filtered = relays.filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
+          resolve(filtered)
+        }, 6000)
       })
     })
   }
@@ -141,31 +169,26 @@ class NostrService {
     if (this.relays.length === 0) {
       throw new Error('No relays configured for broadcast.')
     }
+    const targetRelays = [...new Set([...this.relays, ...DISCOVERY_RELAYS])].slice(0, 15)
+    console.log('[Nostr] Publishing Event:', event.id, 'to', targetRelays.length, 'relays')
     
-    console.log('[Nostr] Publishing:', event.kind, event.id)
-    
-    const promises = this.pool.publish(this.relays, event)
-    
-    // Wait for at least one successful publish
+    const promises = this.pool.publish(targetRelays, event)
     try {
       await Promise.any(promises)
-      console.log('[Nostr] Event broadcasted successfully to at least one relay.')
+      console.log('[Nostr] Event successfully accepted by at least one relay.')
     } catch (e) {
-      console.warn('[Nostr] Event might not have reached all relays:', e)
+      console.warn('[Nostr] Broadcast might have failed on all relays', e)
     }
   }
 
   async createAndPublishPost(content: string) {
-    if (!window.nostr) throw new Error('No extension found')
-    
     const eventTemplate = {
       kind: 1,
       created_at: Math.floor(Date.now() / 1000),
       tags: [],
       content: content,
     }
-
-    const signedEvent = await window.nostr.signEvent(eventTemplate)
+    const signedEvent = await signerService.signEvent(eventTemplate)
     return this.publish(signedEvent)
   }
 

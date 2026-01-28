@@ -62,6 +62,11 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Moderator Management: Interface to add/remove moderator pubkeys
 - [x] Preferred Relay Configuration: Define community relays in Kind 34550
 
+## Station Ownership & Recovery
+- [x] Claim Community: UI for stations lacking active moderators
+- [x] Admin Verification: Process to authorize new claimants
+- [x] Claim Logging: Persistent trail of ownership transfers
+
 ## User Subscription Management
 - [x] "Join/Leave" Interaction: Button on community headers
 - [x] Joined Sidebar: Navigation for joined communities
@@ -84,18 +89,12 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] NIP-11 Fetch: Cache relay capabilities
 - [x] NIP-05 Resolution: Map usernames to public keys
 
-## NIP Support
-- [x] NIP-01: Basic protocol
-- [x] NIP-07: Key provider integration (window.nostr)
-- [x] NIP-09: Event deletion
-- [x] NIP-10: Thread parsing
-- [x] NIP-16: Event redaction (Kind 5)
-- [x] NIP-19: Bech32 encoding (npub)
-- [x] NIP-25: Reactions
-- [x] NIP-50: Search
-- [x] NIP-51: Lists (Community Subscriptions)
-- [x] NIP-57: Zaps (Fetching & Aggregation)
-- [x] NIP-65: Relay list metadata
+## NIP-46 (Nostr Connect) Implementation
+- [ ] Bunker URI Support: Parse bunker:// URIs
+- [ ] NostrConnect URI Generation: QR codes for client-initiated connections
+- [ ] Session Persistence: Securely store remote signer session
+- [ ] Signer Interface Abstraction: Refactor signEvent for NIP-07/NIP-46
+- [ ] Permission Requests: Implementation of connect/get_public_key
 
 ## PWA & Performance
 - [x] IndexedDB Caching: Local storage for Kind 0 (Profiles) and Kind 34550 (Metadata)

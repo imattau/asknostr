@@ -8,6 +8,7 @@ import { useZaps } from '../hooks/useZaps'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
+import { signerService } from '../services/signer'
 import { triggerHaptic } from '../utils/haptics'
 
 interface PostProps {
@@ -65,7 +66,7 @@ export const Post: React.FC<PostProps> = ({
   }
 
   const handleLike = async (emoji: string = '+') => {
-    if (!user.pubkey || !window.nostr) {
+    if (!user.pubkey) {
       alert('Please login to react.')
       return
     }
@@ -77,18 +78,16 @@ export const Post: React.FC<PostProps> = ({
     if (emoji === '+') addOptimisticReaction(event.id, user.pubkey)
 
     try {
-      // eslint-disable-next-line react-hooks/purity
-      const now = Math.floor(Date.now() / 1000)
       const likeEvent = {
         kind: 7,
-        created_at: now,
+        created_at: Math.floor(Date.now() / 1000),
         tags: [
           ['e', event.id],
           ['p', event.pubkey]
         ],
         content: emoji,
       }
-      const signedEvent = await window.nostr.signEvent(likeEvent)
+      const signedEvent = await signerService.signEvent(likeEvent)
       await nostrService.publish(signedEvent)
     } catch (e) {
       console.error('Like failed', e)
@@ -104,11 +103,9 @@ export const Post: React.FC<PostProps> = ({
         tags: [['e', event.id]],
         content: 'Deletion requested by user.',
       }
-      const signedEvent = await window.nostr?.signEvent(deleteEvent)
-      if (signedEvent) {
-        await nostrService.publish(signedEvent)
-        alert('Deletion broadcasted.')
-      }
+      const signedEvent = await signerService.signEvent(deleteEvent)
+      await nostrService.publish(signedEvent)
+      alert('Deletion broadcasted.')
     } catch (e) {
       console.error('Delete failed', e)
     }
@@ -122,8 +119,12 @@ export const Post: React.FC<PostProps> = ({
     triggerHaptic(30)
 
     try {
+      // Find the community tag from the original post
       const communityTag = event.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
-      if (!communityTag) return
+      if (!communityTag) {
+        console.warn('Cannot approve: Post is not tagged with a community "a" tag.')
+        return
+      }
 
       const approveEvent = {
         kind: 4550,
@@ -132,14 +133,12 @@ export const Post: React.FC<PostProps> = ({
           ['e', event.id],
           ['p', event.pubkey],
           ['status', status],
-          communityTag
+          communityTag // Critical for the Moderation Log (Audit Trail)
         ],
         content: `Post marked as ${status} by moderator.`,
       }
-      const signedEvent = await window.nostr?.signEvent(approveEvent)
-      if (signedEvent) {
-        await nostrService.publish(signedEvent)
-      }
+      const signedEvent = await signerService.signEvent(approveEvent)
+      await nostrService.publish(signedEvent)
     } catch (e) {
       console.error('Approval failed', e)
     }
@@ -147,19 +146,23 @@ export const Post: React.FC<PostProps> = ({
 
   const handleReport = async () => {
     const reason = window.prompt('Specify reason for report (Kind 1984):')
-    if (!reason || !window.nostr) return
+    if (!reason) return
 
     try {
+      const communityTag = event.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
+      const tags = [
+        ['e', event.id, reason],
+        ['p', event.pubkey]
+      ]
+      if (communityTag) tags.push(communityTag)
+
       const reportEvent = {
         kind: 1984,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['e', event.id, reason],
-          ['p', event.pubkey]
-        ],
+        tags: tags,
         content: reason,
       }
-      const signedEvent = await window.nostr.signEvent(reportEvent)
+      const signedEvent = await signerService.signEvent(reportEvent)
       await nostrService.publish(signedEvent)
       triggerHaptic(10)
       alert('Report broadcasted to the network.')

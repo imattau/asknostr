@@ -14,6 +14,7 @@ export const useTrendingCommunities = () => {
   return useQuery({
     queryKey: ['trending-communities'],
     queryFn: async () => {
+      console.log('[Trending] Aggregating network activity...')
       return new Promise<TrendingCommunity[]>((resolve) => {
         const communityCounts: Record<string, number> = {}
         const now = Math.floor(Date.now() / 1000)
@@ -27,7 +28,8 @@ export const useTrendingCommunities = () => {
               const aTag = t[1]
               communityCounts[aTag] = (communityCounts[aTag] || 0) + 1
             })
-          }
+          },
+          nostrService.getDiscoveryRelays()
         ).then(sub => {
           setTimeout(() => {
             sub.close()
@@ -35,14 +37,18 @@ export const useTrendingCommunities = () => {
               .sort((a, b) => b[1] - a[1])
               .slice(0, 10)
               .map(([aTag, count]) => {
-                const [kind, pubkey, id] = aTag.split(':')
+                const parts = aTag.split(':')
+                const kind = parts[0] || '34550'
+                const pubkey = parts[1] || ''
+                const id = parts[2] || ''
                 return { aTag, count, kind, pubkey, id }
               })
+            console.log('[Trending] Found', sorted.length, 'active community hubs')
             resolve(sorted)
-          }, 3000)
+          }, 4000)
         })
       })
     },
-    staleTime: 1000 * 60 * 15, // 15 minutes
+    staleTime: 1000 * 60 * 15,
   })
 }

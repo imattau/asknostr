@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
+import { signerService } from '../services/signer'
 import type { Event } from 'nostr-tools'
 import { triggerHaptic } from '../utils/haptics'
 import { get, set } from 'idb-keyval'
@@ -52,7 +53,7 @@ export const useSubscriptions = () => {
 
   const updateSubscriptions = useMutation({
     mutationFn: async (newATags: string[]) => {
-      if (!user.pubkey || !window.nostr) throw new Error('Not logged in')
+      if (!user.pubkey) throw new Error('Not logged in')
 
       const eventTemplate = {
         kind: 30001,
@@ -65,7 +66,7 @@ export const useSubscriptions = () => {
         content: '',
       }
 
-      const signedEvent = await window.nostr.signEvent(eventTemplate)
+      const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
       await set(`subs-${user.pubkey}`, signedEvent)
       return signedEvent

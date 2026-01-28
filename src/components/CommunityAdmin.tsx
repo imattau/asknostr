@@ -3,9 +3,11 @@ import { useCommunity } from '../hooks/useCommunity'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
-import { Shield, X, Globe, Save, RefreshCw } from 'lucide-react'
+import { signerService } from '../services/signer'
+import { Shield, X, Globe, Save, RefreshCw, User as UserIcon, AlertTriangle } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 import { formatPubkey, shortenPubkey } from '../utils/nostr'
+import { set } from 'idb-keyval'
 
 interface CommunityAdminProps {
   communityId: string
@@ -13,25 +15,41 @@ interface CommunityAdminProps {
 }
 
 export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, creator }) => {
-  const { data: community, isLoading } = useCommunity(communityId, creator)
+  const { data: community, isLoading, refetch } = useCommunity(communityId, creator)
   const { user } = useStore()
   const { popLayer } = useUiStore()
   
   const [newMod, setNewMod] = useState('')
   const [mods, setMods] = useState<string[]>([])
   const [relays, setRelays] = useState<string>('')
-  const [isSaving, setIsSubmitting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isRescueMode, setIsRescueMode] = useState(false)
 
-  // Initialize state when data loads
   React.useEffect(() => {
     if (community) {
       setMods(community.moderators)
       setRelays(community.relays.join(', '))
+      setIsRescueMode(false)
+    } else if (!isLoading && user.pubkey === creator) {
+      // If we are the creator but metadata didn't load, enable rescue mode
+      setIsRescueMode(true)
+      setMods([creator])
     }
-  }, [community])
+  }, [community, isLoading, creator, user.pubkey])
 
-  if (isLoading) return <div className="p-8 text-center animate-pulse opacity-50">[LOADING_ADMIN_DATA...]</div>
-  if (user.pubkey !== creator) return <div className="p-8 text-center text-red-500">[ACCESS_DENIED: UNAUTHORIZED_ENTITY]</div>
+  if (isLoading) return (
+    <div className="p-20 flex flex-col items-center justify-center space-y-4">
+      <RefreshCw size={32} className="animate-spin text-cyan-500" />
+      <span className="font-mono text-[10px] uppercase opacity-50">Retrieving_Admin_Metadata...</span>
+    </div>
+  )
+  
+  if (user.pubkey !== creator) return (
+    <div className="p-12 text-center text-red-500 font-mono space-y-4">
+      <Shield size={48} className="mx-auto opacity-20" />
+      <p className="uppercase font-bold tracking-widest">[ACCESS_DENIED: UNAUTHORIZED_ENTITY]</p>
+    </div>
+  )
 
   const addMod = () => {
     if (newMod && !mods.includes(newMod)) {
@@ -42,72 +60,125 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   }
 
   const removeMod = (pubkey: string) => {
+    if (pubkey === creator) return // Cannot remove yourself
     setMods(mods.filter(m => m !== pubkey))
     triggerHaptic(10)
   }
 
   const handleSave = async () => {
-    if (!window.nostr || !community) return
-    setIsSubmitting(true)
+    setIsSaving(true)
+    console.log('[Admin] Commit button clicked')
+    
     try {
       const relayList = relays.split(',').map(r => r.trim()).filter(r => r.startsWith('wss://'))
       
       const eventTemplate = {
         kind: 34550,
-        pubkey: user.pubkey,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
           ['d', communityId],
-          ['name', community.name || ''],
-          ['description', community.description || ''],
-          ...(community.rules ? [['rules', community.rules]] : []),
-          ...(community.image ? [['image', community.image]] : []),
+          ['name', community?.name || communityId],
+          ['description', community?.description || 'Community Node'],
+          ...(community?.rules ? [['rules', community.rules]] : []),
+          ...(community?.image ? [['image', community.image]] : []),
           ...relayList.map(r => ['relay', r]),
           ...mods.map(m => ['p', m]),
-          ...community.pinned.map(e => ['e', e])
+          ...(community?.pinned || []).map(e => ['e', e])
         ],
         content: '',
       }
 
-      const signedEvent = await window.nostr.signEvent(eventTemplate)
+      console.log('[Admin] Requesting signature...')
+      const signedEvent = await signerService.signEvent(eventTemplate)
+      
+      console.log('[Admin] Publishing...')
       await nostrService.publish(signedEvent)
+      
+      // Update local store and persistent cache
+      const { addEvent } = useStore.getState()
+      addEvent(signedEvent)
+      
+      const updatedDefinition = {
+        id: communityId,
+        creator: creator,
+        name: community?.name || communityId,
+        description: community?.description || 'Community Node',
+        rules: community?.rules,
+        image: community?.image,
+        moderators: mods,
+        relays: relayList,
+        pinned: community?.pinned || []
+      }
+      await set(`community-${creator}-${communityId}`, updatedDefinition)
+
+      // Invalidate queries
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const qc = (window as any).queryClient
+      if (qc) {
+        qc.invalidateQueries({ queryKey: ['community', communityId, creator] })
+        qc.invalidateQueries({ queryKey: ['my-communities'] })
+      }
+
       triggerHaptic(50)
-      alert('Community parameters synchronized.')
+      alert('Station parameters successfully committed to network.')
       popLayer()
     } catch (e) {
-      console.error('Update failed', e)
-      alert('Failed to update community definition.')
+      console.error('[Admin] Update failure:', e)
+      alert(`Commit failed: ${e instanceof Error ? e.message : 'Unknown error'}`)
     } finally {
-      setIsSubmitting(false)
+      setIsSaving(false)
     }
   }
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-6 space-y-8 pb-20">
       <header className="terminal-border p-4 bg-cyan-500/10 border-cyan-500/30">
-        <h2 className="text-xl font-bold text-cyan-400 uppercase flex items-center gap-2">
+        <h2 className="text-xl font-bold text-cyan-400 uppercase flex items-center gap-2 tracking-tighter">
           <Shield size={24} /> Station_Administration: c/{communityId}
         </h2>
-        <p className="text-[10px] opacity-70 uppercase mt-1">
+        <p className="text-[10px] opacity-70 uppercase mt-1 font-mono">
           Modifying community nodes and moderator authorizations
         </p>
       </header>
 
+      {isRescueMode && (
+        <div className="p-4 border border-orange-500/30 bg-orange-500/5 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="text-orange-500 shrink-0" size={18} />
+          <div>
+            <h4 className="text-[10px] font-bold text-orange-500 uppercase font-mono">Rescue_Mode_Active</h4>
+            <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
+              Network metadata failed to load. Proceeding with local authority data. Committing will overwrite previous network definitions.
+            </p>
+            <button 
+              onClick={() => refetch()}
+              className="mt-2 text-[8px] font-mono text-cyan-500 uppercase underline decoration-cyan-500/30 hover:text-cyan-400"
+            >
+              [RETRY_DEEP_SCAN]
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className="space-y-4">
-        <h3 className="text-xs font-bold uppercase opacity-50 flex items-center gap-2">
+        <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
           <Shield size={14} /> Authorized_Moderators
         </h3>
         
-        <div className="space-y-2">
+        <div className="grid gap-2">
           {mods.map(m => (
-            <div key={m} className="flex justify-between items-center glassmorphism p-2 rounded-lg border-slate-800">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-slate-50">{shortenPubkey(formatPubkey(m))}</span>
-                <span className="text-[8px] text-slate-500 font-mono">{m.slice(0, 32)}...</span>
+            <div key={m} className="flex justify-between items-center glassmorphism p-3 rounded-xl border-slate-800 hover:border-white/10 transition-colors group">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+                  <UserIcon size={16} className="text-slate-600" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-100 uppercase tracking-tight truncate">{shortenPubkey(formatPubkey(m))}</span>
+                  <span className="text-[8px] text-slate-500 font-mono truncate max-w-[120px]">{m}</span>
+                </div>
               </div>
               {m !== creator && (
-                <button onClick={() => removeMod(m)} className="p-1 hover:bg-red-500/20 text-red-500 rounded-md transition-colors">
-                  <X size={14} />
+                <button onClick={() => removeMod(m)} className="p-2 hover:bg-red-500/10 text-red-500/50 hover:text-red-500 rounded-lg transition-all active:scale-95">
+                  <X size={16} />
                 </button>
               )}
             </div>
@@ -119,46 +190,45 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
             value={newMod}
             onChange={(e) => setNewMod(e.target.value)}
             placeholder="Mod Pubkey (hex)..."
-            className="flex-1 terminal-input rounded-lg"
+            className="flex-1 terminal-input rounded-xl px-4"
           />
-          <button onClick={addMod} className="terminal-button rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30">
-            Add_Mod
+          <button onClick={addMod} className="px-4 py-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold uppercase text-[10px] hover:bg-cyan-500/20 transition-all active:scale-95">
+            Authorize_Mod
           </button>
         </div>
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-xs font-bold uppercase opacity-50 flex items-center gap-2">
+        <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
           <Globe size={14} /> Preferred_Relays
         </h3>
         <textarea 
           value={relays}
           onChange={(e) => setRelays(e.target.value)}
-          className="w-full terminal-input rounded-lg min-h-[60px]"
+          className="w-full terminal-input rounded-xl p-4 min-h-[80px] font-mono text-xs"
           placeholder="wss://relay1..., wss://relay2..."
         />
-        <p className="text-[8px] text-slate-600 font-mono uppercase">Comma separated list of nodes prioritizing community discovery</p>
       </section>
 
-      <div className="pt-4 border-t border-slate-800 flex justify-end gap-4">
+      <div className="pt-6 border-t border-slate-800 flex justify-end gap-4">
         <button 
           type="button" 
           onClick={popLayer}
-          className="px-6 py-2 text-slate-500 hover:text-slate-300 font-bold uppercase text-xs transition-colors"
+          className="px-6 py-2 text-slate-500 hover:text-slate-300 font-bold uppercase text-[10px] transition-colors font-mono"
         >
-          Discard
+          Discard_Changes
         </button>
         <button 
           onClick={handleSave}
           disabled={isSaving}
-          className="terminal-button rounded-lg flex items-center gap-2"
+          className="terminal-button rounded-xl flex items-center gap-2 px-8 py-2.5 shadow-lg shadow-cyan-500/20 active:scale-95 disabled:opacity-50"
         >
           {isSaving ? (
-            <RefreshCw size={14} className="animate-spin" />
+            <RefreshCw size={16} className="animate-spin" />
           ) : (
-            <Save size={14} />
+            <Save size={16} />
           )}
-          {isSaving ? 'Synchronizing...' : 'Save_Parameters'}
+          {isSaving ? 'Synchronizing...' : 'Commit_Parameters'}
         </button>
       </div>
     </div>
