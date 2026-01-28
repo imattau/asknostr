@@ -173,7 +173,7 @@ function App() {
         <img src="/asknostr_logo.png" alt="" className="w-7 h-7 rounded-full border border-slate-800 shadow-[0_0_15px_rgba(168,85,247,0.3)]" />
         <div className="flex flex-col">
           <h1 className="text-sm font-black uppercase tracking-tighter gradient-text leading-none">AskNostr_Core</h1>
-          <span className="text-[7px] font-mono opacity-40 uppercase tracking-widest mt-0.5">Station_ID: {appAdmin?.slice(0, 16) || 'INITIALIZING'}</span>
+          <span className="text-[7px] font-mono opacity-40 uppercase tracking-widest mt-0.5">DECENTRALIZED_GATEWAY</span>
         </div>
       </div>
       

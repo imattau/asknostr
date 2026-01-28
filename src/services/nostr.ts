@@ -165,19 +165,25 @@ class NostrService {
     })
   }
 
-  async publish(event: Event) {
+  async publish(event: Event): Promise<boolean> {
     if (this.relays.length === 0) {
-      throw new Error('No relays configured for broadcast.')
+      console.warn('No relays configured for broadcast.')
+      return false
     }
     const targetRelays = [...new Set([...this.relays, ...DISCOVERY_RELAYS])].slice(0, 15)
-    console.log('[Nostr] Publishing Event:', event.id, 'to', targetRelays.length, 'relays')
-    
-    const promises = this.pool.publish(targetRelays, event)
+    return this.publishToRelays(targetRelays, event)
+  }
+
+  async publishToRelays(relays: string[], event: Event): Promise<boolean> {
+    console.log('[Nostr] Publishing Event:', event.id, 'to', relays.length, 'relays')
+    const promises = this.pool.publish(relays, event)
     try {
       await Promise.any(promises)
       console.log('[Nostr] Event successfully accepted by at least one relay.')
+      return true
     } catch (e) {
       console.warn('[Nostr] Broadcast might have failed on all relays', e)
+      return false
     }
   }
 

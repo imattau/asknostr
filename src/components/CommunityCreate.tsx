@@ -64,13 +64,18 @@ export const CommunityCreate: React.FC = () => {
       }
 
       const signedEvent = await signerService.signEvent(eventTemplate)
-      await nostrService.publish(signedEvent)
+      const success = await nostrService.publish(signedEvent)
       
-      // THE FIX: Add to local store immediately so it shows up without discovery lag
+      if (!success) {
+        addLog('WARNING: BROADCAST_FAILED_ON_ALL_RELAYS')
+        alert('Warning: Station created locally but failed to reach any relays. It may not be visible to others.')
+      } else {
+        addLog('STATION_DEFINED: BROADCAST_SUCCESS')
+      }
+      
+      // Add to local store
       const { addEvent } = useStore.getState()
       addEvent(signedEvent)
-
-      addLog('STATION_DEFINED: BROADCAST_SUCCESS')
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const qc = (window as any).queryClient

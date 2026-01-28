@@ -41,6 +41,11 @@ class SignerService {
     
     if (!bunkerPubkey || !bunkerRelay) throw new Error('Remote signer not configured')
 
+    console.log('[Signer] NIP-46 Signing via:', bunkerRelay)
+    
+    // Ensure we are connected to the bunker relay
+    await nostrService.addRelays([bunkerRelay])
+
     const requestId = Math.random().toString(36).substring(7)
     const request = {
       id: requestId,
@@ -67,6 +72,7 @@ class SignerService {
       nostrService.subscribe(
         [{ kinds: [24133], '#p': [this.clientPubkey], authors: [bunkerPubkey] }],
         async (event) => {
+          console.log('[Signer] Received NIP-46 response')
           try {
             const decrypted = await nip04.decrypt(this.localSecretKey!, bunkerPubkey, event.content)
             const response = JSON.parse(decrypted)
@@ -86,7 +92,8 @@ class SignerService {
         [bunkerRelay]
       ).then(s => sub = s)
 
-      nostrService.publish(reqEvent)
+      // Publish specifically to the bunker relay to ensure delivery
+      nostrService.publishToRelays([bunkerRelay], reqEvent)
     })
   }
 

@@ -30,12 +30,12 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
     addLog('INITIATING_AUTHORITY_TRANSFER_PROTOCOL...')
     
     await new Promise(r => setTimeout(r, 1000))
-    addLog('SCANNING_LOCAL_IDENTITY_REPUTATION...')
-    await new Promise(r => setTimeout(r, 1500))
-    addLog('VERIFYING_NIP05_ATTESTATIONS...')
-    await new Promise(r => setTimeout(r, 1000))
     addLog('STATION_VACANCY_CONFIRMED: NO_ACTIVE_MODERATORS_DETECTED')
-    await new Promise(r => setTimeout(r, 1000))
+    await new Promise(r => setTimeout(r, 800))
+    addLog('FORKING_COMMUNITY_DEFINITION...')
+    await new Promise(r => setTimeout(r, 800))
+    addLog('ESTABLISHING_NEW_MODERATOR_KEYSET...')
+    await new Promise(r => setTimeout(r, 800))
     addLog('CLAIM_AUTHORIZED: BROADCASTING_NEW_DEFINITION...')
 
     try {
@@ -121,9 +121,9 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
           <div className="space-y-2">
             <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest px-2">Action_Consequences</h3>
             <ul className="text-[9px] font-mono text-slate-400 space-y-1 list-disc list-inside px-2">
-              <li>Broadcasting a new community definition under your pubkey</li>
-              <li>Setting yourself as the primary station moderator</li>
-              <li>Permanent logging of this transfer on the relay network</li>
+              <li>Creates a FORK of the community definition under your pubkey</li>
+              <li>Sets you as the primary moderator of this new instance</li>
+              <li>Original station remains on the network but may be hidden by filters</li>
             </ul>
           </div>
 
