@@ -335,10 +335,10 @@ function App() {
             </div>
             <div className="flex-1 min-h-0 relative">
               {pendingCount > 0 && (
-                <div className="absolute top-4 left-1/2 z-20 -translate-x-1/2">
+                <div className={`absolute top-4 left-1/2 z-20 -translate-x-1/2 transition-all duration-300 ${isHeaderHidden ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`}>
                   <button
                     onClick={flushPendingEvents}
-                    className="rounded-full border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-xl px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300 shadow-2xl transition-all hover:bg-cyan-500/20 active:scale-95"
+                    className="rounded-full border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-xl px-4 py-1 text-[9px] uppercase tracking-[0.15em] text-cyan-300 shadow-2xl transition-all hover:bg-cyan-500/20 active:scale-95 whitespace-nowrap"
                   >
                     {pendingCount} NEW ITEM{pendingCount > 1 ? 'S' : ''} · APPLY
                   </button>
