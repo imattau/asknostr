@@ -97,39 +97,16 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   }, [approvals])
 
   const filteredEvents = communityEvents.filter(e => {
-    // 1. Always filter deleted
     if (deletedIds.includes(e.id)) return false
-    
-    // 2. Always filter explicit spam
     if (eventStatusMap[e.id] === 'spam') return false
 
     const mode = community?.moderationMode || 'open'
     
-    // 3. Mode-specific logic
     if (mode === 'restricted') {
-      // Show if:
-      // - Explicitly approved
-      // - Author is moderator/creator
-      // - Author is whitelisted (has previous approval)
-      // - User is viewing 'Active Moderation' (Raw Feed)? -> "isModeratedOnly" is actually "Active Moderation" view? 
-      //   Wait, existing logic was: isModeratedOnly ? (approved only) : (everything except spam)
-      //   Let's align:
-      //   RESTRICTED: Default view shows ONLY approved/whitelisted.
-      //   OPEN: Default view shows EVERYTHING except spam.
-      
       const isApproved = eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
       const isTrustedAuthor = approvedAuthors.has(e.pubkey) || moderators.includes(e.pubkey) || e.pubkey === creator
-      
-      // If "Active Moderation" (isModeratedOnly) is ON, we show ONLY explicitly approved.
-      // If OFF (default), we show Trusted + Approved.
-      // But actually, "Active Moderation" usually implies "Safe View".
-      // Let's stick to the request: "Approval Required e.g first post needs approval"
-      
       return isApproved || isTrustedAuthor
     } else {
-      // OPEN MODE
-      // Show everything unless spam
-      // If isModeratedOnly is ON, show only approved (curated view)
       if (isModeratedOnly) {
         return eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
       }
@@ -181,7 +158,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       
       if (success) {
         setPostContent('')
-        // Optimistically add to local store
         addEvent(signedEvent)
         triggerHaptic(20)
       } else {
@@ -206,7 +182,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   return (
     <div className="flex flex-col h-full bg-[#05070A]">
-      {/* Header Section - Now scrollable with the content on very small screens if needed, or just more compact */}
       <div className="shrink-0 z-10 bg-[#05070A]/95 backdrop-blur-xl border-b border-slate-800">
         <div className="p-4 space-y-4">
           <div className="flex items-start justify-between">
@@ -303,13 +278,25 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
                 Settings
               </button>
             )}
+            {isUnmoderated && community && (
+              <button 
+                onClick={() => pushLayer({ 
+                  id: `claim-${communityId}`, 
+                  type: 'claimstation',
+                  title: 'Authority_Claim',
+                  params: { community }
+                })}
+                className="flex-shrink-0 px-2 py-1 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30 text-[9px] font-bold uppercase hover:bg-orange-500/20"
+              >
+                Claim
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
-          {/* Post Input - Inline with feed flow now */}
           <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
             <textarea 
               value={postContent}
@@ -340,41 +327,40 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             </div>
           )}
 
-            {pinnedEvents.length > 0 && (
-              <div className="space-y-4 mb-8">
-                <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2">
-                  <Pin size={12} className="rotate-45" /> Pinned_By_Moderators
-                </h4>
-                <div className="space-y-4">
-                  {pinnedEvents.map(event => (
-                    <Post 
-                      key={event.id} 
-                      event={event} 
-                      isModerator={moderators.includes(event.pubkey)}
-                      isApproved={true}
-                    />
-                  ))}
-                </div>
-                <div className="h-px bg-slate-800 mx-4" />
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {regularEvents.length === 0 ? (
-                <div className="text-center p-12 opacity-30 italic text-[10px]">
-                  {pinnedEvents.length === 0 ? '[NO_POSTS_MATCHING_CRITERIA]' : '[END_OF_TRANSMISSION]'}
-                </div>
-              ) : (
-                regularEvents.map(event => (
+          {pinnedEvents.length > 0 && (
+            <div className="space-y-4 mb-8">
+              <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2">
+                <Pin size={12} className="rotate-45" /> Pinned
+              </h4>
+              <div className="space-y-4">
+                {pinnedEvents.map(event => (
                   <Post 
                     key={event.id} 
                     event={event} 
                     isModerator={moderators.includes(event.pubkey)}
-                    isApproved={approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === event.id))}
+                    isApproved={true}
                   />
-                ))
-              )}
+                ))}
+              </div>
+              <div className="h-px bg-slate-800 mx-4" />
             </div>
+          )}
+
+          <div className="space-y-4">
+            {regularEvents.length === 0 ? (
+              <div className="text-center p-12 opacity-30 italic text-[10px]">
+                {pinnedEvents.length === 0 ? '[NO_POSTS_MATCHING_CRITERIA]' : '[END_OF_TRANSMISSION]'}
+              </div>
+            ) : (
+              regularEvents.map(event => (
+                <Post 
+                  key={event.id} 
+                  event={event} 
+                  isModerator={moderators.includes(event.pubkey)}
+                  isApproved={approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === event.id))}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>

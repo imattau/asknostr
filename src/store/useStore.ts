@@ -15,11 +15,10 @@ export interface UserProfile {
 
 interface NostrState {
   events: Event[]
-  optimisticReactions: Record<string, string[]>
+  optimisticReactions: Record<string, Record<string, string[]>> // eventId -> { emoji -> pubkeys[] }
   optimisticApprovals: string[]
   relays: string[]
   isConnected: boolean
-  appAdmin: string | null
   loginMethod: 'nip07' | 'nip46' | null
   remoteSigner: {
     pubkey: string | null
@@ -32,7 +31,7 @@ interface NostrState {
   }
   setEvents: (events: Event[]) => void
   addEvent: (event: Event) => void
-  addOptimisticReaction: (eventId: string, pubkey: string) => void
+  addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => void
   addOptimisticApproval: (eventId: string) => void
   setRelays: (relays: string[]) => void
   setConnected: (connected: boolean) => void
@@ -61,7 +60,6 @@ export const useStore = create<NostrState>()(
       optimisticApprovals: [],
       relays: [],
       isConnected: false,
-      appAdmin: null,
       loginMethod: null,
       remoteSigner: {
         pubkey: null,
@@ -78,11 +76,20 @@ export const useStore = create<NostrState>()(
         const newEvents = [...state.events, event].sort((a, b) => b.created_at - a.created_at)
         return { events: newEvents }
       }),
-      addOptimisticReaction: (eventId, pubkey) => set((state) => {
-        const current = state.optimisticReactions[eventId] || []
-        if (current.includes(pubkey)) return state
+      addOptimisticReaction: (eventId, pubkey, emoji) => set((state) => {
+        const currentEvent = state.optimisticReactions[eventId] || {}
+        const currentEmoji = currentEvent[emoji] || []
+        
+        if (currentEmoji.includes(pubkey)) return state
+        
         return {
-          optimisticReactions: { ...state.optimisticReactions, [eventId]: [...current, pubkey] }
+          optimisticReactions: { 
+            ...state.optimisticReactions, 
+            [eventId]: {
+              ...currentEvent,
+              [emoji]: [...currentEmoji, pubkey]
+            }
+          }
         }
       }),
       addOptimisticApproval: (eventId) => set((state) => {

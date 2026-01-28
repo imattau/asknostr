@@ -43,11 +43,21 @@ export const Post: React.FC<PostProps> = ({
   const eventReactions = reactionData?.reactions || []
   const aggregatedReactions = reactionData?.aggregated || {}
 
-  const optimisticLikes = optimisticReactions[event.id] || []
-  const hasOptimisticLike = user.pubkey && optimisticLikes.includes(user.pubkey)
-  const hasRealLike = user.pubkey && eventReactions.some(r => r.pubkey === user.pubkey)
+  const postOptimistic = optimisticReactions[event.id] || {}
   
-  const totalLikes = eventReactions.length + (hasOptimisticLike && !hasRealLike ? 1 : 0)
+  const hasUserReacted = (emoji: string) => {
+    if (!user.pubkey) return false
+    const real = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
+    const optimistic = postOptimistic[emoji]?.includes(user.pubkey)
+    return real || optimistic
+  }
+
+  const getReactionCount = (emoji: string, baseCount: number) => {
+    if (!user.pubkey) return baseCount
+    const real = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
+    const optimistic = postOptimistic[emoji]?.includes(user.pubkey)
+    return baseCount + (optimistic && !real ? 1 : 0)
+  }
 
   const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
   const mediaMatches = event.content.match(mediaRegex)
@@ -72,10 +82,10 @@ export const Post: React.FC<PostProps> = ({
     }
     
     const alreadyReacted = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
-    if (alreadyReacted || (emoji === '+' && hasOptimisticLike)) return
+    if (alreadyReacted || hasUserReacted(emoji)) return
 
     triggerHaptic(15)
-    if (emoji === '+') addOptimisticReaction(event.id, user.pubkey)
+    addOptimisticReaction(event.id, user.pubkey, emoji)
 
     try {
       const likeEvent = {
@@ -296,10 +306,10 @@ export const Post: React.FC<PostProps> = ({
           <button
             key={emoji}
             onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${user.pubkey && data.pubkeys.includes(user.pubkey) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}`}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${hasUserReacted(emoji) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}`}
           >
             <span>{emoji === '+' ? '❤️' : emoji}</span>
-            <span className="font-bold">{data.count}</span>
+            <span className="font-bold">{getReactionCount(emoji, data.count)}</span>
           </button>
         ))}
         {user.pubkey && (
@@ -308,7 +318,7 @@ export const Post: React.FC<PostProps> = ({
               <button
                 key={emoji}
                 onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity hover:scale-125 p-0.5 grayscale hover:grayscale-0"
+                className={`opacity-0 group-hover:opacity-100 transition-opacity hover:scale-125 p-0.5 ${hasUserReacted(emoji) ? '' : 'grayscale hover:grayscale-0'}`}
               >
                 {emoji}
               </button>
@@ -331,10 +341,10 @@ export const Post: React.FC<PostProps> = ({
         </button>
         <button 
           onClick={(e) => { e.stopPropagation(); handleLike(); }}
-          className={`flex items-center gap-1.5 transition-colors group/btn ${(hasOptimisticLike || hasRealLike) ? 'text-red-500' : 'hover:text-red-500 text-slate-400'}`}
+          className={`flex items-center gap-1.5 transition-colors group/btn ${hasUserReacted('+') ? 'text-red-500' : 'hover:text-red-500 text-slate-400'}`}
         >
-          <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${(hasOptimisticLike || hasRealLike) ? 'fill-red-500/20' : ''}`} />
-          <span>{totalLikes} Like</span>
+          <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${hasUserReacted('+') ? 'fill-red-500/20' : ''}`} />
+          <span>{getReactionCount('+', eventReactions.filter(r => r.content === '+' || r.content === '').length)} Like</span>
         </button>
         <div className="relative group/zap">
           <button 

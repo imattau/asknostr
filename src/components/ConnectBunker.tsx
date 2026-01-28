@@ -108,9 +108,15 @@ export const ConnectBunker: React.FC = () => {
           <Smartphone size={14} /> Connect_via_Mobile_App
         </h3>
         
-        <div className="bg-white p-4 rounded-xl flex items-center justify-center shadow-2xl">
-          <QRCode value={generatedUri} size={180} />
-        </div>
+        {generatedUri ? (
+          <div className="bg-white p-4 rounded-xl flex items-center justify-center shadow-2xl">
+            <QRCode value={generatedUri} size={180} />
+          </div>
+        ) : (
+          <div className="h-48 flex items-center justify-center border border-dashed border-slate-800 rounded-xl">
+            <RefreshCw className="animate-spin text-slate-600" />
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <button 

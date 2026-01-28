@@ -112,13 +112,25 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       const signedEvent = await signerService.signEvent(eventTemplate)
       console.log('[Thread] Event signed successfully:', signedEvent.id)
       
-      await nostrService.publish(signedEvent)
-      console.log('[Thread] Broadcast success')
-
-      setReplyContent('')
-      setAllEvents(prev => [...prev, signedEvent])
-      addEvent(signedEvent)
-      triggerHaptic(50)
+      const success = await nostrService.publish(signedEvent)
+      
+      if (success) {
+        console.log('[Thread] Broadcast success')
+        setReplyContent('')
+        // Optimistically update UI
+        setAllEvents(prev => {
+          const next = [...prev, signedEvent]
+          return next.sort((a, b) => a.created_at - b.created_at)
+        })
+        addEvent(signedEvent)
+        triggerHaptic(50)
+      } else {
+        console.warn('[Thread] Broadcast failed on all relays')
+        alert('Reply signed but failed to broadcast to any relays. It may not be visible to others.')
+        // Still add locally so user doesn't lose data?
+        setAllEvents(prev => [...prev, signedEvent])
+        addEvent(signedEvent)
+      }
     } catch (e) {
       console.error('[Thread] Reply failed:', e)
       alert(`Failed to transmit reply: ${e instanceof Error ? e.message : 'Unknown error'}`)
