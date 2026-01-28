@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import type { Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
-import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2 } from 'lucide-react'
+import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2 } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
@@ -388,13 +388,6 @@ const PostComponent: React.FC<PostProps> = ({
       </div>
 
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
-        <button 
-          onClick={(e) => { e.stopPropagation(); openThread(e, { force: true }); }}
-          className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
-        >
-          <MessageSquare size={12} className="group-hover/btn:scale-110 transition-transform" />
-          <span>Reply</span>
-        </button>
         {user.pubkey && (
           <div className="relative">
             <button
