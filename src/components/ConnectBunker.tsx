@@ -27,6 +27,29 @@ export const ConnectBunker: React.FC = () => {
   const { setRemoteSigner, setLoginMethod, setUser } = useStore()
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleNativeError = (event: ErrorEvent) => {
+      if (event.error) {
+        console.error('[ConnectBunker] native error captured', event.error)
+        errorReporter.reportError(event.error, 'ConnectBunker:global error')
+      } else {
+        console.error('[ConnectBunker] native error event', event.message, event)
+      }
+    }
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error('[ConnectBunker] unhandled rejection', event.reason)
+      errorReporter.reportError(event.reason, 'ConnectBunker:unhandled rejection')
+    }
+    window.addEventListener('error', handleNativeError)
+    window.addEventListener('unhandledrejection', handleRejection)
+
+    return () => {
+      window.removeEventListener('error', handleNativeError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [])
+
+  useEffect(() => {
     console.log('[ConnectBunker] component mounted, generating URI')
     // Generate a nostrconnect:// URI for this client session
     // This allows the user to scan this QR with Amber/Amethyst to initiate the connection "backwards"
