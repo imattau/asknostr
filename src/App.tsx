@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { LogIn, LogOut, Layout, Terminal as TerminalIcon } from 'lucide-react'
+import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2 } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
 import type { Layer } from './store/useUiStore'
 import { nostrService } from './services/nostr'
+import { mediaService } from './services/mediaService'
 import type { Event, Filter } from 'nostr-tools'
 import { VirtualFeed } from './components/VirtualFeed'
 import { useTrendingTags } from './hooks/useTrendingTags'
@@ -40,6 +41,8 @@ function App() {
   const [isNsfw, setIsNsfw] = useState(false)
   const [composerCollapsed, setComposerCollapsed] = useState(false)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const lastScrollTop = useRef(0)
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
@@ -210,6 +213,23 @@ function App() {
     })
   }
   
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingMedia(true)
+    try {
+      const url = await mediaService.uploadFile(file)
+      setPostContent(prev => prev ? `${prev}\n${url}` : url)
+    } catch (err) {
+      console.error('Upload failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to upload media')
+    } finally {
+      setIsUploadingMedia(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
@@ -275,13 +295,31 @@ function App() {
                     />
                     NSFW
                   </label>
-                  <button
-                    onClick={handlePublish}
-                    disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                    className="terminal-button rounded-lg text-[10px] py-1 px-3"
-                  >
-                    Transmit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      accept="image/*,video/*,audio/*"
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingMedia || !user.pubkey}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50"
+                      title="Attach Media"
+                    >
+                      {isUploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+                    </button>
+                    <button
+                      onClick={handlePublish}
+                      disabled={!user.pubkey || !postContent.trim() || isPublishing}
+                      className="terminal-button rounded-lg text-[10px] py-1 px-3"
+                    >
+                      Transmit
+                    </button>
+                  </div>
                 </div>
               </div>
               <div

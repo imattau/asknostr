@@ -46,6 +46,19 @@ class SignerService {
     throw new Error('No signer configured')
   }
 
+  async signAuthEvent(url: string, method: string): Promise<Event> {
+    const authEvent = {
+      kind: 27235,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['u', url],
+        ['method', method],
+      ],
+      content: '',
+    }
+    return this.signEvent(authEvent)
+  }
+
   private async signWithRemote(template: EventTemplate): Promise<Event> {
     const state = useStore.getState()
     const { pubkey: bunkerPubkey, relays: bunkerRelays } = state.remoteSigner

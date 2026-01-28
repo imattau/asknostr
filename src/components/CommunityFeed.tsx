@@ -4,9 +4,10 @@ import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
 import { VirtualFeed } from './VirtualFeed'
-import { Shield, Info, Filter, RefreshCw, Pin } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2 } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
+import { mediaService } from '../services/mediaService'
 import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
 import { useDeletions } from '../hooks/useDeletions'
@@ -30,6 +31,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const { pushLayer } = useUiStore()
   const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   
   const communityATag = `34550:${creator}:${communityId}`
   const { data: labels = [] } = useLabels(communityATag)
@@ -172,6 +175,23 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       sub.then(s => s.close())
     }
   }, [communityId, creator, community?.relays])
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingMedia(true)
+    try {
+      const url = await mediaService.uploadFile(file)
+      setPostContent(prev => prev ? `${prev}\n${url}` : url)
+    } catch (err) {
+      console.error('Upload failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to upload media')
+    } finally {
+      setIsUploadingMedia(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
@@ -370,13 +390,31 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
                     />
                     NSFW
                   </label>
-                  <button 
-                    onClick={handlePublish}
-                    disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                    className="terminal-button rounded py-1 px-3 text-[9px]"
-                  >
-                    {isPublishing ? '...' : 'Post'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      accept="image/*,video/*,audio/*"
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingMedia || !user.pubkey}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50"
+                      title="Attach Media"
+                    >
+                      {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
+                    </button>
+                    <button 
+                      onClick={handlePublish}
+                      disabled={!user.pubkey || !postContent.trim() || isPublishing}
+                      className="terminal-button rounded py-1 px-3 text-[9px]"
+                    >
+                      {isPublishing ? '...' : 'Post'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
