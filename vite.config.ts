@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt'],
+      includeAssets: ['favicon.ico', 'robots.txt', 'asknostr_logo.png'],
       manifest: {
         name: 'AskNostr',
         short_name: 'AskNostr',
@@ -17,8 +17,18 @@ export default defineConfig({
         background_color: '#05070A',
         theme_color: '#05070A',
         icons: [
-          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }
+          { 
+            src: '/pwa-192x192.png', 
+            sizes: '192x192', 
+            type: 'image/png',
+            purpose: 'any maskable' 
+          },
+          { 
+            src: '/pwa-512x512.png', 
+            sizes: '512x512', 
+            type: 'image/png',
+            purpose: 'any maskable' 
+          }
         ]
       },
       workbox: {
