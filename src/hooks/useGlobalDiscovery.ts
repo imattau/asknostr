@@ -12,44 +12,56 @@ export const useGlobalDiscovery = () => {
     queryKey: ['global-community-discovery'],
     queryFn: async () => {
       console.log('[Discovery] Initiating network scan for Kind 34550...')
-      
-      // 1. Check local store first
       const localDiscovered: CommunityDefinition[] = events
         .filter(e => e.kind === 34550)
         .map(e => parseCommunityEvent(e))
         .filter((c): c is CommunityDefinition => !!c)
 
-      // Deduplicate local
       const uniqueLocal = Array.from(
         new Map(localDiscovered.map(item => [`${item.creator}:${item.id}`, item])).values()
       )
 
-      return new Promise<CommunityDefinition[]>((resolve) => {
-        const discovered = [...uniqueLocal]
-        
-        nostrService.subscribe(
-          [{ kinds: [34550], limit: 100 }],
-          (event: Event) => {
-            const definition = parseCommunityEvent(event)
-            if (definition) {
-              const exists = discovered.some(s => s.id === definition.id && s.creator === definition.creator)
-              if (!exists) {
-                discovered.push(definition)
+      const discovered = [...uniqueLocal]
+
+      const runSubscription = async (relays: string[]) => {
+        return new Promise<void>((resolve) => {
+          nostrService.subscribe(
+            [{ kinds: [34550], limit: 100 }],
+            (event: Event) => {
+              const definition = parseCommunityEvent(event)
+              if (definition) {
+                const exists = discovered.some(s => s.id === definition.id && s.creator === definition.creator)
+                if (!exists) {
+                  discovered.push(definition)
+                }
               }
-            }
-          },
-          nostrService.getDiscoveryRelays()
-        ).then(sub => {
-          setTimeout(() => {
-            sub.close()
-            // Final deduplication
-            const uniqueFinal = Array.from(
-              new Map(discovered.map(item => [`${item.creator}:${item.id}`, item])).values()
-            )
-            resolve(uniqueFinal)
-          }, 6000)
+            },
+            relays
+          ).then(sub => {
+            setTimeout(() => {
+              sub.close()
+              resolve()
+            }, 6000)
+          })
         })
-      })
+      }
+
+      const discoveryRelays = nostrService.getDiscoveryRelays()
+      await runSubscription(discoveryRelays)
+      let usedFallback = false
+
+      if (discovered.length === uniqueLocal.length) {
+        const fallbackRelays = nostrService.getRelays()
+        if (fallbackRelays.some(url => !discoveryRelays.includes(url))) {
+          usedFallback = true
+          await runSubscription(fallbackRelays)
+        }
+      }
+
+      const uniqueFinal = Array.from(
+        new Map(discovered.map(item => [`${item.creator}:${item.id}`, item])).values()
+      )
+      return { communities: uniqueFinal, usedFallback }
     },
     staleTime: 1000 * 60 * 5,
   })

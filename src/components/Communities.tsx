@@ -21,7 +21,9 @@ export const Communities: React.FC = () => {
   const { subscribedCommunities } = useSubscriptions()
   const { data: suggestions = [] } = useFollowerSuggestions()
   const { data: trending = [] } = useTrendingCommunities()
-  const { data: globalNodes = [], isLoading: isGlobalLoading } = useGlobalDiscovery()
+  const { data, isLoading: isGlobalLoading } = useGlobalDiscovery()
+  const globalNodes = data?.communities || []
+  const discoveryFallback = data?.usedFallback || false
   const { data: myNodes = [] } = useMyCommunities()
   const { data: handlers = [] } = useHandlers([1, 34550])
 
@@ -241,6 +243,12 @@ export const Communities: React.FC = () => {
               </div>
             </button>
           ))}
+
+          {discoveryFallback && (
+            <div className="mt-3 p-3 text-[9px] font-mono uppercase tracking-[0.3em] text-amber-300 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+              Discovery relays ran out; falling back to your saved nodes.
+            </div>
+          )}
 
           {globalNodes.length === 0 && !isGlobalLoading && SUGGESTED_COMMUNITIES.map((c) => (
             <button
