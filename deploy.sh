@@ -21,12 +21,12 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Helper Functions
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_err() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_info() { printf "${GREEN}[INFO]${NC} %s\n" "$1"; }
+log_warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
+log_err() { printf "${RED}[ERROR]${NC} %s\n" "$1"; }
 
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
+    if [ "$(id -u)" -ne 0 ]; then
         log_err "This script must be run as root"
         exit 1
     fi
@@ -42,7 +42,7 @@ install_dependencies() {
     apt-get install -y -q git curl unzip
 
     # Install Node.js (v20) if not present
-    if ! command -v node &> /dev/null; then
+    if ! command -v node >/dev/null 2>&1; then
         log_info "Installing Node.js v20..."
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
         apt-get install -y -q nodejs
@@ -51,14 +51,14 @@ install_dependencies() {
     fi
 
     # Install 'serve' globally for static file serving
-    if ! command -v serve &> /dev/null; then
+    if ! command -v serve >/dev/null 2>&1; then
         log_info "Installing 'serve' package..."
         npm install -g serve
     fi
 }
 
 install_caddy() {
-    if ! command -v caddy &> /dev/null; then
+    if ! command -v caddy >/dev/null 2>&1; then
         log_info "Installing Caddy Web Server..."
         apt-get install -y -q debian-keyring debian-archive-keyring apt-transport-https
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
@@ -74,8 +74,8 @@ setup_app() {
     log_info "Setting up application..."
 
     # Create user if not exists
-    if ! id "$APP_NAME" &>/dev/null; then
-        useradd -r -s /bin/false $APP_NAME
+    if ! getent passwd "$APP_NAME" >/dev/null 2>&1; then
+        useradd -r -s /bin/false "$APP_NAME" || log_warn "User creation returned error, but proceeding if user exists."
     fi
 
     # Determine source directory (where script is running from)
