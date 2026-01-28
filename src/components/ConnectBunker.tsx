@@ -80,8 +80,7 @@ export const ConnectBunker: React.FC = () => {
           setError(message)
           setIsConnecting(false)
         }
-      },
-      [relay]
+      }
     )
 
     return () => {
