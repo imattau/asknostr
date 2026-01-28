@@ -44,7 +44,6 @@ function App() {
   const { data: deletedIds = [] } = useDeletions(deletionTargets)
   const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
   const pendingEventsRef = useRef<Event[]>([])
-  const flushTimerRef = useRef<number | null>(null)
   const [isLiveSynced, setIsLiveSynced] = useState(false)
   const [isHistorySyncing, setIsHistorySyncing] = useState(false)
   const eventRateCountRef = useRef(0)
@@ -53,14 +52,13 @@ function App() {
   const [isBackpressured, setIsBackpressured] = useState(false)
   const MAX_EVENTS_PER_SEC = 120
 
+  const [pendingCount, setPendingCount] = useState(0)
+
   const flushPendingEvents = useCallback(() => {
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current)
-      flushTimerRef.current = null
-    }
     if (pendingEventsRef.current.length === 0) return
-    const pending = pendingEventsRef.current
+    const pending = [...pendingEventsRef.current]
     pendingEventsRef.current = []
+    setPendingCount(0)
     addEvents(pending)
   }, [addEvents])
 
@@ -86,9 +84,7 @@ function App() {
     }
     eventRateCountRef.current += 1
     pendingEventsRef.current.push(event)
-    if (!flushTimerRef.current) {
-      flushTimerRef.current = window.setTimeout(flushPendingEvents, 150)
-    }
+    setPendingCount(pendingEventsRef.current.length)
   }, [flushPendingEvents, isBackpressured])
 
   const fetchEvents = useCallback(async (until?: number, additionalFilter: Partial<Filter> = {}) => {
@@ -207,7 +203,16 @@ function App() {
 
         return (
           <div className="h-full flex flex-col">
-        <div className="p-3">
+            {pendingCount > 0 && (
+              <div
+                onClick={flushPendingEvents}
+                className="mx-4 mb-2 cursor-pointer rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[10px] uppercase font-bold tracking-[0.3em] text-cyan-300 flex items-center justify-center gap-2"
+              >
+                <span>{pendingCount} NEW ITEMS</span>
+                <span className="text-[8px]">APPLY</span>
+              </div>
+            )}
+            <div className="p-3">
           <div className="glassmorphism p-3 rounded-xl border-slate-800 shadow-2xl max-h-56 overflow-hidden">
             <textarea 
               value={postContent}
