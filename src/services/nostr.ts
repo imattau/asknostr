@@ -157,8 +157,7 @@ class NostrService {
 
       const subs = cleanFilters.map(filter => {
         let eosed = false
-        let sub: ReturnType<typeof this.pool.subscribe>
-        sub = this.pool.subscribe(
+        const subscription = this.pool.subscribe(
           urls,
           filter,
           {
@@ -168,14 +167,14 @@ class NostrService {
               eosed = true
               console.log('[Nostr] Subscription EOSE')
               onEose()
-              sub.close()
+              subscription.close()
             },
             onclose: (reasons: string[]) => {
               console.log('[Nostr] Subscription closed:', reasons)
             }
           }
         )
-        return sub
+        return subscription
       })
 
       let closed = false

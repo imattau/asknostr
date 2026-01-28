@@ -1,7 +1,10 @@
 import { generateSecretKey, getPublicKey, finalizeEvent, nip04 } from 'nostr-tools'
+import { normalizeHexPubkey, normalizeRelayUrl } from '../utils/nostr'
 import type { Event, EventTemplate } from 'nostr-tools'
 import { useStore } from '../store/useStore'
 import { nostrService } from './nostr'
+
+type NostrSubscriptionHandle = { close: () => void }
 
 class SignerService {
   private localSecretKey: Uint8Array | null = null
@@ -71,9 +74,11 @@ class SignerService {
     }, this.localSecretKey!)
 
     return new Promise<Event>((resolve, reject) => {
-      let sub: any
+      const subscriptionRef: { current: NostrSubscriptionHandle | null } = { current: null }
+      const cleanup = () => subscriptionRef.current?.close()
+
       const timeout = setTimeout(() => {
-        if (sub) sub.close()
+        cleanup()
         reject(new Error('Remote sign timeout'))
       }, 30000)
 
@@ -86,7 +91,7 @@ class SignerService {
             const response = JSON.parse(decrypted)
             if (response.id === requestId) {
               clearTimeout(timeout)
-              sub.close()
+              cleanup()
               if (response.error) {
                 reject(new Error(response.error))
               } else {
@@ -98,7 +103,9 @@ class SignerService {
           }
         },
         [bunkerRelay]
-      ).then(s => sub = s)
+      ).then((handle) => {
+        subscriptionRef.current = handle
+      })
 
       // Publish specifically to the bunker relay to ensure delivery
       nostrService.publishToRelays([bunkerRelay], reqEvent)
@@ -135,13 +142,15 @@ class SignerService {
     let secret = ''
 
     if (bunkerUri.startsWith('bunker://') || bunkerUri.startsWith('nostrconnect://')) {
-      const url = new URL(bunkerUri)
-      pubkey = url.host
-      relay = url.searchParams.get('relay') || url.searchParams.get('r') || ''
-      secret = url.searchParams.get('secret') || ''
+      const url = new URL(bunkerUri.trim())
+      pubkey = normalizeHexPubkey(url.host)
+      const rawRelay = url.searchParams.get('relay') || url.searchParams.get('r') || ''
+      relay = normalizeRelayUrl(rawRelay)
+      secret = url.searchParams.get('secret')?.trim() || ''
     }
 
-    if (!pubkey || !relay) throw new Error('Invalid bunker URI')
+    if (!pubkey) throw new Error('Invalid bunker public key')
+    if (!relay) throw new Error('Invalid bunker relay URL')
 
     const requestId = Math.random().toString(36).substring(7)
     const request = {
@@ -159,9 +168,11 @@ class SignerService {
     }, this.localSecretKey!)
 
     return new Promise<string>((resolve, reject) => {
-      let sub: any
+      const subscriptionRef: { current: NostrSubscriptionHandle | null } = { current: null }
+      const cleanup = () => subscriptionRef.current?.close()
+
       const timeout = setTimeout(() => {
-        if (sub) sub.close()
+        cleanup()
         reject(new Error('Nostr Connect timeout'))
       }, 30000)
 
@@ -173,7 +184,7 @@ class SignerService {
             const response = JSON.parse(decrypted)
             if (response.id === requestId) {
               clearTimeout(timeout)
-              sub.close()
+              cleanup()
               if (response.result === 'ack') {
                 const userPubkey = await this.fetchRemotePublicKey(pubkey, relay)
                 resolve(userPubkey)
@@ -186,7 +197,9 @@ class SignerService {
           }
         },
         [relay]
-      ).then(s => sub = s)
+      ).then((handle) => {
+        subscriptionRef.current = handle
+      })
 
       nostrService.publishToRelays([relay], reqEvent)
     })
@@ -209,9 +222,11 @@ class SignerService {
     }, this.localSecretKey!)
 
     return new Promise<string>((resolve, reject) => {
-      let sub: any
+      const subscriptionRef: { current: NostrSubscriptionHandle | null } = { current: null }
+      const cleanup = () => subscriptionRef.current?.close()
+
       const timeout = setTimeout(() => {
-        if (sub) sub.close()
+        cleanup()
         reject(new Error('get_public_key timeout'))
       }, 10000)
 
@@ -223,7 +238,7 @@ class SignerService {
             const response = JSON.parse(decrypted)
             if (response.id === requestId) {
               clearTimeout(timeout)
-              sub.close()
+              cleanup()
               resolve(response.result)
             }
           } catch (e) {
@@ -231,7 +246,9 @@ class SignerService {
           }
         },
         [relay]
-      ).then(s => sub = s)
+      ).then((handle) => {
+        subscriptionRef.current = handle
+      })
 
       nostrService.publishToRelays([relay], reqEvent)
     })

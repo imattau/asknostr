@@ -7,6 +7,7 @@ import { signerService } from '../services/signer'
 import { nostrService } from '../services/nostr'
 import { DEFAULT_RELAYS } from '../services/nostr'
 import { triggerHaptic } from '../utils/haptics'
+import { normalizeHexPubkey, normalizeRelayUrl } from '../utils/nostr'
 import QRCode from 'react-qr-code'
 
 export const ConnectBunker: React.FC = () => {
@@ -99,10 +100,20 @@ export const ConnectBunker: React.FC = () => {
     try {
       const userPubkey = await signerService.connect(uri)
       
-      const url = new URL(uri)
-      const bunkerPubkey = url.host
-      const relay = url.searchParams.get('relay') || url.searchParams.get('r') || DEFAULT_RELAYS[0]
-      const secret = url.searchParams.get('secret') || null
+    const url = new URL(uri.trim())
+    const bunkerPubkey = normalizeHexPubkey(url.host)
+    if (!bunkerPubkey) {
+      throw new Error('Invalid bunker public key')
+    }
+
+    const rawRelay = url.searchParams.get('relay') || url.searchParams.get('r') || DEFAULT_RELAYS[0]
+    const relay = normalizeRelayUrl(rawRelay)
+    if (!relay) {
+      throw new Error('Invalid relay URL in bunker URI')
+    }
+
+    const secretParam = url.searchParams.get('secret')?.trim()
+    const secret = secretParam || null
 
       setRemoteSigner({ pubkey: bunkerPubkey, relay, secret })
       setLoginMethod('nip46')

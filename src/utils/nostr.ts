@@ -1,17 +1,37 @@
 import { nip19 } from 'nostr-tools'
 
-export const formatPubkey = (pubkey: string): string => {
-  try {
-    return nip19.npubEncode(pubkey)
-  } catch {
-    return pubkey
+const HEX_PATTERN = /^[0-9a-f]{64}$/i
+
+export const normalizeHexPubkey = (input: string | null | undefined): string => {
+  if (!input) return ''
+  const candidate = input.trim()
+  if (HEX_PATTERN.test(candidate)) {
+    return candidate.toLowerCase()
   }
+
+  try {
+    const decoded = nip19.decode(candidate)
+    if (decoded.type === 'npub' && typeof decoded.data === 'string') {
+      return decoded.data
+    }
+    if (decoded.type === 'nprofile' && decoded.data && typeof decoded.data === 'object') {
+      const profilePubkey = (decoded.data as { pubkey?: string }).pubkey
+      if (profilePubkey && HEX_PATTERN.test(profilePubkey)) {
+        return profilePubkey.toLowerCase()
+      }
+    }
+  } catch (err) {
+    console.warn('[nostr utils] Failed to normalize pubkey', err)
+  }
+
+  return ''
 }
 
-export const shortenPubkey = (npub: string): string => {
-  return `${npub.slice(0, 8)}...${npub.slice(-8)}`
-}
-
-export const formatDate = (timestamp: number): string => {
-  return new Date(timestamp * 1000).toLocaleString()
+export const normalizeRelayUrl = (input: string | null | undefined): string => {
+  if (!input) return ''
+  const candidate = input.trim()
+  if (candidate.startsWith('wss://') || candidate.startsWith('ws://') || candidate.startsWith('https://') || candidate.startsWith('http://')) {
+    return candidate
+  }
+  return ''
 }

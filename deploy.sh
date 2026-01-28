@@ -199,7 +199,8 @@ update_app() {
     REMOTE_HEAD=$(sudo -u $APP_NAME git rev-parse origin/"$CURRENT_BRANCH")
 
     if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ]; then
-        log_info "Already at latest commit for $CURRENT_BRANCH; skipping pull."
+        log_info "Already at latest commit for $CURRENT_BRANCH; exiting update routine."
+        exit 0
     else
         sudo -u $APP_NAME git pull origin "$CURRENT_BRANCH"
     fi
