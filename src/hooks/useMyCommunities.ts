@@ -24,7 +24,7 @@ export const useMyCommunities = () => {
     queryClient.setQueryData(['my-communities', user.pubkey], uniqueLocal)
   }, [events, queryClient, user.pubkey])
 
-  return useQuery({
+  return useQuery<CommunityDefinition[]>({
     queryKey: ['my-communities', user.pubkey],
     queryFn: async () => {
       if (!user.pubkey) return []
@@ -94,7 +94,6 @@ export const useMyCommunities = () => {
         })
       })
     },
-    keepPreviousData: true,
     enabled: !!user.pubkey,
     staleTime: 1000 * 30, // 30 seconds
   })

@@ -39,7 +39,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
     }
   }, [communityId, creatorPubkey, events, queryClient])
 
-  return useQuery({
+  return useQuery<CommunityDefinition | null>({
     queryKey: ['community', communityId, creatorPubkey],
     queryFn: async () => {
       console.log(`[useCommunity] Loading metadata for ${communityId} by ${creatorPubkey}`)
@@ -117,7 +117,6 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
       })
     },
     staleTime: 1000 * 60 * 10,
-    keepPreviousData: true,
     enabled: !!communityId && !!creatorPubkey,
   })
 }

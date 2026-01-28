@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { LogIn, LogOut, Layout, Terminal as TerminalIcon } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
@@ -34,11 +34,18 @@ function App() {
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const liveSubRef = useRef<{ close: () => void } | null>(null)
+  const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
   const trendingTags = useTrendingTags()
   const { data: deletedIds = [] } = useDeletions(events.map(e => e.id))
 
   const fetchEvents = useCallback(async (until?: number, additionalFilter: Partial<Filter> = {}) => {
-    if (until) setIsLoadingMore(true)
+    if (until) {
+      if (isLoadingMore) return
+      setIsLoadingMore(true)
+      loadMoreSubRef.current?.close()
+      loadMoreSubRef.current = null
+    }
     
     const filter: Filter = { 
       kinds: [1], 
@@ -51,18 +58,35 @@ function App() {
       [filter],
       (event: Event) => {
         addEvent(event)
-      }
+      },
+      undefined,
+      until
+        ? {
+            onEose: () => {
+              setIsLoadingMore(false)
+              sub.close()
+              if (loadMoreSubRef.current === sub) loadMoreSubRef.current = null
+            }
+          }
+        : undefined
     )
 
     if (until) {
+      loadMoreSubRef.current = sub
       setTimeout(() => {
-        setIsLoadingMore(false)
-        sub.close()
+        if (loadMoreSubRef.current === sub) {
+          setIsLoadingMore(false)
+          sub.close()
+          loadMoreSubRef.current = null
+        }
       }, 3000) 
+    } else {
+      liveSubRef.current?.close()
+      liveSubRef.current = sub
     }
     
     return sub
-  }, [addEvent])
+  }, [addEvent, isLoadingMore])
 
   useEffect(() => {
     setConnected(true)
@@ -76,11 +100,13 @@ function App() {
 
     return () => {
       subNotes?.close()
+      liveSubRef.current?.close()
+      loadMoreSubRef.current?.close()
     }
   }, [fetchEvents, setConnected])
 
   const handleLoadMore = () => {
-    if (events.length === 0) return
+    if (events.length === 0 || isLoadingMore) return
     const oldest = events[events.length - 1].created_at
     fetchEvents(oldest - 1)
   }
