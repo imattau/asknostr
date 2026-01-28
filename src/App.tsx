@@ -323,7 +323,7 @@ function App() {
                 </div>
               </div>
               <div
-                className={`glassmorphism rounded-full border border-slate-800 shadow-inner px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-cyan-300 text-center cursor-pointer transition-all duration-200 ${
+                className={`glassmorphism rounded-full shadow-inner px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300/60 text-center cursor-pointer transition-all duration-300 hover:text-cyan-200 hover:bg-white/10 ${
                   composerCollapsed
                     ? 'opacity-100 visible pointer-events-auto'
                     : 'opacity-0 invisible pointer-events-none h-0 py-0 overflow-hidden'
