@@ -206,160 +206,139 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   return (
     <div className="flex flex-col h-full bg-[#05070A]">
-      <div className="glassmorphism m-4 p-6 rounded-xl border-slate-800 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full -mr-16 -mt-16 group-hover:bg-purple-500/20 transition-all duration-700" />
-        
-        <div className="flex items-start justify-between relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 neon-bloom-violet shadow-lg shadow-purple-500/20">
-              {community?.image ? (
-                <img src={community.image} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-purple-500 font-mono font-bold text-xl">
-                  {communityId[0].toUpperCase()}
+      {/* Header Section - Now scrollable with the content on very small screens if needed, or just more compact */}
+      <div className="shrink-0 z-10 bg-[#05070A]/95 backdrop-blur-xl border-b border-slate-800">
+        <div className="p-4 space-y-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 neon-bloom-violet shadow-lg shadow-purple-500/20">
+                {community?.image ? (
+                  <img src={community.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-purple-500 font-mono font-bold text-lg">
+                    {communityId[0].toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-50 tracking-tighter uppercase leading-none mb-0.5 truncate">
+                  {community?.name || communityId}
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-slate-500 font-mono">c/{communityId}</span>
+                  <div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20">
+                    <Shield size={8} /> {moderators.length}
+                  </div>
                 </div>
-              )}
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-50 tracking-tighter uppercase leading-none mb-1">
-                {community?.name || communityId}
-              </h2>
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-mono text-[9px] font-bold border border-purple-500/20">
-                  REF://34550
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">ID: {communityId.slice(0, 8)}...</span>
               </div>
             </div>
-          </div>
-          
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-500 bg-green-500/5 px-2 py-1 rounded-full border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
-              <Shield size={10} /> MODS:{moderators.length}
-            </div>
+            
             {user.pubkey && (
               <button 
                 onClick={handleToggle}
                 disabled={isUpdating}
-                className={`text-[10px] font-bold uppercase px-3 py-1 rounded border transition-all ${isSubscribed ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30' : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]'}`}
+                className={`flex-shrink-0 text-[9px] font-bold uppercase px-3 py-1.5 rounded border transition-all ${isSubscribed ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-red-500/10 hover:text-red-500' : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20'}`}
               >
-                {isUpdating ? 'SYNCING...' : isSubscribed ? 'LEAVE_NODE' : 'JOIN_STATION'}
+                {isUpdating ? '...' : isSubscribed ? 'Leave' : 'Join'}
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 -mx-4 px-4">
+            <button 
+              onClick={() => setIsModeratedOnly(!isModeratedOnly)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-bold transition-all border ${isModeratedOnly ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' : 'bg-white/5 text-slate-500 border-white/5'}`}
+            >
+              <Filter size={10} /> {isModeratedOnly ? 'MODERATED' : 'RAW'}
+            </button>
+
+            <div className="flex-shrink-0 flex bg-white/5 rounded border border-white/5 p-0.5">
+              {(['new', 'hot', 'top'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSortBy(s)}
+                  className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all ${sortBy === s ? 'bg-purple-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            
+            <div className="w-px h-4 bg-slate-800 mx-1 flex-shrink-0" />
+
+            {isUserModerator && (
+              <button 
+                onClick={() => pushLayer({ 
+                  id: `mod-queue-${communityId}`, 
+                  type: 'modqueue',
+                  title: 'Mod_Queue',
+                  params: { communityId, creator, moderators }
+                })}
+                className="flex-shrink-0 px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30 text-[9px] font-bold uppercase hover:bg-red-500/20"
+              >
+                Queue
+              </button>
+            )}
+            <button 
+              onClick={() => pushLayer({ 
+                id: `mod-log-${communityId}`, 
+                type: 'modlog',
+                title: 'Log',
+                params: { communityId, creator }
+              })}
+              className="flex-shrink-0 px-2 py-1 rounded bg-white/5 text-slate-500 border border-white/5 text-[9px] font-bold uppercase hover:text-slate-300"
+            >
+              Log
+            </button>
+            {isCreator && (
+              <button 
+                onClick={() => pushLayer({ 
+                  id: `admin-${communityId}`, 
+                  type: 'communityadmin',
+                  title: 'Admin',
+                  params: { communityId, creator }
+                })}
+                className="flex-shrink-0 px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[9px] font-bold uppercase hover:bg-cyan-500/20"
+              >
+                Settings
               </button>
             )}
           </div>
         </div>
-
-        {community?.description && (
-          <p className="mt-4 text-sm text-slate-400 font-sans leading-relaxed max-w-2xl opacity-80 group-hover:opacity-100 transition-opacity">
-            {community.description}
-          </p>
-        )}
-
-        <div className="mt-6 flex items-center gap-4 border-t border-white/5 pt-4 overflow-x-auto custom-scrollbar">
-          <button 
-            onClick={() => setIsModeratedOnly(!isModeratedOnly)}
-            className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg font-mono text-[10px] font-bold transition-all border ${isModeratedOnly ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-white/5 text-slate-500 border-white/5 hover:text-slate-300'}`}
-          >
-            <Filter size={14} /> {isModeratedOnly ? 'ACTIVE_MODERATION' : 'RAW_NETWORK_FEED'}
-          </button>
-
-          <div className="flex-shrink-0 flex bg-white/5 rounded-lg border border-white/5 p-0.5">
-            {(['new', 'hot', 'top'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setSortBy(s)}
-                className={`px-3 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${sortBy === s ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-slate-300'}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          
-          {isUserModerator && (
-            <button 
-              onClick={() => pushLayer({ 
-                id: `mod-queue-${communityId}`, 
-                type: 'modqueue',
-                title: 'Moderator_Control_Panel',
-                params: { communityId, creator, moderators }
-              })}
-              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 font-mono text-[10px] font-bold hover:bg-red-500/20 transition-all ml-auto"
-            >
-              <ListFilter size={14} /> ACCESS_MOD_QUEUE
-            </button>
-          )}
-          <button 
-            onClick={() => pushLayer({ 
-              id: `mod-log-${communityId}`, 
-              type: 'modlog',
-              title: 'Transparency_Log',
-              params: { communityId, creator }
-            })}
-            className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-slate-500 border border-white/5 font-mono text-[10px] font-bold hover:text-slate-300 transition-all ${!isUserModerator ? 'ml-auto' : ''}`}
-          >
-            <ListChecks size={14} /> AUDIT_TRAIL
-          </button>
-          {isCreator && (
-            <button 
-              onClick={() => pushLayer({ 
-                id: `admin-${communityId}`, 
-                type: 'communityadmin',
-                title: 'Station_Admin',
-                params: { communityId, creator }
-              })}
-              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono text-[10px] font-bold hover:bg-cyan-500/20 transition-all"
-            >
-              <Settings size={14} /> ADMIN_PANEL
-            </button>
-          )}
-          {isUnmoderated && community && (
-            <button 
-              onClick={() => pushLayer({ 
-                id: `claim-${communityId}`, 
-                type: 'claimstation',
-                title: 'Authority_Claim',
-                params: { community }
-              })}
-              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 font-mono text-[10px] font-bold hover:bg-orange-500/20 transition-all"
-            >
-              <Hammer size={14} /> CLAIM_AUTHORITY
-            </button>
-          )}
-        </div>
       </div>
 
-      <div className="flex-1 overflow-hidden px-4">
-        <div className="h-full flex flex-col space-y-4">
-          <div className="glassmorphism p-4 rounded-xl border-slate-800/50 mb-2 shrink-0">
+      <div className="flex-1 overflow-hidden relative">
+        <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
+          {/* Post Input - Inline with feed flow now */}
+          <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
             <textarea 
               value={postContent}
               onChange={(e) => setPostContent(e.target.value)}
               disabled={!user.pubkey || isPublishing}
-              className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-12 font-sans placeholder:text-slate-600"
-              placeholder={`Share data with c/${communityId.toLowerCase()}...`}
+              className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 font-sans placeholder:text-slate-600"
+              placeholder={`Post to c/${communityId}...`}
             ></textarea>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-              <span className="text-[9px] font-mono text-slate-600 uppercase">Input_Mode: Secure_Remote</span>
+            <div className="flex justify-end mt-2 pt-2 border-t border-white/5">
               <button 
                 onClick={handlePublish}
                 disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                className="terminal-button rounded-lg py-1.5 px-4 shadow-lg shadow-purple-500/20"
+                className="terminal-button rounded py-1 px-3 text-[9px]"
               >
-                {isPublishing ? 'Transmitting...' : 'Transmit_Entry'}
+                {isPublishing ? '...' : 'Post'}
               </button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pb-8">
-            {community?.rules && (
-              <div className="glassmorphism p-4 rounded-xl border-yellow-500/20 bg-yellow-500/5 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500/30" />
-                <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-yellow-500 uppercase mb-2 tracking-widest">
-                  <Info size={14} /> Community_Directives
-                </h4>
-                <div className="text-[11px] text-slate-400 font-sans leading-relaxed italic">{community.rules}</div>
+          {community?.rules && (
+            <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5">
+              <h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest">
+                <Info size={10} /> Rules
+              </h4>
+              <div className="text-[10px] text-slate-400 font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer">
+                {community.rules}
               </div>
-            )}
+            </div>
+          )}
 
             {pinnedEvents.length > 0 && (
               <div className="space-y-4 mb-8">
