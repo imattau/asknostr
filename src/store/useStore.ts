@@ -109,7 +109,6 @@ export const useStore = create<NostrState>()(
             const state = get()
             set(() => ({ 
               user: { ...state.user, pubkey },
-              appAdmin: state.appAdmin || pubkey,
               loginMethod: 'nip07'
             }))
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -135,7 +134,6 @@ export const useStore = create<NostrState>()(
         user: state.user, 
         relays: state.relays, 
         events: state.events,
-        appAdmin: state.appAdmin,
         loginMethod: state.loginMethod,
         remoteSigner: state.remoteSigner
       }),
