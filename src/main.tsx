@@ -5,6 +5,7 @@ import { Workbox } from 'workbox-window'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { errorReporter } from './services/errorReporter'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,7 +32,32 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
-  const wb = new Workbox('/sw.js')
-  wb.register()
+const registerServiceWorker = () => {
+  if ('serviceWorker' in navigator) {
+    const wb = new Workbox('/sw.js')
+    wb.register()
+  }
+}
+
+if (typeof window !== 'undefined') {
+  const globalErrorHandler = (event: ErrorEvent | PromiseRejectionEvent) => {
+    const error = 'reason' in event ? event.reason : event.error
+    if (error) {
+      console.error('[Global] captured error', error)
+      errorReporter.reportError(error, 'global')
+    } else {
+      console.error('[Global] error event unknown', event)
+    }
+  }
+
+  window.addEventListener('error', globalErrorHandler)
+  window.addEventListener('unhandledrejection', globalErrorHandler)
+  registerServiceWorker()
+
+  window.addEventListener('beforeunload', () => {
+    window.removeEventListener('error', globalErrorHandler)
+    window.removeEventListener('unhandledrejection', globalErrorHandler)
+  }, { once: true })
+} else {
+  registerServiceWorker()
 }

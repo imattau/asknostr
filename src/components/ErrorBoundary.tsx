@@ -17,6 +17,7 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren<objec
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] captured', error, info.componentStack)
     const report = errorReporter.reportError(error, info.componentStack ?? undefined)
     this.setState({ errorId: report.id })
   }
