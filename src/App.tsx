@@ -30,9 +30,9 @@ import type { CommunityDefinition } from './hooks/useCommunity'
 
 function App() {
   const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
+  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
   useSubscriptions() 
   useRelays()
-  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -178,6 +178,13 @@ function App() {
     },
     [setComposerCollapsed]
   )
+
+  const handleLayerClose = useCallback((index: number) => {
+    const layersToPop = stack.length - index
+    for (let i = 0; i < layersToPop; i++) {
+      popLayer()
+    }
+  }, [popLayer, stack.length])
   
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
@@ -443,10 +450,7 @@ function App() {
                 <header className="h-14 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md flex items-center px-4 gap-4 shrink-0">
                   {index > 0 && (
                     <button 
-                      onClick={() => {
-                        const layersToPop = stack.length - 1 - index
-                        for(let i=0; i<layersToPop; i++) popLayer()
-                      }}
+                      onClick={() => handleLayerClose(index)}
                       className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-tighter transition-colors"
                     >
                       [CLOSE]
