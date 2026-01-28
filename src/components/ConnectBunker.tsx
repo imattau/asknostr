@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Shield, Key, RefreshCw, AlertCircle, Cpu, Smartphone } from 'lucide-react'
+import { getPublicKey, nip19 } from 'nostr-tools'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
 import { signerService } from '../services/signer'
@@ -12,6 +13,8 @@ export const ConnectBunker: React.FC = () => {
   const [uri, setUri] = useState('')
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nsecInput, setNsecInput] = useState('')
+  const [nsecWarning, setNsecWarning] = useState<string | null>(null)
   
   // Client-Initiated Flow (NIP-46)
   const [generatedUri, setGeneratedUri] = useState<string>('')
@@ -123,6 +126,32 @@ export const ConnectBunker: React.FC = () => {
     alert('Connection URI copied to clipboard')
   }
 
+  const handleUseNsec = () => {
+    if (!nsecInput.trim()) return
+    setIsConnecting(true)
+    setError(null)
+    setNsecWarning(null)
+    try {
+      const decoded = nip19.decode(nsecInput.trim())
+      if (decoded.type !== 'nsec' || typeof decoded.data !== 'string') {
+        throw new Error('Invalid nsec key.')
+      }
+      signerService.setSecretKey(decoded.data)
+      const userPubkey = getPublicKey(decoded.data)
+      setRemoteSigner({ pubkey: null, relay: null, secret: null })
+      setLoginMethod('local')
+      setUser(userPubkey)
+      triggerHaptic(50)
+      setNsecWarning('Local key imported—treat this session as sensitive.')
+      popLayer()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Invalid nsec string'
+      setError(message)
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-8 pb-20">
       <header className="terminal-border p-4 bg-purple-500/10 border-purple-500/30">
@@ -189,6 +218,31 @@ export const ConnectBunker: React.FC = () => {
             placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
             className="w-full terminal-input rounded-xl p-4 min-h-[80px] font-mono text-xs shadow-2xl"
           />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1">
+            <Shield size={12} /> Paste_NSEC_Fallback
+          </label>
+          <input
+            value={nsecInput}
+            onChange={(e) => setNsecInput(e.target.value)}
+            placeholder="nsec1..."
+            className="w-full terminal-input rounded-xl px-4 py-3 text-xs font-mono border-amber-500/40 focus:border-amber-300"
+          />
+          <p className="text-[8px] uppercase font-mono tracking-[0.3em] text-amber-400">
+            Warning: Pastable nsec is stored locally. Only use this on a trusted device.
+          </p>
+          <button
+            type="button"
+            disabled={!nsecInput.trim() || isConnecting}
+            onClick={handleUseNsec}
+            className="w-full bg-amber-500/10 border border-amber-500/40 text-amber-200 uppercase py-3 rounded-xl text-[10px] font-bold tracking-[0.4em] disabled:opacity-40"
+          >
+            Use pasted nsec
+          </button>
+          {nsecWarning && (
+            <p className="text-[9px] font-mono text-amber-300 uppercase">{nsecWarning}</p>
+          )}
         </div>
 
         {error && (

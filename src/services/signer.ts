@@ -36,6 +36,10 @@ class SignerService {
       return this.signWithRemote(event)
     }
 
+    if (resolvedMethod === 'local') {
+      return this.signWithLocal(event)
+    }
+
     throw new Error('No signer configured')
   }
 
@@ -99,6 +103,30 @@ class SignerService {
       // Publish specifically to the bunker relay to ensure delivery
       nostrService.publishToRelays([bunkerRelay], reqEvent)
     })
+  }
+
+  private signWithLocal(template: EventTemplate): Event {
+    if (!this.localSecretKey) throw new Error('Local secret key not set')
+    return finalizeEvent(template, this.localSecretKey)
+  }
+
+  setSecretKey(hex: string) {
+    const normalized = this.normalizeHex(hex)
+    this.localSecretKey = this.hexToBytes(normalized)
+    localStorage.setItem('asknostr-client-secret', JSON.stringify(Array.from(this.localSecretKey)))
+  }
+
+  private normalizeHex(input: string) {
+    return input.trim().replace(/^0x/, '').toLowerCase()
+  }
+
+  private hexToBytes(hex: string): Uint8Array {
+    if (!/^[0-9a-f]{64}$/.test(hex)) throw new Error('Secret key must be 64 hex characters')
+    const result = new Uint8Array(32)
+    for (let i = 0; i < 32; i++) {
+      result[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+    }
+    return result
   }
 
   async connect(bunkerUri: string): Promise<string> {

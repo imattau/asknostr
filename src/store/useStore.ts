@@ -37,7 +37,7 @@ interface NostrState {
   relays: string[]
   mediaServers: MediaServer[]
   isConnected: boolean
-  loginMethod: 'nip07' | 'nip46' | null
+  loginMethod: 'nip07' | 'nip46' | 'local' | null
   remoteSigner: {
     pubkey: string | null
     relay: string | null
@@ -59,7 +59,7 @@ interface NostrState {
   setConnected: (connected: boolean) => void
   setUser: (pubkey: string | null) => void
   setProfile: (profile: UserProfile) => void
-  setLoginMethod: (method: 'nip07' | 'nip46' | null) => void
+  setLoginMethod: (method: 'nip07' | 'nip46' | 'local' | null) => void
   setRemoteSigner: (signer: { pubkey: string | null, relay: string | null, secret: string | null }) => void
   login: () => Promise<void>
   logout: () => void
