@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
@@ -7,9 +8,24 @@ import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useMyCommunities = () => {
   const { user, events } = useStore()
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!user.pubkey) return
+    const localOwned: CommunityDefinition[] = events
+      .filter(e => e.kind === 34550 && e.pubkey === user.pubkey)
+      .map(e => parseCommunityEvent(e))
+      .filter((c): c is CommunityDefinition => !!c)
+
+    const uniqueLocal = Array.from(
+      new Map(localOwned.map(item => [item.id, item])).values()
+    )
+
+    queryClient.setQueryData(['my-communities', user.pubkey], uniqueLocal)
+  }, [events, queryClient, user.pubkey])
 
   return useQuery({
-    queryKey: ['my-communities', user.pubkey, events.length],
+    queryKey: ['my-communities', user.pubkey],
     queryFn: async () => {
       if (!user.pubkey) return []
       console.log('[MyCommunities] Scanning for owned stations for:', user.pubkey)
@@ -78,6 +94,7 @@ export const useMyCommunities = () => {
         })
       })
     },
+    keepPreviousData: true,
     enabled: !!user.pubkey,
     staleTime: 1000 * 30, // 30 seconds
   })
