@@ -9,7 +9,7 @@ import { DEFAULT_RELAYS } from '../services/nostr'
 import { errorReporter } from '../services/errorReporter'
 import { triggerHaptic } from '../utils/haptics'
 import { normalizeHexPubkey, normalizeRelayUrl } from '../utils/nostr'
-import QRCode from 'react-qr-code'
+import QRCode from 'qrcode'
 
 export const ConnectBunker: React.FC = () => {
   const [uri, setUri] = useState('')
@@ -20,6 +20,7 @@ export const ConnectBunker: React.FC = () => {
   
   // Client-Initiated Flow (NIP-46)
   const [generatedUri, setGeneratedUri] = useState<string>('')
+  const [qrCodeData, setQrCodeData] = useState<string>('')
   const generatedRelayRef = useRef<string>('')
   const generatedSecretRef = useRef<string>('')
   
@@ -70,6 +71,10 @@ export const ConnectBunker: React.FC = () => {
     const relayParam = encodeURIComponent(relay)
     const connectUri = `nostrconnect://${clientPubkey}?relay=${relayParam}&r=${relayParam}&secret=${secret}&metadata=${encodeURIComponent(JSON.stringify(metadata))}`
     setGeneratedUri(connectUri)
+
+    QRCode.toDataURL(connectUri, { margin: 2, scale: 6 })
+      .then(url => setQrCodeData(url))
+      .catch(err => console.error('[ConnectBunker] QR gen failed', err))
 
     // Listen for the "connect" ACK from the signer app
     const handleError = (err: unknown, context: string) => {
@@ -223,9 +228,9 @@ export const ConnectBunker: React.FC = () => {
           <Smartphone size={14} /> Connect_via_Mobile_App
         </h3>
         
-        {generatedUri ? (
+        {qrCodeData ? (
           <div className="bg-white p-4 rounded-xl flex items-center justify-center shadow-2xl">
-            <QRCode value={generatedUri} size={180} />
+            <img src={qrCodeData} alt="Scan to connect" className="w-[180px] h-[180px]" />
           </div>
         ) : (
           <div className="h-48 flex items-center justify-center border border-dashed border-slate-800 rounded-xl">
