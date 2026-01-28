@@ -6,6 +6,7 @@ import { useStore } from '../store/useStore'
 import { signerService } from '../services/signer'
 import { nostrService } from '../services/nostr'
 import { DEFAULT_RELAYS } from '../services/nostr'
+import { errorReporter } from '../services/errorReporter'
 import { triggerHaptic } from '../utils/haptics'
 import { normalizeHexPubkey, normalizeRelayUrl } from '../utils/nostr'
 import QRCode from 'react-qr-code'
@@ -48,7 +49,15 @@ export const ConnectBunker: React.FC = () => {
     setGeneratedUri(connectUri)
 
     // Listen for the "connect" ACK from the signer app
-    const sub = nostrService.subscribe(
+    const handleError = (err: unknown, context: string) => {
+      console.error('[ConnectBunker] initialization failed', context, err)
+      errorReporter.reportError(err, `ConnectBunker:${context}`)
+      setError('Failed to prepare remote signer. Retry or refresh.')
+    }
+
+    let subscriptionPromise = Promise.resolve({ close: () => {} })
+    try {
+      subscriptionPromise = nostrService.subscribe(
       [{ kinds: [24133], '#p': [clientPubkey], limit: 1 }],
       async (event) => {
         const relayFromRef = generatedRelayRef.current
@@ -84,10 +93,18 @@ export const ConnectBunker: React.FC = () => {
           setIsConnecting(false)
         }
       }
-    )
+      ).catch((err) => {
+        handleError(err, 'subscribe')
+        return { close: () => {} }
+      })
+    } catch (err) {
+      handleError(err, 'subscribe-sync')
+    }
 
     return () => {
-      sub.then(s => s.close())
+      subscriptionPromise.then(s => s.close()).catch((err) => {
+        console.warn('[ConnectBunker] subscription close failed', err)
+      })
     }
   }, [])
 
