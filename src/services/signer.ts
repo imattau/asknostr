@@ -46,14 +46,19 @@ class SignerService {
     throw new Error('No signer configured')
   }
 
-  async signAuthEvent(url: string, method: string): Promise<Event> {
+  async signAuthEvent(url: string, method: string, sha256?: string): Promise<Event> {
+    const tags = [
+      ['u', url],
+      ['method', method],
+    ]
+    if (sha256) {
+      tags.push(['x', sha256])
+    }
+
     const authEvent = {
       kind: 27235,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ['u', url],
-        ['method', method],
-      ],
+      tags,
       content: '',
     }
     return this.signEvent(authEvent)
