@@ -111,7 +111,7 @@ class NostrService {
           oneose: () => {
             console.log('[Nostr] Subscription EOSE')
           },
-          onclosed: (reasons: string[]) => {
+          onclose: (reasons: string[]) => {
             console.log('[Nostr] Subscription closed:', reasons)
           }
         }
