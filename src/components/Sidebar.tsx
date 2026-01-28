@@ -1,7 +1,7 @@
 import React from 'react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
-import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image } from 'lucide-react'
+import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
 export const Sidebar: React.FC = () => {
@@ -48,6 +48,14 @@ export const Sidebar: React.FC = () => {
       label: 'Media Servers', 
       icon: Image,
       color: 'text-emerald-400'
+    },
+    { 
+      id: 'error-log', 
+      type: 'errorlog' as const, 
+      title: 'Error_Log', 
+      label: 'Error Log', 
+      icon: Activity,
+      color: 'text-rose-400'
     },
   ]
 

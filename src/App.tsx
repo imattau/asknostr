@@ -9,6 +9,7 @@ import { VirtualFeed } from './components/VirtualFeed'
 import { useTrendingTags } from './hooks/useTrendingTags'
 import { RelayList } from './components/RelayList'
 import { MediaServers } from './components/MediaServers'
+import { ErrorLog } from './components/ErrorLog'
 import { SwipeStack } from './components/SwipeStack'
 import { Communities } from './components/Communities'
 import { Thread } from './components/Thread'
@@ -230,6 +231,8 @@ function App() {
         return <RelayList />
       case 'mediaservers':
         return <MediaServers />
+      case 'errorlog':
+        return <ErrorLog />
       case 'profile':
         return <ProfileEditor />
       default:
