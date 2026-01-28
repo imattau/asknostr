@@ -37,6 +37,7 @@ function App() {
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
+  const [composerCollapsed, setComposerCollapsed] = useState(false)
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
   const trendingTags = useTrendingTags()
@@ -170,6 +171,14 @@ function App() {
     fetchEvents(oldest - 1)
   }
 
+  const handleFeedScroll = useCallback(
+    (scrollOffset: number) => {
+      const shouldCollapse = scrollOffset > 40
+      setComposerCollapsed((prev) => (prev === shouldCollapse ? prev : shouldCollapse))
+    },
+    [setComposerCollapsed]
+  )
+  
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
@@ -203,49 +212,74 @@ function App() {
 
         return (
           <div className="h-full flex flex-col">
-            {pendingCount > 0 && (
+            <div className="mx-4 mb-2">
               <div
-                onClick={flushPendingEvents}
-                className="mx-4 mb-2 cursor-pointer rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[10px] uppercase font-bold tracking-[0.3em] text-cyan-300 flex items-center justify-center gap-2"
+                className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${
+                  composerCollapsed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-72 opacity-100'
+                }`}
               >
-                <span>{pendingCount} NEW ITEMS</span>
-                <span className="text-[8px]">APPLY</span>
-              </div>
-            )}
-            <div className="p-3">
-          <div className="glassmorphism p-3 rounded-xl border-slate-800 shadow-2xl max-h-56 overflow-hidden">
-            <textarea 
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              disabled={!user.pubkey || isPublishing}
-              className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-16 min-h-[3.5rem] font-sans placeholder:text-slate-600"
-              placeholder={user.pubkey ? "Broadcast to network..." : "Login to write..."}
-            ></textarea>
-            <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3">
-              <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={isNsfw}
-                  onChange={(e) => setIsNsfw(e.target.checked)}
-                  className="accent-red-500"
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <span className="text-[9px] uppercase font-bold tracking-[0.3em] text-slate-400">Broadcast</span>
+                  <button
+                    onClick={() => setComposerCollapsed(true)}
+                    className="text-[10px] uppercase tracking-[0.3em] text-cyan-300 hover:text-cyan-200"
+                  >
+                    hide
+                  </button>
+                </div>
+                <textarea
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  disabled={!user.pubkey || isPublishing}
+                  className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-16 min-h-[3.5rem] font-sans placeholder:text-slate-600 mt-3"
+                  placeholder={user.pubkey ? 'Broadcast to network...' : 'Login to write...'}
                 />
-                NSFW
-              </label>
-              <button 
-                onClick={handlePublish}
-                disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                className="terminal-button rounded-lg text-[10px] py-1 px-3"
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3 text-[9px]">
+                  <label className="flex items-center gap-2 uppercase font-mono text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={isNsfw}
+                      onChange={(e) => setIsNsfw(e.target.checked)}
+                      className="accent-red-500"
+                    />
+                    NSFW
+                  </label>
+                  <button
+                    onClick={handlePublish}
+                    disabled={!user.pubkey || !postContent.trim() || isPublishing}
+                    className="terminal-button rounded-lg text-[10px] py-1 px-3"
+                  >
+                    Transmit
+                  </button>
+                </div>
+              </div>
+              <div
+                className={`glassmorphism rounded-full border border-slate-800 shadow-inner px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-cyan-300 text-center cursor-pointer transition-all duration-200 ${
+                  composerCollapsed
+                    ? 'opacity-100 visible pointer-events-auto'
+                    : 'opacity-0 invisible pointer-events-none'
+                }`}
+                onClick={() => setComposerCollapsed(false)}
               >
-                Transmit
-              </button>
+                Open composer
+              </div>
             </div>
-          </div>
-        </div>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 relative">
+              {pendingCount > 0 && (
+                <div className="absolute top-4 left-1/2 z-20 -translate-x-1/2">
+                  <button
+                    onClick={flushPendingEvents}
+                    className="rounded-full border border-cyan-500/60 bg-gradient-to-r from-cyan-600/80 to-sky-600/60 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-white shadow-xl backdrop-blur-xl"
+                  >
+                    {pendingCount} NEW ITEM{pendingCount > 1 ? 'S' : ''} · APPLY
+                  </button>
+                </div>
+              )}
               <VirtualFeed
                 events={filteredEvents}
                 isLoadingMore={isLoadingMore}
                 onLoadMore={handleLoadMore}
+                onScroll={handleFeedScroll}
               />
             </div>
           </div>

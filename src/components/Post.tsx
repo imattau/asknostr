@@ -69,8 +69,8 @@ const PostComponent: React.FC<PostProps> = ({
   const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
   const mediaMatches = event.content.match(mediaRegex)
 
-  const openThread = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return
+  const openThread = (e: React.MouseEvent, options?: { force?: boolean }) => {
+    if (!options?.force && (e.target as HTMLElement).closest('button')) return
 
     pushLayer({
       id: `thread-${event.id}`,
@@ -389,7 +389,7 @@ const PostComponent: React.FC<PostProps> = ({
 
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
         <button 
-          onClick={(e) => { e.stopPropagation(); openThread(e); }}
+          onClick={(e) => { e.stopPropagation(); openThread(e, { force: true }); }}
           className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
         >
           <MessageSquare size={12} className="group-hover/btn:scale-110 transition-transform" />

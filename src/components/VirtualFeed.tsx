@@ -8,6 +8,7 @@ interface VirtualFeedProps {
   events: Event[]
   isLoadingMore: boolean
   onLoadMore: () => void
+  onScroll?: (scrollOffset: number) => void
 }
 
 interface RowProps {
@@ -51,7 +52,7 @@ const Row = ({
   )
 }
 
-export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore, onLoadMore }) => {
+export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore, onLoadMore, onScroll }) => {
   const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}` })
 
   return (
@@ -66,6 +67,11 @@ export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore,
               rowComponent={Row}
               rowProps={{ events, isLoadingMore, onLoadMore }}
               style={{ height, width }}
+              onScroll={(event) => {
+                if (onScroll) {
+                  onScroll(event.currentTarget.scrollTop)
+                }
+              }}
             />
           )
         }}
