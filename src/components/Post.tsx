@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import type { Event } from 'nostr-tools'
+import { nip19, type Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2 } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
@@ -245,6 +245,95 @@ const PostComponent: React.FC<PostProps> = ({
     }
   }
 
+  const handleNostrLink = (link: string) => {
+    const entity = link.replace('nostr:', '')
+    try {
+      const decoded = nip19.decode(entity)
+      if (decoded.type === 'npub' || decoded.type === 'nprofile') {
+        const pubkey = decoded.type === 'npub' ? decoded.data : (decoded.data as any).pubkey
+        pushLayer({
+          id: `profile-${pubkey}-${Date.now()}`,
+          type: 'profile-view',
+          title: `Profile_${shortenPubkey(formatPubkey(pubkey))}`,
+          params: { pubkey }
+        })
+      } else if (decoded.type === 'note' || decoded.type === 'nevent') {
+        const id = decoded.type === 'note' ? decoded.data : (decoded.data as any).id
+        pushLayer({
+          id: `thread-${id}`,
+          type: 'thread',
+          title: 'Thread_Context',
+          params: { eventId: id }
+        })
+      }
+    } catch (e) {
+      console.error('Failed to decode nostr entity', e)
+    }
+  }
+
+  const renderContent = () => {
+    const mediaRegexNoCapture = /https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov)/gi
+    const textParts = event.content.split(mediaRegexNoCapture)
+    const linkRegex = /(https?:\/\/[^\s]+|nostr:(?:npub|nprofile|note|nevent|naddr|nrelay)1[a-z0-9]+)/gi
+
+    const elements: (string | React.ReactNode)[] = []
+
+    textParts.forEach((part, i) => {
+      const subParts = part.split(linkRegex)
+      const matches = part.match(linkRegex)
+
+      if (!matches) {
+        elements.push(part)
+        return
+      }
+
+      let matchIndex = 0
+      subParts.forEach((subPart, j) => {
+        if (matches.includes(subPart)) {
+          const match = matches[matchIndex++]
+          if (match.startsWith('nostr:')) {
+            elements.push(
+              <button 
+                key={`${i}-${j}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleNostrLink(match)
+                }}
+                className="text-cyan-400 hover:underline font-mono text-[11px] bg-cyan-500/10 px-1 rounded mx-0.5"
+              >
+                {match.replace('nostr:', '')}
+              </button>
+            )
+          } else {
+            elements.push(
+              <a 
+                key={`${i}-${j}`}
+                href={match}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-purple-400 hover:underline break-all"
+              >
+                {match}
+              </a>
+            )
+          }
+        } else {
+          elements.push(subPart)
+        }
+      })
+    })
+
+    const finalContent = elements.filter(e => e !== '')
+    if (finalContent.length === 0 && mediaMatches && mediaMatches.length > 0) return null
+
+    return (
+      <div className={`whitespace-pre-wrap break-words text-slate-300 leading-relaxed font-sans ${isThreadView ? 'text-lg text-slate-50' : 'text-sm'} ${isHidden ? 'blur-sm select-none pointer-events-none' : ''}`}>
+        {finalContent}
+      </div>
+    )
+  }
+
   const currentLayer = stack[stack.length - 1]
   const layerParams = currentLayer?.params as { moderators?: string[] } | undefined
   const isUserModerator = currentLayer?.type === 'community' && 
@@ -334,9 +423,7 @@ const PostComponent: React.FC<PostProps> = ({
       </div>
       
       <div className="relative mb-4">
-        <div className={`whitespace-pre-wrap break-words text-slate-300 leading-relaxed font-sans ${isThreadView ? 'text-lg text-slate-50' : 'text-sm'} ${isHidden ? 'blur-sm select-none pointer-events-none' : ''}`}>
-          {event.content}
-        </div>
+        {renderContent()}
         {isHidden && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 border border-red-500/30 rounded-lg">
             <div className="flex flex-col items-center gap-2 text-center px-4">
