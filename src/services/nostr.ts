@@ -195,6 +195,10 @@ class NostrService {
     return new Promise<string[]>((resolve) => {
       let latestEvent: Event | null = null
       
+      const discoveryUrls = this.normalizeRelays(DISCOVERY_RELAYS)
+      const fallbackUrls = this.normalizeRelays(this.relays)
+      const urls = Array.from(new Set([...discoveryUrls, ...fallbackUrls]))
+
       this.subscribe(
         [{ kinds: [10002, 10001, 3], authors: [pubkey], limit: 1 }],
         (event: Event) => {
@@ -202,7 +206,7 @@ class NostrService {
             latestEvent = event
           }
         },
-        this.getDiscoveryRelays()
+        urls
       ).then(sub => {
         setTimeout(() => {
           sub.close()

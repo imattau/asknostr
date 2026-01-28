@@ -10,6 +10,7 @@ import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
 import { useDeletions } from '../hooks/useDeletions'
 import { useSubscriptions } from '../hooks/useSubscriptions'
+import { useLabels } from '../hooks/useLabels'
 import type { Event } from 'nostr-tools'
 
 interface CommunityFeedProps {
@@ -30,6 +31,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   
   const communityATag = `34550:${creator}:${communityId}`
+  const { data: labels = [] } = useLabels(communityATag)
 
   // Dedicated Community Post Fetching
   useEffect(() => {
@@ -208,6 +210,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
                     <Shield size={8} /> {moderators.length}
                   </div>
                 </div>
+                {labels.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {labels.slice(0, 6).map(label => (
+                      <span
+                        key={label}
+                        className="text-[7px] font-mono uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             

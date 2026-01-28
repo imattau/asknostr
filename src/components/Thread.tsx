@@ -65,6 +65,8 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     let resolved = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     setAllEvents([])
+    setReplyContent('')
+    setIsNsfw(false)
 
     const fetchThread = async () => {
       console.log('[Thread] Fetching events for ID:', eventId)
@@ -136,10 +138,9 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       const parentId = eventId
       const parentPubkey = allEvents.find(e => e.id === parentId)?.pubkey || rootEventResolved?.pubkey || ''
       
-      const tags: string[][] = [
-        ['e', rootId, '', 'root'],
-        ['e', parentId, '', 'reply']
-      ]
+      const tags: string[][] = []
+      if (rootId) tags.push(['e', rootId, '', 'root'])
+      if (parentId) tags.push(['e', parentId, '', 'reply'])
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
 
       const pTags = new Set<string>()
