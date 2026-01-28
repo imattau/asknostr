@@ -22,13 +22,17 @@ class SignerService {
 
   async signEvent(event: EventTemplate): Promise<Event> {
     const state = useStore.getState()
-    
-    if (state.loginMethod === 'nip07') {
+
+    const resolvedMethod = state.loginMethod
+      || (state.remoteSigner.pubkey && state.remoteSigner.relay ? 'nip46' : null)
+      || (window.nostr ? 'nip07' : null)
+
+    if (resolvedMethod === 'nip07') {
       if (!window.nostr) throw new Error('NIP-07 extension missing')
       return window.nostr.signEvent(event)
     }
 
-    if (state.loginMethod === 'nip46') {
+    if (resolvedMethod === 'nip46') {
       return this.signWithRemote(event)
     }
 
@@ -102,10 +106,10 @@ class SignerService {
     let relay = ''
     let secret = ''
 
-    if (bunkerUri.startsWith('bunker://')) {
+    if (bunkerUri.startsWith('bunker://') || bunkerUri.startsWith('nostrconnect://')) {
       const url = new URL(bunkerUri)
       pubkey = url.host
-      relay = url.searchParams.get('relay') || ''
+      relay = url.searchParams.get('relay') || url.searchParams.get('r') || ''
       secret = url.searchParams.get('secret') || ''
     }
 

@@ -37,7 +37,8 @@ export const ConnectBunker: React.FC = () => {
       description: 'A Miller Column Nostr Client'
     }
     
-    const connectUri = `nostrconnect://${clientPubkey}?relay=${encodeURIComponent(relay)}&secret=${secret}&metadata=${encodeURIComponent(JSON.stringify(metadata))}`
+    const relayParam = encodeURIComponent(relay)
+    const connectUri = `nostrconnect://${clientPubkey}?relay=${relayParam}&r=${relayParam}&secret=${secret}&metadata=${encodeURIComponent(JSON.stringify(metadata))}`
     setGeneratedUri(connectUri)
 
     // Listen for the "connect" ACK from the signer app

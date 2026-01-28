@@ -167,7 +167,11 @@ export const useStore = create<NostrState>()(
         relays: state.relays, 
         mediaServers: state.mediaServers,
         loginMethod: state.loginMethod,
-        remoteSigner: state.remoteSigner
+        remoteSigner: {
+          pubkey: state.remoteSigner.pubkey,
+          relay: state.remoteSigner.relay,
+          secret: null
+        }
       }),
     }
   )
