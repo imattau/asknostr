@@ -26,7 +26,7 @@ export const ConnectBunker: React.FC = () => {
   const { setRemoteSigner, setLoginMethod, setUser } = useStore()
 
   useEffect(() => {
-    console.debug('[ConnectBunker] component mounted, generating URI')
+    console.log('[ConnectBunker] component mounted, generating URI')
     // Generate a nostrconnect:// URI for this client session
     // This allows the user to scan this QR with Amber/Amethyst to initiate the connection "backwards"
     const clientPubkey = signerService.clientPubkey
@@ -55,7 +55,7 @@ export const ConnectBunker: React.FC = () => {
         const secretFromRef = generatedSecretRef.current
         if (!relayFromRef || !secretFromRef) return
         try {
-        console.debug('[ConnectBunker] received subscription event', { pubkey: event.pubkey, kind: event.kind })
+        console.log('[ConnectBunker] received subscription event', { pubkey: event.pubkey, kind: event.kind })
         const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
           const request = JSON.parse(decrypted)
           if (request?.method !== 'connect') return
@@ -99,7 +99,7 @@ export const ConnectBunker: React.FC = () => {
     setError(null)
     triggerHaptic(15)
 
-    console.debug('[ConnectBunker] handleConnect start', { uri })
+    console.log('[ConnectBunker] handleConnect start', { uri })
     try {
       const userPubkey = await signerService.connect(uri)
       
