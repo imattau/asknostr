@@ -27,7 +27,7 @@ export const useFollowerSuggestions = () => {
             sub.close()
             const pTags = latest?.tags.filter(t => t[0] === 'p').map(t => t[1]) || []
             resolve(pTags)
-          }, 2000)
+          }, 4000)
         })
       })
     },
@@ -56,7 +56,7 @@ export const useFollowerSuggestions = () => {
           setTimeout(() => {
             sub.close()
             resolve(suggestions)
-          }, 3000)
+          }, 5000)
         })
       })
     },

@@ -81,7 +81,7 @@ export const useHandlers = (kinds: number[]) => {
             sub.close()
             return
           }
-          timeoutId = setTimeout(finish, 2000)
+          timeoutId = setTimeout(finish, 4000)
         })
       })
     },

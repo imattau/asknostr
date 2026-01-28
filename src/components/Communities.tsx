@@ -19,13 +19,13 @@ const SUGGESTED_COMMUNITIES = [
 export const Communities: React.FC = () => {
   const { pushLayer } = useUiStore()
   const { subscribedCommunities } = useSubscriptions()
-  const { data: suggestions = [] } = useFollowerSuggestions()
+  const { data: suggestions = [], isLoading: isSuggestionsLoading } = useFollowerSuggestions()
   const { data: trending = [] } = useTrendingCommunities()
   const { data, isLoading: isGlobalLoading } = useGlobalDiscovery()
   const globalNodes = data?.communities || []
   const discoveryFallback = data?.usedFallback || false
   const { data: myNodes = [] } = useMyCommunities()
-  const { data: handlers = [] } = useHandlers([1, 34550])
+  const { data: handlers = [], isLoading: isHandlersLoading } = useHandlers([1, 34550])
 
   console.log('[CommunitiesUI] myNodes:', myNodes.length, 'globalNodes:', globalNodes.length)
 
@@ -123,62 +123,78 @@ export const Communities: React.FC = () => {
       )}
 
       {/* 4. Handlers Section */}
-      {handlers.length > 0 && (
+      {(handlers.length > 0 || isHandlersLoading) && (
         <section>
           <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
             <Globe size={14} className="text-cyan-500" /> Specialized_Network_Apps
           </h3>
           <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-            {handlers.map((h) => (
-              <a
-                key={h.id}
-                href={h.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 w-48 terminal-border p-4 glassmorphism border-slate-800 hover:border-cyan-500/30 transition-all flex flex-col items-center text-center"
-              >
-                <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 overflow-hidden mb-3 flex items-center justify-center">
-                  {h.image ? (
-                    <img src={h.image} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <Globe size={24} className="text-cyan-500/50" />
-                  )}
-                </div>
-                <span className="text-[10px] font-bold text-slate-50 uppercase tracking-tighter mb-1 line-clamp-1">{h.name || h.id}</span>
-                <p className="text-[8px] text-slate-500 line-clamp-2 italic h-6">{h.about || 'No app description.'}</p>
-                <div className="mt-3 flex gap-1">
-                  {h.kTags.slice(0, 3).map(k => (
-                    <span key={k} className="text-[7px] bg-cyan-500/10 text-cyan-500 px-1 rounded border border-cyan-500/20">K:{k}</span>
-                  ))}
-                </div>
-              </a>
-            ))}
+            {isHandlersLoading && handlers.length === 0 ? (
+              <div className="flex gap-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex-shrink-0 w-48 h-32 terminal-border glassmorphism animate-pulse bg-white/5" />
+                ))}
+              </div>
+            ) : (
+              handlers.map((h) => (
+                <a
+                  key={h.id}
+                  href={h.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 w-48 terminal-border p-4 glassmorphism border-slate-800 hover:border-cyan-500/30 transition-all flex flex-col items-center text-center"
+                >
+                  <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 overflow-hidden mb-3 flex items-center justify-center">
+                    {h.image ? (
+                      <img src={h.image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Globe size={24} className="text-cyan-500/50" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-50 uppercase tracking-tighter mb-1 line-clamp-1">{h.name || h.id}</span>
+                  <p className="text-[8px] text-slate-500 line-clamp-2 italic h-6">{h.about || 'No app description.'}</p>
+                  <div className="mt-3 flex gap-1">
+                    {h.kTags.slice(0, 3).map(k => (
+                      <span key={k} className="text-[7px] bg-cyan-500/10 text-cyan-500 px-1 rounded border border-cyan-500/20">K:{k}</span>
+                    ))}
+                  </div>
+                </a>
+              ))
+            )}
           </div>
         </section>
       )}
 
       {/* 5. Trust Suggestions */}
-      {suggestions.length > 0 && (
+      {(suggestions.length > 0 || isSuggestionsLoading) && (
         <section>
           <h3 className="text-xs font-bold uppercase opacity-50 mb-4 flex items-center gap-2">
             <Zap size={14} className="text-purple-500" /> Trust_Network_Suggestions
           </h3>
           <div className="grid gap-2">
-            {suggestions.map((s) => (
-              <button
-                key={`${s.creator}:${s.id}`}
-                onClick={() => selectCommunity(s.id, s.creator)}
-                className="terminal-border p-4 text-left glassmorphism border-purple-500/20 hover:bg-purple-500/10 transition-colors group"
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="text-purple-400 font-bold flex items-center gap-1">
-                    <Hash size={16} /> {s.name || s.id}
-                  </span>
-                  <Users size={14} className="opacity-30 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <p className="text-[10px] text-slate-500 font-mono">By: {shortenPubkey(formatPubkey(s.creator))}</p>
-              </button>
-            ))}
+            {isSuggestionsLoading && suggestions.length === 0 ? (
+              <div className="space-y-2">
+                {[1, 2].map(i => (
+                  <div key={i} className="h-14 terminal-border glassmorphism animate-pulse bg-white/5" />
+                ))}
+              </div>
+            ) : (
+              suggestions.map((s) => (
+                <button
+                  key={`${s.creator}:${s.id}`}
+                  onClick={() => selectCommunity(s.id, s.creator)}
+                  className="terminal-border p-4 text-left glassmorphism border-purple-500/20 hover:bg-purple-500/10 transition-colors group"
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="text-purple-400 font-bold flex items-center gap-1">
+                      <Hash size={16} /> {s.name || s.id}
+                    </span>
+                    <Users size={14} className="opacity-30 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-mono">By: {shortenPubkey(formatPubkey(s.creator))}</p>
+                </button>
+              ))
+            )}
           </div>
         </section>
       )}

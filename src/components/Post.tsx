@@ -10,6 +10,7 @@ import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
+import { zapService } from '../services/zapService'
 import { triggerHaptic } from '../utils/haptics'
 
 interface PostProps {
@@ -229,9 +230,19 @@ const PostComponent: React.FC<PostProps> = ({
     }
   }
 
-  const handleZap = (amount: number) => {
+  const handleZap = async (amount: number) => {
+    if (!profile?.lud16) {
+      alert('Recipient has no lightning address (LUD-16) configured.')
+      return
+    }
+
     triggerHaptic(25)
-    alert(`Initiating lightning payment for ${amount} sats to ${shortenPubkey(npub)}... [SIMULATED]`)
+    try {
+      await zapService.sendZap(event, profile.lud16, amount)
+    } catch (err) {
+      console.error('Zap failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to initiate zap.')
+    }
   }
 
   const currentLayer = stack[stack.length - 1]
