@@ -1,14 +1,21 @@
 import React from 'react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
-import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity } from 'lucide-react'
+import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity, Globe } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
 export const Sidebar: React.FC = () => {
-  const { pushLayer, layout } = useUiStore()
+  const { pushLayer, resetStack, layout } = useUiStore()
   const { user, logout, loginMethod } = useStore()
 
   const menuItems = [
+    { 
+      id: 'global-feed', 
+      label: 'Global Feed', 
+      icon: Globe,
+      color: 'text-cyan-400',
+      isReset: true
+    },
     { 
       id: 'communities-discovery', 
       type: 'communities' as const, 
@@ -104,7 +111,13 @@ export const Sidebar: React.FC = () => {
             {menuItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => pushLayer({ id: item.id, type: item.type, title: item.title })}
+                onClick={() => {
+                  if ('isReset' in item && item.isReset) {
+                    resetStack({ id: 'root-feed', type: 'feed', title: 'Global_Feed' })
+                  } else if ('type' in item && item.type) {
+                    pushLayer({ id: item.id, type: item.type as any, title: item.title || '' })
+                  }
+                }}
                 className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 group transition-all"
               >
                 <div className="flex items-center gap-3">
