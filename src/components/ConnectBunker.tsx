@@ -98,8 +98,8 @@ export const ConnectBunker: React.FC = () => {
       
       const url = new URL(uri)
       const bunkerPubkey = url.host
-      const relay = url.searchParams.get('relay')
-      const secret = url.searchParams.get('secret')
+      const relay = url.searchParams.get('relay') || url.searchParams.get('r') || null
+      const secret = url.searchParams.get('secret') || null
 
       setRemoteSigner({ pubkey: bunkerPubkey, relay, secret })
       setLoginMethod('nip46')
