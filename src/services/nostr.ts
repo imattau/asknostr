@@ -65,22 +65,49 @@ class NostrService {
     this.relays = [...new Set(newRelays)].slice(0, this.maxActiveRelays)
   }
 
+  private normalizeRelays(relays: string[]) {
+    return relays
+      .map(r => r.trim())
+      .filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
+      .map(r => {
+        try {
+          return utils.normalizeURL(r)
+        } catch {
+          return null
+        }
+      })
+      .filter((r): r is string => !!r)
+  }
+
   private async verifyInWorker(event: Event): Promise<boolean> {
     if (!this.worker) return true
     return new Promise((resolve) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
       const handler = (e: MessageEvent) => {
         if (e.data.id === event.id) {
           this.worker?.removeEventListener('message', handler)
+          if (timeoutId) clearTimeout(timeoutId)
           resolve(e.data.isValid)
         }
       }
       this.worker?.addEventListener('message', handler)
       this.worker?.postMessage({ event })
+      timeoutId = setTimeout(() => {
+        this.worker?.removeEventListener('message', handler)
+        console.warn('[Nostr] Verify timeout, allowing event:', event.id)
+        resolve(true)
+      }, 1500)
     })
   }
 
-  async subscribe(filters: Filter[], onEvent: (event: Event) => void, customRelays?: string[]) {
-    const urls = (customRelays || this.relays).slice(0, this.maxActiveRelays).map(u => utils.normalizeURL(u))
+  async subscribe(
+    filters: Filter[],
+    onEvent: (event: Event) => void,
+    customRelays?: string[],
+    options?: { onEose?: () => void }
+  ) {
+    const sourceRelays = customRelays && customRelays.length > 0 ? customRelays : this.relays
+    const urls = this.normalizeRelays(sourceRelays.slice(0, this.maxActiveRelays))
     
     if (!Array.isArray(filters) || filters.length === 0) {
       return { close: () => {} }
@@ -88,6 +115,11 @@ class NostrService {
 
     const cleanFilters = filters.filter(f => f && typeof f === 'object' && Object.keys(f).length > 0)
     if (cleanFilters.length === 0) {
+      return { close: () => {} }
+    }
+
+    if (urls.length === 0) {
+      console.warn('[Nostr] Subscribe skipped: no valid relay URLs')
       return { close: () => {} }
     }
 
@@ -103,21 +135,34 @@ class NostrService {
     try {
       // THE FIX: SimplePool.subscribe expects a SINGLE filter.
       // We must map our filter array to individual subscriptions and composite the closers.
-      const subs = cleanFilters.map(filter => 
-        this.pool.subscribe(
+      let eoseCount = 0
+      const total = cleanFilters.length
+      const onEose = () => {
+        eoseCount += 1
+        if (eoseCount >= total) {
+          options?.onEose?.()
+        }
+      }
+
+      const subs = cleanFilters.map(filter => {
+        let eosed = false
+        return this.pool.subscribe(
           urls,
           filter,
           {
             onevent: wrappedCallback,
             oneose: () => {
+              if (eosed) return
+              eosed = true
               console.log('[Nostr] Subscription EOSE')
+              onEose()
             },
             onclose: (reasons: string[]) => {
               console.log('[Nostr] Subscription closed:', reasons)
             }
           }
         )
-      )
+      })
 
       return {
         close: () => {
@@ -181,8 +226,13 @@ class NostrService {
   }
 
   async publishToRelays(relays: string[], event: Event): Promise<boolean> {
-    console.log('[Nostr] Publishing Event:', event.id, 'to', relays.length, 'relays')
-    const promises = this.pool.publish(relays, event)
+    const urls = this.normalizeRelays(relays)
+    if (urls.length === 0) {
+      console.warn('[Nostr] Publish skipped: no valid relay URLs')
+      return false
+    }
+    console.log('[Nostr] Publishing Event:', event.id, 'to', urls.length, 'relays')
+    const promises = this.pool.publish(urls, event)
     try {
       await Promise.any(promises)
       console.log('[Nostr] Event successfully accepted by at least one relay.')

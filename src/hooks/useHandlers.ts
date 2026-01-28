@@ -28,9 +28,24 @@ export const useHandlers = (kinds: number[]) => {
     queryFn: async () => {
       return new Promise<HandlerDefinition[]>((resolve) => {
         const handlers: HandlerDefinition[] = []
+        const seen = new Set<string>()
+        let resolved = false
+        let subRef: { close: () => void } | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = () => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          subRef?.close()
+          resolve(handlers)
+        }
+
         nostrService.subscribe(
           [{ kinds: [31990], '#k': kinds.map(String) }],
           (event: Event) => {
+            if (seen.has(event.id)) return
+            seen.add(event.id)
             const dTag = event.tags.find(t => t[0] === 'd')?.[1]
             if (!dTag) return
 
@@ -57,12 +72,16 @@ export const useHandlers = (kinds: number[]) => {
             if (!handlers.find(h => h.id === handler.id)) {
               handlers.push(handler)
             }
-          }
+          },
+          undefined,
+          { onEose: finish }
         ).then(sub => {
-          setTimeout(() => {
+          subRef = sub
+          if (resolved) {
             sub.close()
-            resolve(handlers)
-          }, 2000)
+            return
+          }
+          timeoutId = setTimeout(finish, 2000)
         })
       })
     },

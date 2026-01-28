@@ -53,6 +53,18 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
       console.log('[useCommunity] Fetching from network...')
       return new Promise<CommunityDefinition | null>((resolve) => {
         let found = false
+        let resolved = false
+        let subRef: { close: () => void } | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = (value: CommunityDefinition | null) => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          subRef?.close()
+          resolve(value)
+        }
+
         nostrService.subscribe(
           [
             // Specific filter
@@ -66,15 +78,21 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
               console.log('[useCommunity] Network event received & validated')
               found = true
               set(cacheKey, definition)
-              resolve(definition)
+              finish(definition)
             }
-          }
+          },
+          undefined,
+          { onEose: () => { if (!found) finish(null) } }
         ).then(sub => {
-          setTimeout(() => {
+          subRef = sub
+          if (resolved) {
+            sub.close()
+            return
+          }
+          timeoutId = setTimeout(() => {
             if (!found) {
               console.warn('[useCommunity] Network timeout')
-              sub.close()
-              resolve(null)
+              finish(null)
             }
           }, 8000)
         })

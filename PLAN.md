@@ -110,6 +110,10 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [ ] EOSE Management: Smooth historical/live transition
 - [x] Exponential Backoff: Handled via SimplePool
 - [x] Priority Fetching: Prioritize structural data (Kind 34550)
+- [ ] Relay Input Sanitization: Validate/normalize relay URLs before subscribe/publish
+- [ ] Subscription Cleanup: Close subs on EOSE or on early resolve
+- [ ] Deduplication: Prevent multi-relay duplicates in reaction/approval/deletion aggregation
+- [ ] Deletion Validation: Enforce NIP-09 author-matching before hiding content
 
 ## Testing & Compatibility
 - [x] Multiple relays connectivity

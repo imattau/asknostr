@@ -27,6 +27,21 @@ export const useMyCommunities = () => {
 
       return new Promise<CommunityDefinition[]>((resolve) => {
         const owned = [...uniqueLocal]
+        const seen = new Set<string>()
+        let resolved = false
+        let subRef: { close: () => void } | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = () => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          subRef?.close()
+          const uniqueFinal = Array.from(
+            new Map(owned.map(item => [item.id, item])).values()
+          )
+          resolve(uniqueFinal)
+        }
         
         nostrService.subscribe(
           [
@@ -34,6 +49,8 @@ export const useMyCommunities = () => {
             { kinds: [34550], '#p': [user.pubkey as string] }
           ],
           (event: Event) => {
+            if (seen.has(event.id)) return
+            seen.add(event.id)
             const definition = parseCommunityEvent(event)
             if (definition) {
               // Check if we already have this station (either from local or previous network event)
@@ -49,16 +66,15 @@ export const useMyCommunities = () => {
               }
             }
           },
-          nostrService.getDiscoveryRelays()
+          nostrService.getDiscoveryRelays(),
+          { onEose: finish }
         ).then(sub => {
-          setTimeout(() => {
+          subRef = sub
+          if (resolved) {
             sub.close()
-            // Final deduplication just in case
-            const uniqueFinal = Array.from(
-              new Map(owned.map(item => [item.id, item])).values()
-            )
-            resolve(uniqueFinal)
-          }, 3000)
+            return
+          }
+          timeoutId = setTimeout(finish, 3000)
         })
       })
     },

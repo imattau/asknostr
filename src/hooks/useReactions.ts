@@ -16,10 +16,24 @@ export const useReactions = (eventId: string) => {
       return new Promise<{ reactions: Event[], aggregated: AggregatedReactions }>((resolve) => {
         const reactions: Event[] = []
         const aggregated: AggregatedReactions = {}
+        const seen = new Set<string>()
+        let resolved = false
+        let subRef: { close: () => void } | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = () => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          subRef?.close()
+          resolve({ reactions, aggregated })
+        }
 
         nostrService.subscribe(
           [{ kinds: [7], '#e': [eventId] }],
           (event: Event) => {
+            if (seen.has(event.id)) return
+            seen.add(event.id)
             reactions.push(event)
             const emoji = event.content || '+' // Default to + if empty
             if (!aggregated[emoji]) {
@@ -29,12 +43,16 @@ export const useReactions = (eventId: string) => {
             if (!aggregated[emoji].pubkeys.includes(event.pubkey)) {
               aggregated[emoji].pubkeys.push(event.pubkey)
             }
-          }
+          },
+          undefined,
+          { onEose: finish }
         ).then(sub => {
-          setTimeout(() => {
+          subRef = sub
+          if (resolved) {
             sub.close()
-            resolve({ reactions, aggregated })
-          }, 1500)
+            return
+          }
+          timeoutId = setTimeout(finish, 1500)
         })
       })
     },

@@ -10,6 +10,19 @@ export const useApprovals = (eventIds: string[], moderators: string[], customRel
       
       return new Promise<Event[]>((resolve) => {
         const approvals: Event[] = []
+        const seen = new Set<string>()
+        let resolved = false
+        let subRef: { close: () => void } | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = () => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          subRef?.close()
+          resolve(approvals)
+        }
+
         nostrService.subscribe(
           [{ 
             kinds: [4550], 
@@ -18,15 +31,20 @@ export const useApprovals = (eventIds: string[], moderators: string[], customRel
           }],
           (event: Event) => {
             if (moderators.includes(event.pubkey)) {
+              if (seen.has(event.id)) return
+              seen.add(event.id)
               approvals.push(event)
             }
           },
-          customRelays
+          customRelays,
+          { onEose: finish }
         ).then(sub => {
-          setTimeout(() => {
+          subRef = sub
+          if (resolved) {
             sub.close()
-            resolve(approvals)
-          }, 2000)
+            return
+          }
+          timeoutId = setTimeout(finish, 2000)
         })
       })
     },

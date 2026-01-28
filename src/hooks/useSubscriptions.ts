@@ -21,6 +21,17 @@ export const useSubscriptions = () => {
       return new Promise<Event | null>((resolve) => {
         let latest: Event | null = null
         let found = false
+        let resolved = false
+        let subRef: { close: () => void } | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = (value: Event | null) => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          subRef?.close()
+          resolve(value)
+        }
 
         nostrService.subscribe(
           [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
@@ -30,15 +41,17 @@ export const useSubscriptions = () => {
               found = true
               set(cacheKey, event)
             }
-          }
+          },
+          undefined,
+          { onEose: () => finish(found ? latest : cached || null) }
         ).then(sub => {
-          setTimeout(() => {
+          subRef = sub
+          if (resolved) {
             sub.close()
-            if (!found) {
-              resolve(cached || null)
-            } else {
-              resolve(latest)
-            }
+            return
+          }
+          timeoutId = setTimeout(() => {
+            finish(found ? latest : cached || null)
           }, 3000)
         })
       })
