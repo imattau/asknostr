@@ -45,6 +45,11 @@ function App() {
   const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
   const pendingEventsRef = useRef<Event[]>([])
   const flushTimerRef = useRef<number | null>(null)
+  const eventRateCountRef = useRef(0)
+  const eventRateWindowRef = useRef(Date.now())
+  const backpressureTimerRef = useRef<number | null>(null)
+  const [isBackpressured, setIsBackpressured] = useState(false)
+  const MAX_EVENTS_PER_SEC = 120
 
   const flushPendingEvents = useCallback(() => {
     if (flushTimerRef.current) {
@@ -58,11 +63,31 @@ function App() {
   }, [addEvents])
 
   const enqueueEvent = useCallback((event: Event) => {
+    const now = Date.now()
+    if (now - eventRateWindowRef.current > 1000) {
+      eventRateWindowRef.current = now
+      eventRateCountRef.current = 0
+    }
+    if (eventRateCountRef.current >= MAX_EVENTS_PER_SEC) {
+      if (!isBackpressured) {
+        setIsBackpressured(true)
+      }
+      if (!backpressureTimerRef.current) {
+        backpressureTimerRef.current = window.setTimeout(() => {
+          eventRateWindowRef.current = Date.now()
+          eventRateCountRef.current = 0
+          setIsBackpressured(false)
+          backpressureTimerRef.current = null
+        }, 1500)
+      }
+      return
+    }
+    eventRateCountRef.current += 1
     pendingEventsRef.current.push(event)
     if (!flushTimerRef.current) {
       flushTimerRef.current = window.setTimeout(flushPendingEvents, 150)
     }
-  }, [flushPendingEvents])
+  }, [flushPendingEvents, isBackpressured])
 
   const fetchEvents = useCallback(async (until?: number, additionalFilter: Partial<Filter> = {}) => {
     if (until) {
@@ -252,7 +277,12 @@ function App() {
         </div>
       </div>
       
-      <div className="flex gap-2 items-center uppercase font-bold text-[9px] font-mono shrink-0">
+        <div className="flex gap-2 items-center uppercase font-bold text-[9px] font-mono shrink-0">
+          {isBackpressured && (
+            <span className="text-amber-400 px-2 py-1 border border-amber-600 rounded-full text-[8px] tracking-[0.3em]">
+              BACKPRESSURE
+            </span>
+          )}
         <button 
           onClick={() => setLayout(layout === 'swipe' ? 'classic' : 'swipe')} 
           className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"
