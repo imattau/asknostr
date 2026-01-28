@@ -338,7 +338,7 @@ function App() {
                 <div className="absolute top-4 left-1/2 z-20 -translate-x-1/2">
                   <button
                     onClick={flushPendingEvents}
-                    className="rounded-full border border-cyan-500/60 bg-gradient-to-r from-cyan-600/80 to-sky-600/60 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-white shadow-xl backdrop-blur-xl"
+                    className="rounded-full border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-xl px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300 shadow-2xl transition-all hover:bg-cyan-500/20 active:scale-95"
                   >
                     {pendingCount} NEW ITEM{pendingCount > 1 ? 'S' : ''} · APPLY
                   </button>
