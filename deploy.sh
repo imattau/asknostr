@@ -194,7 +194,15 @@ update_app() {
 
     # Git operations as the app user to avoid permission issues
     sudo -u $APP_NAME git reset --hard
-    sudo -u $APP_NAME git pull origin "$CURRENT_BRANCH"
+    sudo -u $APP_NAME git fetch origin "$CURRENT_BRANCH" >/dev/null 2>&1
+    LOCAL_HEAD=$(sudo -u $APP_NAME git rev-parse HEAD)
+    REMOTE_HEAD=$(sudo -u $APP_NAME git rev-parse origin/"$CURRENT_BRANCH")
+
+    if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ]; then
+        log_info "Already at latest commit for $CURRENT_BRANCH; skipping pull."
+    else
+        sudo -u $APP_NAME git pull origin "$CURRENT_BRANCH"
+    fi
     
     # Version Tagging (Local)
     NEW_VER=$(grep '"version":' package.json | cut -d '"' -f 4)
