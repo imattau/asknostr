@@ -37,6 +37,9 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Thread view (NIP-10)
 - [x] Recursive Depth Management: Thread tree rendering
 - [x] System Menu: Functional navigation and session management
+- [ ] Threading Fixes: Derive true root IDs (NIP-10), fetch full thread, and correct OP labeling
+- [ ] Reply Tagging: Always include root+reply markers for direct replies
+- [ ] Thread State Hygiene: Clear thread state on navigation and use EOSE/timeout to end loading
 
 ## Engagement & Ranking Logic
 - [x] Sorting Algorithms: Implement "Hot" (time-decay), "Top", and "New" filters

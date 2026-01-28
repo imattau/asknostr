@@ -24,21 +24,35 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { addEvent, user } = useStore()
 
+  const deriveRootId = (fallbackId: string, source?: Event) => {
+    if (!source) return fallbackId
+    const eTags = source.tags.filter(t => t[0] === 'e')
+    const rootTag = eTags.find(t => t[3] === 'root')
+    if (rootTag?.[1]) return rootTag[1]
+    if (eTags.length > 0) return eTags[0][1]
+    return fallbackId
+  }
+
+  const rootId = useMemo(() => deriveRootId(eventId, rootEvent), [eventId, rootEvent])
+  const rootPubkey = useMemo(() => {
+    return allEvents.find(e => e.id === rootId)?.pubkey || rootEvent?.pubkey || ''
+  }, [allEvents, rootId, rootEvent])
+
   useEffect(() => {
     let sub: { close: () => void } | undefined
+    let resolved = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    setAllEvents([])
 
     const fetchThread = async () => {
       console.log('[Thread] Fetching events for ID:', eventId)
       setIsLoading(true)
       
-      // We want direct replies to this event
-      // Also if we have a rootEvent, we might want all replies to the root to build a full tree
-      const rootId = rootEvent?.id || eventId
-
       sub = await nostrService.subscribe(
         [
           { ids: [rootId, eventId] },
-          { kinds: [1], '#e': [rootId] }
+          { kinds: [1], '#e': [rootId] },
+          { kinds: [1], '#e': [eventId] }
         ],
         (event: Event) => {
           console.log('[Thread] Event received:', event.id, 'kind:', event.kind)
@@ -48,11 +62,22 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
             return next
           })
           addEvent(event)
+        },
+        undefined,
+        {
+          onEose: () => {
+            if (resolved) return
+            resolved = true
+            if (timeoutId) clearTimeout(timeoutId)
+            setIsLoading(false)
+          }
         }
       )
       
-      setTimeout(() => {
-        console.log(`[Thread] Fetch timeout reached. Total events:`, allEvents.length)
+      timeoutId = setTimeout(() => {
+        if (resolved) return
+        resolved = true
+        console.log('[Thread] Fetch timeout reached.')
         setIsLoading(false)
       }, 3500)
     }
@@ -61,9 +86,10 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
     return () => {
       console.log('[Thread] Closing subscription')
+      if (timeoutId) clearTimeout(timeoutId)
       sub?.close()
     }
-  }, [eventId, rootEvent, addEvent])
+  }, [eventId, rootId, addEvent])
 
   const handleReply = async () => {
     console.log('[Thread] handleReply initiated')
@@ -82,17 +108,18 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
     try {
       const now = Math.floor(Date.now() / 1000)
-      const rootId = rootEvent?.id || eventId
+      const parentId = eventId
+      const parentPubkey = allEvents.find(e => e.id === parentId)?.pubkey || rootEvent?.pubkey || ''
       
       const tags: string[][] = [
         ['e', rootId, '', 'root'],
-        ['p', rootEvent?.pubkey || '']
+        ['e', parentId, '', 'reply']
       ]
 
-      // If this is a reply to a reply (not to the root)
-      if (eventId !== rootId) {
-        tags.push(['e', eventId, '', 'reply'])
-      }
+      const pTags = new Set<string>()
+      if (rootPubkey) pTags.add(rootPubkey)
+      if (parentPubkey) pTags.add(parentPubkey)
+      pTags.forEach(pubkey => tags.push(['p', pubkey]))
 
       // Inherit community context if present
       const communityTag = rootEvent?.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
@@ -159,7 +186,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
         nodes[parentId].replies.push(nodes[event.id])
       } else {
         // If no parent or parent not found, and it's either the requested event or has no e-tags
-        if (event.id === eventId || (eTags.length === 0)) {
+        if (event.id === rootId || (eTags.length === 0)) {
           if (!roots.find(r => r.event.id === event.id)) {
             roots.push(nodes[event.id])
           }
@@ -168,7 +195,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     })
 
     return roots
-  }, [allEvents, eventId])
+  }, [allEvents, rootId])
 
   const renderNode = (node: ThreadNode, depth = 0) => {
     return (
@@ -176,7 +203,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
         <Post 
           event={node.event} 
           isThreadView={depth === 0} 
-          opPubkey={rootEvent?.pubkey || threadTree[0]?.event.pubkey} 
+          opPubkey={rootPubkey || threadTree[0]?.event.pubkey} 
         />
         {node.replies.length > 0 && (
           <div className="space-y-4 border-l-2 border-slate-800 ml-4 pl-4 mt-4">
