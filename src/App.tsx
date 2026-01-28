@@ -207,35 +207,35 @@ function App() {
 
         return (
           <div className="h-full flex flex-col">
-            <div className="p-4">
-              <div className="glassmorphism p-4 rounded-xl border-slate-800 shadow-2xl">
-                <textarea 
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  disabled={!user.pubkey || isPublishing}
-                  className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-20 font-sans placeholder:text-slate-600"
-                  placeholder={user.pubkey ? "Broadcast to network..." : "Login to write..."}
-                ></textarea>
-                <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
-                  <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
-                    <input
-                      type="checkbox"
-                      checked={isNsfw}
-                      onChange={(e) => setIsNsfw(e.target.checked)}
-                      className="accent-red-500"
-                    />
-                    NSFW
-                  </label>
-                  <button 
-                    onClick={handlePublish}
-                    disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                    className="terminal-button rounded-lg text-[10px] py-1.5 px-4"
-                  >
-                    Transmit
-                  </button>
-                </div>
-              </div>
+        <div className="p-3">
+          <div className="glassmorphism p-3 rounded-xl border-slate-800 shadow-2xl max-h-56 overflow-hidden">
+            <textarea 
+              value={postContent}
+              onChange={(e) => setPostContent(e.target.value)}
+              disabled={!user.pubkey || isPublishing}
+              className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-16 min-h-[3.5rem] font-sans placeholder:text-slate-600"
+              placeholder={user.pubkey ? "Broadcast to network..." : "Login to write..."}
+            ></textarea>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3">
+              <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={isNsfw}
+                  onChange={(e) => setIsNsfw(e.target.checked)}
+                  className="accent-red-500"
+                />
+                NSFW
+              </label>
+              <button 
+                onClick={handlePublish}
+                disabled={!user.pubkey || !postContent.trim() || isPublishing}
+                className="terminal-button rounded-lg text-[10px] py-1 px-3"
+              >
+                Transmit
+              </button>
             </div>
+          </div>
+        </div>
             <div className="flex-1 min-h-0">
               <VirtualFeed
                 events={filteredEvents}
