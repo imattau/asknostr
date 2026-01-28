@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'asknostr_logo.png'],
+      includeAssets: ['robots.txt', 'asknostr_logo.png'],
       manifest: {
         name: 'AskNostr',
         short_name: 'AskNostr',
@@ -21,13 +21,19 @@ export default defineConfig({
             src: '/pwa-192x192.png', 
             sizes: '192x192', 
             type: 'image/png',
-            purpose: 'any maskable' 
+            purpose: 'any' 
           },
           { 
             src: '/pwa-512x512.png', 
             sizes: '512x512', 
             type: 'image/png',
-            purpose: 'any maskable' 
+            purpose: 'any' 
+          },
+          {
+            src: '/asknostr_logo.png',
+            sizes: '1024x1024',
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       },
