@@ -35,3 +35,23 @@ export const normalizeRelayUrl = (input: string | null | undefined): string => {
   }
   return ''
 }
+
+export const shortenPubkey = (hex: string | null | undefined, prefix = 4, suffix = 4): string => {
+  if (!hex) return ''
+  const normalized = hex.trim()
+  if (normalized.length <= prefix + suffix) return normalized
+  return `${normalized.slice(0, prefix)}...${normalized.slice(-suffix)}`
+}
+
+export const formatPubkey = (hex: string | null | undefined): string => {
+  if (!hex) return ''
+  return `pk_${shortenPubkey(hex, 6, 6)}`
+}
+
+export const formatDate = (timestamp: number | string | undefined | null): string => {
+  if (!timestamp) return ''
+  const numeric = typeof timestamp === 'string' ? Number(timestamp) : timestamp
+  if (Number.isNaN(numeric)) return ''
+  const date = new Date(numeric * 1000)
+  return date.toLocaleString()
+}
