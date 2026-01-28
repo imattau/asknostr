@@ -15,6 +15,7 @@ export interface CommunityDefinition {
   relays: string[] // relay tags
   creator: string // pubkey
   pinned: string[] // e tags
+  moderationMode?: 'open' | 'restricted'
 }
 
 export const useCommunity = (communityId: string, creatorPubkey: string) => {

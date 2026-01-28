@@ -83,9 +83,59 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     return map
   }, [approvals])
 
-  const filteredEvents = (isModeratedOnly
-    ? communityEvents.filter(e => !!eventStatusMap[e.id] && eventStatusMap[e.id] !== 'spam')
-    : communityEvents).filter(e => !deletedIds.includes(e.id) && eventStatusMap[e.id] !== 'spam')
+  // Whitelist: Authors who have at least one approved post
+  const approvedAuthors = useMemo(() => {
+    const authors = new Set<string>()
+    approvals.forEach(a => {
+      const pTag = a.tags.find(t => t[0] === 'p')?.[1]
+      const status = a.tags.find(t => t[0] === 'status')?.[1] || 'approved'
+      if (pTag && status === 'approved') {
+        authors.add(pTag)
+      }
+    })
+    return authors
+  }, [approvals])
+
+  const filteredEvents = communityEvents.filter(e => {
+    // 1. Always filter deleted
+    if (deletedIds.includes(e.id)) return false
+    
+    // 2. Always filter explicit spam
+    if (eventStatusMap[e.id] === 'spam') return false
+
+    const mode = community?.moderationMode || 'open'
+    
+    // 3. Mode-specific logic
+    if (mode === 'restricted') {
+      // Show if:
+      // - Explicitly approved
+      // - Author is moderator/creator
+      // - Author is whitelisted (has previous approval)
+      // - User is viewing 'Active Moderation' (Raw Feed)? -> "isModeratedOnly" is actually "Active Moderation" view? 
+      //   Wait, existing logic was: isModeratedOnly ? (approved only) : (everything except spam)
+      //   Let's align:
+      //   RESTRICTED: Default view shows ONLY approved/whitelisted.
+      //   OPEN: Default view shows EVERYTHING except spam.
+      
+      const isApproved = eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
+      const isTrustedAuthor = approvedAuthors.has(e.pubkey) || moderators.includes(e.pubkey) || e.pubkey === creator
+      
+      // If "Active Moderation" (isModeratedOnly) is ON, we show ONLY explicitly approved.
+      // If OFF (default), we show Trusted + Approved.
+      // But actually, "Active Moderation" usually implies "Safe View".
+      // Let's stick to the request: "Approval Required e.g first post needs approval"
+      
+      return isApproved || isTrustedAuthor
+    } else {
+      // OPEN MODE
+      // Show everything unless spam
+      // If isModeratedOnly is ON, show only approved (curated view)
+      if (isModeratedOnly) {
+        return eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
+      }
+      return true
+    }
+  })
 
   const pinnedEvents = filteredEvents.filter(e => community?.pinned.includes(e.id) || eventStatusMap[e.id] === 'pinned')
   const regularEvents = filteredEvents.filter(e => !community?.pinned.includes(e.id) && eventStatusMap[e.id] !== 'pinned')
@@ -127,11 +177,19 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       }
 
       const signedEvent = await signerService.signEvent(eventTemplate)
-      await nostrService.publish(signedEvent)
-      setPostContent('')
-      triggerHaptic(20)
+      const success = await nostrService.publish(signedEvent)
+      
+      if (success) {
+        setPostContent('')
+        // Optimistically add to local store
+        addEvent(signedEvent)
+        triggerHaptic(20)
+      } else {
+        alert('Broadcast failed: Could not reach any relays.')
+      }
     } catch (e) {
       console.error('Failed to publish', e)
+      alert(`Publish error: ${e instanceof Error ? e.message : 'Unknown'}`)
     } finally {
       setIsPublishing(false)
     }

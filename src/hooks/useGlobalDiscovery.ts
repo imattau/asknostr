@@ -19,22 +19,34 @@ export const useGlobalDiscovery = () => {
         .map(e => parseCommunityEvent(e))
         .filter((c): c is CommunityDefinition => !!c)
 
+      // Deduplicate local
+      const uniqueLocal = Array.from(
+        new Map(localDiscovered.map(item => [`${item.creator}:${item.id}`, item])).values()
+      )
+
       return new Promise<CommunityDefinition[]>((resolve) => {
-        const discovered = [...localDiscovered]
+        const discovered = [...uniqueLocal]
         
         nostrService.subscribe(
           [{ kinds: [34550], limit: 100 }],
           (event: Event) => {
             const definition = parseCommunityEvent(event)
-            if (definition && !discovered.find(s => s.id === definition.id && s.creator === definition.creator)) {
-              discovered.push(definition)
+            if (definition) {
+              const exists = discovered.some(s => s.id === definition.id && s.creator === definition.creator)
+              if (!exists) {
+                discovered.push(definition)
+              }
             }
           },
           nostrService.getDiscoveryRelays()
         ).then(sub => {
           setTimeout(() => {
             sub.close()
-            resolve(discovered)
+            // Final deduplication
+            const uniqueFinal = Array.from(
+              new Map(discovered.map(item => [`${item.creator}:${item.id}`, item])).values()
+            )
+            resolve(uniqueFinal)
           }, 6000)
         })
       })

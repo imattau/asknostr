@@ -20,8 +20,13 @@ export const useMyCommunities = () => {
         .map(e => parseCommunityEvent(e))
         .filter((c): c is CommunityDefinition => !!c)
 
+      // Deduplicate local results (keep latest version if multiple events exist for same ID)
+      const uniqueLocal = Array.from(
+        new Map(localOwned.map(item => [item.id, item])).values()
+      )
+
       return new Promise<CommunityDefinition[]>((resolve) => {
-        const owned = [...localOwned]
+        const owned = [...uniqueLocal]
         
         nostrService.subscribe(
           [
@@ -30,15 +35,29 @@ export const useMyCommunities = () => {
           ],
           (event: Event) => {
             const definition = parseCommunityEvent(event)
-            if (definition && !owned.find(s => s.id === definition.id)) {
-              owned.push(definition)
+            if (definition) {
+              // Check if we already have this station (either from local or previous network event)
+              const existingIndex = owned.findIndex(s => s.id === definition.id)
+              
+              if (existingIndex === -1) {
+                // New station found
+                owned.push(definition)
+              } else {
+                // Update if potentially newer (though we can't easily check created_at here without expanding the type, 
+                // typically network results might be fresher or same)
+                // For now, we just ensure we don't duplicate.
+              }
             }
           },
           nostrService.getDiscoveryRelays()
         ).then(sub => {
           setTimeout(() => {
             sub.close()
-            resolve(owned)
+            // Final deduplication just in case
+            const uniqueFinal = Array.from(
+              new Map(owned.map(item => [item.id, item])).values()
+            )
+            resolve(uniqueFinal)
           }, 3000)
         })
       })

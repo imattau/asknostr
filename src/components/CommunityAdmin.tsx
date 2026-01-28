@@ -22,6 +22,7 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   const [newMod, setNewMod] = useState('')
   const [mods, setMods] = useState<string[]>([])
   const [relays, setRelays] = useState<string>('')
+  const [mode, setMode] = useState<'open' | 'restricted'>('open')
   const [isSaving, setIsSaving] = useState(false)
   const [isRescueMode, setIsRescueMode] = useState(false)
 
@@ -29,6 +30,7 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
     if (community) {
       setMods(community.moderators)
       setRelays(community.relays.join(', '))
+      setMode(community.moderationMode || 'open')
       setIsRescueMode(false)
     } else if (!isLoading && user.pubkey === creator) {
       // If we are the creator but metadata didn't load, enable rescue mode
@@ -81,6 +83,7 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
           ['description', community?.description || 'Community Node'],
           ...(community?.rules ? [['rules', community.rules]] : []),
           ...(community?.image ? [['image', community.image]] : []),
+          ['moderation_mode', mode],
           ...relayList.map(r => ['relay', r]),
           ...mods.map(m => ['p', m]),
           ...(community?.pinned || []).map(e => ['e', e])
@@ -107,7 +110,8 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
         image: community?.image,
         moderators: mods,
         relays: relayList,
-        pinned: community?.pinned || []
+        pinned: community?.pinned || [],
+        moderationMode: mode
       }
       await set(`community-${creator}-${communityId}`, updatedDefinition)
 
@@ -161,7 +165,34 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
 
       <section className="space-y-4">
         <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-          <Shield size={14} /> Authorized_Moderators
+          <Shield size={14} /> Moderation_Protocol
+        </h3>
+        
+        <div className="flex gap-4 p-1 bg-slate-900 rounded-xl border border-slate-800">
+          <button
+            onClick={() => setMode('open')}
+            className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase transition-all ${mode === 'open' ? 'bg-cyan-500 text-black shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Open_Access
+          </button>
+          <button
+            onClick={() => setMode('restricted')}
+            className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase transition-all ${mode === 'restricted' ? 'bg-purple-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Restricted_Approval
+          </button>
+        </div>
+        
+        <p className="text-[9px] text-slate-500 font-sans px-2">
+          {mode === 'open' 
+            ? "OPEN: All posts are visible by default. Moderators act on reports or spam." 
+            : "RESTRICTED: New authors require manual approval for their first post to be visible."}
+        </p>
+      </section>
+
+      <section className="space-y-4">
+        <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+          <UserIcon size={14} /> Authorized_Moderators
         </h3>
         
         <div className="grid gap-2">

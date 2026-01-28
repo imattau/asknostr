@@ -18,6 +18,7 @@ export const parseCommunityEvent = (event: Event): CommunityDefinition | null =>
     const description = event.tags.find(t => t[0] === 'description')?.[1]
     const rules = event.tags.find(t => t[0] === 'rules')?.[1]
     const image = event.tags.find(t => t[0] === 'image')?.[1]
+    const moderationMode = (event.tags.find(t => t[0] === 'moderation_mode')?.[1] || 'open') as 'open' | 'restricted'
 
     return {
       id: dTag,
@@ -28,7 +29,8 @@ export const parseCommunityEvent = (event: Event): CommunityDefinition | null =>
       moderators,
       relays,
       pinned,
-      creator: event.pubkey
+      creator: event.pubkey,
+      moderationMode
     }
   } catch (e) {
     console.error('[NostrParser] Error parsing Kind 34550:', e)

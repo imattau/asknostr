@@ -113,12 +113,15 @@ export const ConnectBunker: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <a 
-            href={generatedUri}
+          <button 
+            onClick={() => {
+              triggerHaptic(10)
+              window.location.href = generatedUri
+            }}
             className="flex items-center justify-center gap-2 bg-purple-500 text-white p-3 rounded-xl font-bold uppercase text-[10px] shadow-lg shadow-purple-500/20 active:scale-95 transition-all text-center"
           >
             <Smartphone size={16} /> Open_App
-          </a>
+          </button>
           <button 
             onClick={copyToClipboard}
             className="flex items-center justify-center gap-2 bg-slate-800 text-slate-300 p-3 rounded-xl font-bold uppercase text-[10px] active:scale-95 transition-all border border-slate-700 hover:border-slate-600"

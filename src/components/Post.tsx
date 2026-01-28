@@ -111,11 +111,14 @@ export const Post: React.FC<PostProps> = ({
     }
   }
 
-  const handleApprove = async () => {
-    const status = window.prompt('Specify status (approved, pinned, spam):', 'approved')
-    if (status === null) return
+  const handleApprove = async (forcedStatus?: string) => {
+    let status = forcedStatus
+    if (!status) {
+      status = window.prompt('Specify status (approved, pinned, spam):', 'approved') || ''
+    }
+    if (!status) return
     
-    addOptimisticApproval(event.id)
+    if (status === 'approved') addOptimisticApproval(event.id)
     triggerHaptic(30)
 
     try {
@@ -218,12 +221,22 @@ export const Post: React.FC<PostProps> = ({
         </div>
         <div className="flex items-center gap-3">
           {isUserModerator && !effectiveApproved && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); handleApprove(); }}
-              className="text-cyan-500 hover:text-cyan-400 px-1 rounded transition-all flex items-center gap-1 font-mono"
-            >
-              <Shield size={12} /> <span className="text-[10px] font-bold uppercase">[APPROVE]</span>
-            </button>
+            <div className="flex gap-1">
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleApprove('approved'); }}
+                className="text-green-500 hover:text-green-400 bg-green-500/10 px-2 py-0.5 rounded transition-all flex items-center gap-1 font-mono hover:bg-green-500/20"
+                title="Approve Post"
+              >
+                <Shield size={10} /> <span className="text-[9px] font-bold uppercase">OK</span>
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleApprove('spam'); }}
+                className="text-red-500 hover:text-red-400 bg-red-500/10 px-2 py-0.5 rounded transition-all flex items-center gap-1 font-mono hover:bg-red-500/20"
+                title="Reject/Spam"
+              >
+                <Trash2 size={10} /> <span className="text-[9px] font-bold uppercase">BAN</span>
+              </button>
+            </div>
           )}
           {isOwnPost && (
             <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} className="text-red-500/50 hover:text-red-500 transition-all">
