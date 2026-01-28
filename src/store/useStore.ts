@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Event } from 'nostr-tools'
+import { sanitizeRelayUrls } from '../utils/relays'
 
 export interface UserProfile {
   name?: string
@@ -130,7 +131,7 @@ export const useStore = create<NostrState>()(
         if (state.optimisticApprovals.includes(eventId)) return state
         return { optimisticApprovals: [...state.optimisticApprovals, eventId] }
       }),
-      setRelays: (relays) => set({ relays }),
+      setRelays: (relays) => set({ relays: sanitizeRelayUrls(relays) }),
       setMediaServers: (mediaServers) => set({ mediaServers }),
       addMediaServer: (server) => set((state) => ({
         mediaServers: state.mediaServers.find(s => s.id === server.id || s.url === server.url)

@@ -1,6 +1,7 @@
-import { SimplePool, utils } from 'nostr-tools'
+import { SimplePool } from 'nostr-tools'
 import type { Filter, Event } from 'nostr-tools'
 import { signerService } from './signer'
+import { sanitizeRelayUrls } from '../utils/relays'
 
 export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
@@ -38,7 +39,7 @@ class NostrService {
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
-    this.relays = relays
+    this.relays = sanitizeRelayUrls(relays).slice(0, this.maxActiveRelays)
     
     if (typeof window !== 'undefined') {
       this.worker = new Worker('/event-worker.js', { type: 'module' })
@@ -67,26 +68,16 @@ class NostrService {
   }
 
   async addRelays(newRelays: string[]) {
-    const combined = [...new Set([...this.relays, ...newRelays])]
+    const combined = sanitizeRelayUrls([...this.relays, ...newRelays])
     this.relays = combined.slice(0, this.maxActiveRelays)
   }
 
   async setRelays(newRelays: string[]) {
-    this.relays = [...new Set(newRelays)].slice(0, this.maxActiveRelays)
+    this.relays = sanitizeRelayUrls(newRelays).slice(0, this.maxActiveRelays)
   }
 
   private normalizeRelays(relays: string[]) {
-    return relays
-      .map(r => r.trim())
-      .filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
-      .map(r => {
-        try {
-          return utils.normalizeURL(r)
-        } catch {
-          return null
-        }
-      })
-      .filter((r): r is string => !!r)
+    return sanitizeRelayUrls(relays).slice(0, this.maxActiveRelays)
   }
 
   private async verifyInWorker(event: Event): Promise<boolean> {
