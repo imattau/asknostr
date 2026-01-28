@@ -78,6 +78,9 @@ setup_app() {
         useradd -r -s /bin/false "$APP_NAME" || log_warn "User creation returned error, but proceeding if user exists."
     fi
 
+    # Mark directory as safe for Git (prevents dubious ownership errors)
+    git config --global --add safe.directory "$INSTALL_DIR" || true
+
     # Determine source directory
     # Fallback to PWD if BASH_SOURCE is unavailable (e.g. running via sh)
     if [ -n "$BASH_SOURCE" ]; then
@@ -182,10 +185,16 @@ update_app() {
     log_info "Updating AskNostr..."
     cd "$INSTALL_DIR"
     
-    # Git operations as the app user to avoid permission issues? 
-    # Or just fix permissions after.
-    git reset --hard
-    git pull origin main
+    # Ensure git sees this directory as safe even during update
+    git config --global --add safe.directory "$INSTALL_DIR" || true
+
+    # Detect current branch
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    log_info "Active branch: $CURRENT_BRANCH"
+
+    # Git operations as the app user to avoid permission issues
+    sudo -u $APP_NAME git reset --hard
+    sudo -u $APP_NAME git pull origin "$CURRENT_BRANCH"
     
     # Version Tagging (Local)
     NEW_VER=$(grep '"version":' package.json | cut -d '"' -f 4)
