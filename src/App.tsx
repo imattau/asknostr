@@ -45,6 +45,8 @@ function App() {
   const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
   const pendingEventsRef = useRef<Event[]>([])
   const flushTimerRef = useRef<number | null>(null)
+  const [isLiveSynced, setIsLiveSynced] = useState(false)
+  const [isHistorySyncing, setIsHistorySyncing] = useState(false)
   const eventRateCountRef = useRef(0)
   const eventRateWindowRef = useRef(Date.now())
   const backpressureTimerRef = useRef<number | null>(null)
@@ -93,8 +95,11 @@ function App() {
     if (until) {
       if (isLoadingMore) return
       setIsLoadingMore(true)
+      setIsHistorySyncing(true)
       loadMoreSubRef.current?.close()
       loadMoreSubRef.current = null
+    } else {
+      setIsLiveSynced(false)
     }
     
     const filter: Filter = { 
@@ -104,21 +109,27 @@ function App() {
       ...additionalFilter 
     }
 
-    const sub = await nostrService.subscribe(
+    let sub: { close: () => void } | null = null
+    const handleEose = () => {
+      if (until) {
+        setIsHistorySyncing(false)
+        setIsLoadingMore(false)
+        sub?.close()
+        if (loadMoreSubRef.current === sub) loadMoreSubRef.current = null
+      } else {
+        setIsLiveSynced(true)
+      }
+    }
+
+    sub = await nostrService.subscribe(
       [filter],
       (event: Event) => {
         enqueueEvent(event)
       },
       undefined,
-      until
-        ? {
-            onEose: () => {
-              setIsLoadingMore(false)
-              sub.close()
-              if (loadMoreSubRef.current === sub) loadMoreSubRef.current = null
-            }
-          }
-        : undefined
+      {
+        onEose: handleEose
+      }
     )
 
     if (until) {
@@ -128,6 +139,7 @@ function App() {
           setIsLoadingMore(false)
           sub.close()
           loadMoreSubRef.current = null
+          setIsHistorySyncing(false)
         }
       }, 3000) 
     } else {
@@ -283,8 +295,16 @@ function App() {
               BACKPRESSURE
             </span>
           )}
-        <button 
-          onClick={() => setLayout(layout === 'swipe' ? 'classic' : 'swipe')} 
+          <span className={`px-2 py-1 border rounded-full text-[8px] tracking-[0.3em] ${isLiveSynced ? 'text-emerald-300 border-emerald-500/40' : 'text-slate-400 border-slate-700'}`}>
+            {isLiveSynced ? 'LIVE' : 'SYNCING'}
+          </span>
+          {isHistorySyncing && (
+            <span className="text-cyan-300 px-2 py-1 border border-cyan-500/30 rounded-full text-[8px] tracking-[0.3em]">
+              HISTORY
+            </span>
+          )}
+            <button 
+              onClick={() => setLayout(layout === 'swipe' ? 'classic' : 'swipe')} 
           className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"
         >
           <Layout size={14} /> {layout === 'swipe' ? 'Classic' : 'Mobile'}
