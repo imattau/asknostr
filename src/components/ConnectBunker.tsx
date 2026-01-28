@@ -55,6 +55,12 @@ export const ConnectBunker: React.FC = () => {
           const [client, secret] = request.params || []
           if (client !== clientPubkey || secret !== secretFromRef) return
 
+          const allow = window.confirm('Allow this signer to connect to AskNostr?')
+          if (!allow) {
+            setError('Connection rejected.')
+            return
+          }
+
           setIsConnecting(true)
           await signerService.acknowledgeConnect(event.pubkey, relayFromRef, request.id)
           const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, relayFromRef)

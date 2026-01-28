@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { LogIn, LogOut, Layout, Terminal as TerminalIcon } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
 import type { Layer } from './store/useUiStore'
 import { nostrService } from './services/nostr'
 import type { Event, Filter } from 'nostr-tools'
-import { Post } from './components/Post'
+import { VirtualFeed } from './components/VirtualFeed'
 import { useTrendingTags } from './hooks/useTrendingTags'
 import { RelayList } from './components/RelayList'
 import { MediaServers } from './components/MediaServers'
@@ -28,7 +28,7 @@ import { useRelays } from './hooks/useRelays'
 import type { CommunityDefinition } from './hooks/useCommunity'
 
 function App() {
-  const { events, addEvent, isConnected, setConnected, user, login, logout } = useStore()
+  const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
   useSubscriptions() 
   useRelays()
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer } = useUiStore()
@@ -39,7 +39,29 @@ function App() {
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
   const trendingTags = useTrendingTags()
-  const { data: deletedIds = [] } = useDeletions(events.map(e => e.id))
+  const deletionTargets = useMemo(() => events.slice(0, 500).map(e => e.id), [events])
+  const { data: deletedIds = [] } = useDeletions(deletionTargets)
+  const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
+  const pendingEventsRef = useRef<Event[]>([])
+  const flushTimerRef = useRef<number | null>(null)
+
+  const flushPendingEvents = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    if (pendingEventsRef.current.length === 0) return
+    const pending = pendingEventsRef.current
+    pendingEventsRef.current = []
+    addEvents(pending)
+  }, [addEvents])
+
+  const enqueueEvent = useCallback((event: Event) => {
+    pendingEventsRef.current.push(event)
+    if (!flushTimerRef.current) {
+      flushTimerRef.current = window.setTimeout(flushPendingEvents, 150)
+    }
+  }, [flushPendingEvents])
 
   const fetchEvents = useCallback(async (until?: number, additionalFilter: Partial<Filter> = {}) => {
     if (until) {
@@ -59,7 +81,7 @@ function App() {
     const sub = await nostrService.subscribe(
       [filter],
       (event: Event) => {
-        addEvent(event)
+        enqueueEvent(event)
       },
       undefined,
       until
@@ -88,7 +110,7 @@ function App() {
     }
     
     return sub
-  }, [addEvent, isLoadingMore])
+  }, [enqueueEvent, isLoadingMore])
 
   useEffect(() => {
     setConnected(true)
@@ -104,8 +126,9 @@ function App() {
       subNotes?.close()
       liveSubRef.current?.close()
       loadMoreSubRef.current?.close()
+      flushPendingEvents()
     }
-  }, [fetchEvents, setConnected])
+  }, [fetchEvents, setConnected, flushPendingEvents])
 
   const handleLoadMore = () => {
     if (events.length === 0 || isLoadingMore) return
@@ -142,41 +165,46 @@ function App() {
         const firstTag = tagFilter?.[0]
         const filteredEvents = (firstTag 
           ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === firstTag.toLowerCase()))
-          : events).filter(e => !deletedIds.includes(e.id))
+          : events).filter(e => !deletedSet.has(e.id))
 
         return (
-          <div className="p-4 space-y-4">
-            <div className="glassmorphism p-4 rounded-xl border-slate-800 shadow-2xl">
-              <textarea 
-                value={postContent}
-                onChange={(e) => setPostContent(e.target.value)}
-                disabled={!user.pubkey || isPublishing}
-                className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-20 font-sans placeholder:text-slate-600"
-                placeholder={user.pubkey ? "Broadcast to network..." : "Login to write..."}
-              ></textarea>
-              <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
-                <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked={isNsfw}
-                    onChange={(e) => setIsNsfw(e.target.checked)}
-                    className="accent-red-500"
-                  />
-                  NSFW
-                </label>
-                <button 
-                  onClick={handlePublish}
-                  disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                  className="terminal-button rounded-lg text-[10px] py-1.5 px-4"
-                >
-                  Transmit
-                </button>
+          <div className="h-full flex flex-col">
+            <div className="p-4">
+              <div className="glassmorphism p-4 rounded-xl border-slate-800 shadow-2xl">
+                <textarea 
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  disabled={!user.pubkey || isPublishing}
+                  className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-20 font-sans placeholder:text-slate-600"
+                  placeholder={user.pubkey ? "Broadcast to network..." : "Login to write..."}
+                ></textarea>
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
+                  <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={isNsfw}
+                      onChange={(e) => setIsNsfw(e.target.checked)}
+                      className="accent-red-500"
+                    />
+                    NSFW
+                  </label>
+                  <button 
+                    onClick={handlePublish}
+                    disabled={!user.pubkey || !postContent.trim() || isPublishing}
+                    className="terminal-button rounded-lg text-[10px] py-1.5 px-4"
+                  >
+                    Transmit
+                  </button>
+                </div>
               </div>
             </div>
-            {filteredEvents.map(event => <Post key={event.id} event={event} />)}
-            <button onClick={handleLoadMore} className="w-full glassmorphism p-3 rounded-lg text-[10px] opacity-50 uppercase font-bold">
-              {isLoadingMore ? 'Loading...' : 'Load More'}
-            </button>
+            <div className="flex-1 min-h-0">
+              <VirtualFeed
+                events={filteredEvents}
+                isLoadingMore={isLoadingMore}
+                onLoadMore={handleLoadMore}
+              />
+            </div>
           </div>
         )
       }

@@ -19,7 +19,7 @@ interface PostProps {
   opPubkey?: string
 }
 
-export const Post: React.FC<PostProps> = ({
+const PostComponent: React.FC<PostProps> = ({
   event,
   isThreadView = false,
   isModerator = false,
@@ -408,3 +408,15 @@ export const Post: React.FC<PostProps> = ({
     </div>
   )
 }
+
+export const Post = React.memo(
+  PostComponent,
+  (prev, next) =>
+    prev.event.id === next.event.id &&
+    prev.event.content === next.event.content &&
+    prev.event.created_at === next.event.created_at &&
+    prev.isThreadView === next.isThreadView &&
+    prev.isModerator === next.isModerator &&
+    prev.isApproved === next.isApproved &&
+    prev.opPubkey === next.opPubkey
+)

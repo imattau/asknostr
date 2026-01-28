@@ -48,6 +48,7 @@ interface NostrState {
   }
   setEvents: (events: Event[]) => void
   addEvent: (event: Event) => void
+  addEvents: (events: Event[]) => void
   addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => void
   addOptimisticApproval: (eventId: string) => void
   setRelays: (relays: string[]) => void
@@ -95,6 +96,16 @@ export const useStore = create<NostrState>()(
       addEvent: (event) => set((state) => {
         if (state.events.find(e => e.id === event.id)) return state
         const newEvents = [...state.events, event]
+          .sort((a, b) => b.created_at - a.created_at)
+          .slice(0, MAX_EVENTS)
+        return { events: newEvents }
+      }),
+      addEvents: (events) => set((state) => {
+        if (!events.length) return state
+        const existing = new Set(state.events.map(e => e.id))
+        const incoming = events.filter(e => !existing.has(e.id))
+        if (incoming.length === 0) return state
+        const newEvents = [...state.events, ...incoming]
           .sort((a, b) => b.created_at - a.created_at)
           .slice(0, MAX_EVENTS)
         return { events: newEvents }

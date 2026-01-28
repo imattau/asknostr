@@ -1,7 +1,48 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'robots.txt'],
+      manifest: {
+        name: 'AskNostr',
+        short_name: 'AskNostr',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#05070A',
+        theme_color: '#05070A',
+        icons: [
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }
+        ]
+      },
+      workbox: {
+        cleanupOutdatedCaches: true,
+        navigateFallback: '/index.html',
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'images',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 }
+            }
+          },
+          {
+            urlPattern: ({ url }) => url.origin.startsWith('https://'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'network',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 }
+            }
+          }
+        ]
+      }
+    })
+  ],
 })
