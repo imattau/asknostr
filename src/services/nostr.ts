@@ -105,13 +105,13 @@ class NostrService {
       // for sending multi-filter REQs that relays actually understand.
       const sub = this.pool.subscribe(
         urls,
-        cleanFilters,
+        cleanFilters as any,
         {
           onevent: wrappedCallback,
           oneose: () => {
             console.log('[Nostr] Subscription EOSE')
           },
-          onclosed: (reasons) => {
+          onclosed: (reasons: string[]) => {
             console.log('[Nostr] Subscription closed:', reasons)
           }
         }

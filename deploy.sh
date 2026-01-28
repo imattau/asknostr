@@ -78,8 +78,13 @@ setup_app() {
         useradd -r -s /bin/false "$APP_NAME" || log_warn "User creation returned error, but proceeding if user exists."
     fi
 
-    # Determine source directory (where script is running from)
-    SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+    # Determine source directory
+    # Fallback to PWD if BASH_SOURCE is unavailable (e.g. running via sh)
+    if [ -n "$BASH_SOURCE" ]; then
+        SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+    else
+        SCRIPT_DIR=$(pwd)
+    fi
 
     # Create Install Dir
     mkdir -p "$INSTALL_DIR"
