@@ -9,7 +9,7 @@ export const useGlobalDiscovery = () => {
   const { events } = useStore()
 
   return useQuery({
-    queryKey: ['global-community-discovery', events.length],
+    queryKey: ['global-community-discovery'],
     queryFn: async () => {
       console.log('[Discovery] Initiating network scan for Kind 34550...')
       
