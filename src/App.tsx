@@ -39,6 +39,8 @@ function App() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
   const [composerCollapsed, setComposerCollapsed] = useState(false)
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false)
+  const lastScrollTop = useRef(0)
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
   const trendingTags = useTrendingTags()
@@ -173,11 +175,23 @@ function App() {
   }
 
   const handleFeedScroll = useCallback(
-    (scrollOffset: number) => {
-      const shouldCollapse = scrollOffset > 40
-      setComposerCollapsed((prev) => (prev === shouldCollapse ? prev : shouldCollapse))
+    (scrollTop: number) => {
+      const last = lastScrollTop.current
+      const diff = scrollTop - last
+      const direction = diff > 0 ? 'down' : 'up'
+      
+      if (Math.abs(diff) > 10) {
+        if (direction === 'down' && scrollTop > 50) {
+          setIsHeaderHidden(true)
+          setComposerCollapsed(true)
+        } else if (direction === 'up' || scrollTop < 50) {
+          setIsHeaderHidden(false)
+        }
+      }
+      
+      lastScrollTop.current = scrollTop
     },
-    [setComposerCollapsed]
+    []
   )
 
   const handleLayerClose = useCallback((index: number) => {
@@ -229,10 +243,10 @@ function App() {
 
         return (
           <div className="h-full flex flex-col">
-            <div className="mx-4 mb-2">
+            <div className={`mx-4 mb-2 transition-all duration-300 ease-in-out overflow-hidden ${isHeaderHidden ? 'max-h-0 opacity-0 mb-0' : 'max-h-96 opacity-100'}`}>
               <div
                 className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${
-                  composerCollapsed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-72 opacity-100'
+                  composerCollapsed ? 'max-h-0 opacity-0 pointer-events-none hidden' : 'max-h-72 opacity-100 block'
                 }`}
               >
                 <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -274,7 +288,7 @@ function App() {
                 className={`glassmorphism rounded-full border border-slate-800 shadow-inner px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-cyan-300 text-center cursor-pointer transition-all duration-200 ${
                   composerCollapsed
                     ? 'opacity-100 visible pointer-events-auto'
-                    : 'opacity-0 invisible pointer-events-none'
+                    : 'opacity-0 invisible pointer-events-none h-0 py-0 overflow-hidden'
                 }`}
                 onClick={() => setComposerCollapsed(false)}
               >
@@ -338,7 +352,7 @@ function App() {
   const globalFeedLayer: Layer = { id: 'root-feed', type: 'feed', title: 'Global_Feed' }
 
   const Header = () => (
-    <header className="h-14 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl gap-2 overflow-hidden">
+    <header className={`border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl gap-2 overflow-hidden transition-all duration-300 ease-in-out ${isHeaderHidden ? 'h-0 opacity-0 border-b-0' : 'h-14 opacity-100'}`}>
       <div className="flex items-center gap-3 min-w-0">
         <img src="/asknostr_logo.png" alt="" className="w-7 h-7 rounded-full border border-slate-800 shadow-[0_0_15px_rgba(168,85,247,0.3)] shrink-0" />
         <div className="flex flex-col min-w-0">
@@ -394,9 +408,17 @@ function App() {
             <LogIn size={14} /> Connect
           </button>
         ) : (
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-            <span className="text-slate-500 hidden sm:inline">Online</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+              <span className="text-slate-500 hidden sm:inline">Online</span>
+            </div>
+            <button 
+              onClick={logout} 
+              className="flex items-center gap-1.5 bg-red-500/10 text-red-500 px-2 py-1 rounded border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)] uppercase text-[9px] font-bold tracking-widest hover:bg-red-500/20 transition-all"
+            >
+              <LogOut size={14} /> Exit
+            </button>
           </div>
         )}
       </div>
@@ -410,33 +432,6 @@ function App() {
         <main className="flex-1 overflow-hidden relative">
           <SwipeStack renderLayer={renderLayerContent} />
         </main>
-        
-        <nav className="h-16 border-t border-slate-800 flex items-center justify-around bg-slate-950 z-[1000] pb-safe">
-          <button 
-            onClick={() => setLayout('classic')} 
-            className="flex flex-col items-center gap-1 text-[9px] uppercase font-bold text-slate-400"
-          >
-            <Layout size={18} /> <span>Classic</span>
-          </button>
-          {!user.pubkey ? (
-            <button 
-              onClick={() => {
-                if (window.nostr) {
-                  login()
-                } else {
-                  pushLayer({ id: 'connect-bunker', type: 'connectbunker', title: 'Connect' })
-                }
-              }} 
-              className="flex flex-col items-center gap-1 text-[9px] uppercase font-bold text-cyan-400"
-            >
-              <LogIn size={18} /> <span>Connect</span>
-            </button>
-          ) : (
-            <button onClick={logout} className="flex flex-col items-center gap-1 text-[9px] uppercase font-bold text-red-500">
-              <LogOut size={18} /> <span>Exit</span>
-            </button>
-          )}
-        </nav>
       </div>
     )
   }

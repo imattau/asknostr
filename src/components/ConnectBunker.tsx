@@ -21,7 +21,7 @@ export const ConnectBunker: React.FC = () => {
   // Client-Initiated Flow (NIP-46)
   const [generatedUri, setGeneratedUri] = useState<string>('')
   const [qrCodeData, setQrCodeData] = useState<string>('')
-  const generatedRelayRef = useRef<string>('')
+  const generatedRelaysRef = useRef<string[]>([])
   const generatedSecretRef = useRef<string>('')
   
   const { popLayer } = useUiStore()
@@ -55,10 +55,10 @@ export const ConnectBunker: React.FC = () => {
     // Generate a nostrconnect:// URI for this client session
     // This allows the user to scan this QR with Amber/Amethyst to initiate the connection "backwards"
     const clientPubkey = signerService.clientPubkey
-    // Use a high-availability relay for the handshake
-    const relay = DEFAULT_RELAYS[0]
+    // Use multiple high-availability relays for the handshake
+    const relays = DEFAULT_RELAYS.slice(0, 3)
     const secret = Math.random().toString(36).substring(2, 15)
-    generatedRelayRef.current = relay
+    generatedRelaysRef.current = relays
     generatedSecretRef.current = secret
     
     // Metadata for the signer app
@@ -68,8 +68,12 @@ export const ConnectBunker: React.FC = () => {
       description: 'A Miller Column Nostr Client'
     }
     
-    const relayParam = encodeURIComponent(relay)
-    const connectUri = `nostrconnect://${clientPubkey}?relay=${relayParam}&r=${relayParam}&secret=${secret}&metadata=${encodeURIComponent(JSON.stringify(metadata))}`
+    const params = new URLSearchParams()
+    relays.forEach(r => params.append('relay', r))
+    params.append('secret', secret)
+    params.append('metadata', JSON.stringify(metadata))
+    
+    const connectUri = `nostrconnect://${clientPubkey}?${params.toString()}`
     setGeneratedUri(connectUri)
 
     QRCode.toDataURL(connectUri, { margin: 2, scale: 6 })
@@ -88,9 +92,9 @@ export const ConnectBunker: React.FC = () => {
       subscriptionPromise = nostrService.subscribe(
       [{ kinds: [24133], '#p': [clientPubkey], limit: 1 }],
       async (event) => {
-        const relayFromRef = generatedRelayRef.current
+        const relaysFromRef = generatedRelaysRef.current
         const secretFromRef = generatedSecretRef.current
-        if (!relayFromRef || !secretFromRef) return
+        if (relaysFromRef.length === 0 || !secretFromRef) return
         try {
         console.log('[ConnectBunker] received subscription event', { pubkey: event.pubkey, kind: event.kind })
         const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
@@ -106,10 +110,10 @@ export const ConnectBunker: React.FC = () => {
           }
 
           setIsConnecting(true)
-          await signerService.acknowledgeConnect(event.pubkey, [relayFromRef], request.id)
-          const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, [relayFromRef])
+          await signerService.acknowledgeConnect(event.pubkey, relaysFromRef, request.id)
+          const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, relaysFromRef)
 
-          setRemoteSigner({ pubkey: event.pubkey, relays: [relayFromRef], secret: secretFromRef })
+          setRemoteSigner({ pubkey: event.pubkey, relays: relaysFromRef, secret: secretFromRef })
           setLoginMethod('nip46')
           setUser(userPubkey)
           triggerHaptic(50)
@@ -120,7 +124,8 @@ export const ConnectBunker: React.FC = () => {
           setError(message)
           setIsConnecting(false)
         }
-      }
+      },
+      relays // Listen on all handshake relays
       ).catch((err) => {
         handleError(err, 'subscribe')
         return { close: () => {} }
