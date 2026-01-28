@@ -143,7 +143,7 @@ class SignerService {
               clearTimeout(timeout)
               sub.close()
               if (response.result === 'ack') {
-                const userPubkey = await this.getRemotePublicKey(pubkey, relay)
+                const userPubkey = await this.fetchRemotePublicKey(pubkey, relay)
                 resolve(userPubkey)
               } else {
                 reject(new Error('Connection rejected'))
@@ -156,11 +156,11 @@ class SignerService {
         [relay]
       ).then(s => sub = s)
 
-      nostrService.publish(reqEvent)
+      nostrService.publishToRelays([relay], reqEvent)
     })
   }
 
-  private async getRemotePublicKey(bunkerPubkey: string, relay: string): Promise<string> {
+  async fetchRemotePublicKey(bunkerPubkey: string, relay: string): Promise<string> {
     const requestId = Math.random().toString(36).substring(7)
     const request = {
       id: requestId,
@@ -201,8 +201,29 @@ class SignerService {
         [relay]
       ).then(s => sub = s)
 
-      nostrService.publish(reqEvent)
+      nostrService.publishToRelays([relay], reqEvent)
     })
+  }
+
+  async acknowledgeConnect(bunkerPubkey: string, relay: string, requestId: string) {
+    const response = {
+      id: requestId,
+      result: 'ack'
+    }
+
+    const encrypted = await nip04.encrypt(this.localSecretKey!, bunkerPubkey, JSON.stringify(response))
+    const respEvent = finalizeEvent({
+      kind: 24133,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['p', bunkerPubkey]],
+      content: encrypted,
+    }, this.localSecretKey!)
+
+    await nostrService.publishToRelays([relay], respEvent)
+  }
+
+  async decryptFrom(bunkerPubkey: string, content: string): Promise<string> {
+    return nip04.decrypt(this.localSecretKey!, bunkerPubkey, content)
   }
 }
 

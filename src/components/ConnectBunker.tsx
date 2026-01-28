@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Shield, Key, RefreshCw, AlertCircle, Cpu, Smartphone } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
@@ -14,6 +14,10 @@ export const ConnectBunker: React.FC = () => {
   
   // Client-Initiated Flow (NIP-46)
   const [generatedUri, setGeneratedUri] = useState<string>('')
+  const [generatedRelay, setGeneratedRelay] = useState<string>('')
+  const [generatedSecret, setGeneratedSecret] = useState<string>('')
+  const generatedRelayRef = useRef<string>('')
+  const generatedSecretRef = useRef<string>('')
   
   const { popLayer } = useUiStore()
   const { setRemoteSigner, setLoginMethod, setUser } = useStore()
@@ -25,6 +29,10 @@ export const ConnectBunker: React.FC = () => {
     // Use a high-availability relay for the handshake
     const relay = 'wss://relay.damus.io' 
     const secret = Math.random().toString(36).substring(2, 15)
+    setGeneratedRelay(relay)
+    setGeneratedSecret(secret)
+    generatedRelayRef.current = relay
+    generatedSecretRef.current = secret
     
     // Metadata for the signer app
     const metadata = {
@@ -40,11 +48,31 @@ export const ConnectBunker: React.FC = () => {
     const sub = nostrService.subscribe(
       [{ kinds: [24133], '#p': [clientPubkey], limit: 1 }],
       async (event) => {
-        // In a real reverse flow, we would handle the incoming 'connect' request here.
-        // However, standard NIP-46 usually starts with the CLIENT scanning the SIGNER's bunker URI.
-        // The "nostrconnect://" scheme is for the SIGNER to scan the CLIENT.
-        // For now, we will focus on the UI for the QR code and Deep Link.
-        console.log('Received potential handshake:', event)
+        const relayFromRef = generatedRelayRef.current
+        const secretFromRef = generatedSecretRef.current
+        if (!relayFromRef || !secretFromRef) return
+        try {
+          const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
+          const request = JSON.parse(decrypted)
+          if (request?.method !== 'connect') return
+          const [client, secret] = request.params || []
+          if (client !== clientPubkey || secret !== secretFromRef) return
+
+          setIsConnecting(true)
+          await signerService.acknowledgeConnect(event.pubkey, relayFromRef, request.id)
+          const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, relayFromRef)
+
+          setRemoteSigner({ pubkey: event.pubkey, relay: relayFromRef, secret: secretFromRef })
+          setLoginMethod('nip46')
+          setUser(userPubkey)
+          triggerHaptic(50)
+          popLayer()
+        } catch (err) {
+          console.error('Failed to complete reverse connect', err)
+          const message = err instanceof Error ? err.message : 'Reverse connect failed.'
+          setError(message)
+          setIsConnecting(false)
+        }
       },
       [relay]
     )
