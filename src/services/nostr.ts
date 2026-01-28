@@ -33,6 +33,7 @@ class NostrService {
   private pool: SimplePool
   private relays: string[]
   private worker: Worker | null = null
+  private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
   private maxActiveRelays: number = 8
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
@@ -41,6 +42,15 @@ class NostrService {
     
     if (typeof window !== 'undefined') {
       this.worker = new Worker('/event-worker.js', { type: 'module' })
+      this.worker.addEventListener('message', (e: MessageEvent) => {
+        const { id, isValid } = e.data || {}
+        if (!id) return
+        const pending = this.pendingValidations.get(id)
+        if (!pending) return
+        clearTimeout(pending.timeoutId)
+        this.pendingValidations.delete(id)
+        pending.resolve(!!isValid)
+      })
     }
   }
 
@@ -81,22 +91,28 @@ class NostrService {
 
   private async verifyInWorker(event: Event): Promise<boolean> {
     if (!this.worker) return true
-    return new Promise((resolve) => {
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-      const handler = (e: MessageEvent) => {
-        if (e.data.id === event.id) {
-          this.worker?.removeEventListener('message', handler)
-          if (timeoutId) clearTimeout(timeoutId)
-          resolve(e.data.isValid)
+    if (this.pendingValidations.has(event.id)) {
+      return new Promise((resolve) => {
+        const existing = this.pendingValidations.get(event.id)
+        if (!existing) return resolve(true)
+        const chainedResolve = (ok: boolean) => resolve(ok)
+        const originalResolve = existing.resolve
+        existing.resolve = (ok: boolean) => {
+          originalResolve(ok)
+          chainedResolve(ok)
         }
-      }
-      this.worker?.addEventListener('message', handler)
-      this.worker?.postMessage({ event })
-      timeoutId = setTimeout(() => {
-        this.worker?.removeEventListener('message', handler)
+      })
+    }
+
+    return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => {
+        this.pendingValidations.delete(event.id)
         console.warn('[Nostr] Verify timeout, allowing event:', event.id)
         resolve(true)
       }, 1500)
+
+      this.pendingValidations.set(event.id, { resolve, timeoutId })
+      this.worker?.postMessage({ event })
     })
   }
 
@@ -243,11 +259,11 @@ class NostrService {
     }
   }
 
-  async createAndPublishPost(content: string) {
+  async createAndPublishPost(content: string, tags: string[][] = []) {
     const eventTemplate = {
       kind: 1,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [],
+      tags,
       content: content,
     }
     const signedEvent = await signerService.signEvent(eventTemplate)
@@ -257,6 +273,7 @@ class NostrService {
   close() {
     this.pool.close(this.relays)
     this.worker?.terminate()
+    this.pendingValidations.clear()
   }
 }
 

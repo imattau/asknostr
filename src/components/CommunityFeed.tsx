@@ -24,6 +24,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isNsfw, setIsNsfw] = useState(false)
   const { pushLayer } = useUiStore()
   const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
@@ -145,6 +146,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         ['a', communityATag, '', 'root'],
         ['t', communityId]
       ]
+      if (isNsfw) tags.push(['content-warning', 'nsfw'])
       
       const eventTemplate = {
         kind: 1,
@@ -158,6 +160,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       
       if (success) {
         setPostContent('')
+        setIsNsfw(false)
         addEvent(signedEvent)
         triggerHaptic(20)
       } else {
@@ -305,7 +308,16 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 font-sans placeholder:text-slate-600"
               placeholder={`Post to c/${communityId}...`}
             ></textarea>
-            <div className="flex justify-end mt-2 pt-2 border-t border-white/5">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+              <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={isNsfw}
+                  onChange={(e) => setIsNsfw(e.target.checked)}
+                  className="accent-red-500"
+                />
+                NSFW
+              </label>
               <button 
                 onClick={handlePublish}
                 disabled={!user.pubkey || !postContent.trim() || isPublishing}

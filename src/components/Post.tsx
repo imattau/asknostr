@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
@@ -36,6 +36,11 @@ export const Post: React.FC<PostProps> = ({
   const displayPubkey = profile?.display_name || profile?.name || shortenPubkey(npub)
   const isOwnPost = user.pubkey === event.pubkey
   const isOP = opPubkey === event.pubkey
+  const contentWarning = event.tags.find(t => t[0] === 'content-warning')
+  const isNsfw = !!contentWarning || event.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === 'nsfw')
+  const warningLabel = contentWarning?.[1] || 'NSFW'
+  const [isRevealed, setIsRevealed] = useState(false)
+  const isHidden = isNsfw && !isRevealed
 
   const isOptimisticallyApproved = optimisticApprovals.includes(event.id)
   const effectiveApproved = isApproved || isOptimisticallyApproved
@@ -267,16 +272,31 @@ export const Post: React.FC<PostProps> = ({
         </div>
       </div>
       
-      <div className={`whitespace-pre-wrap break-words text-slate-300 leading-relaxed mb-4 font-sans ${isThreadView ? 'text-lg text-slate-50' : 'text-sm'}`}>
-        {event.content}
+      <div className="relative mb-4">
+        <div className={`whitespace-pre-wrap break-words text-slate-300 leading-relaxed font-sans ${isThreadView ? 'text-lg text-slate-50' : 'text-sm'} ${isHidden ? 'blur-sm select-none pointer-events-none' : ''}`}>
+          {event.content}
+        </div>
+        {isHidden && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 border border-red-500/30 rounded-lg">
+            <div className="flex flex-col items-center gap-2 text-center px-4">
+              <span className="text-[10px] font-mono uppercase text-red-400 tracking-widest">{warningLabel}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsRevealed(true) }}
+                className="text-[10px] font-bold uppercase px-3 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/10"
+              >
+                View
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {mediaMatches && mediaMatches.length > 0 && (
-        <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg">
+        <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
           {mediaMatches.map((url, idx) => {
             const isVideo = url.match(/\.(mp4|webm|mov)$/i)
             return (
-              <div key={idx} className="relative bg-slate-900 border border-slate-800 rounded-lg overflow-hidden group/media">
+              <div key={idx} className={`relative bg-slate-900 border border-slate-800 rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''}`}>
                 {isVideo ? (
                   <video 
                     src={url} 
@@ -298,6 +318,16 @@ export const Post: React.FC<PostProps> = ({
               </div>
             )
           })}
+          {isHidden && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 border border-red-500/30 rounded-lg">
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsRevealed(true) }}
+                className="text-[10px] font-bold uppercase px-3 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/10"
+              >
+                View NSFW Media
+              </button>
+            </div>
+          )}
         </div>
       )}
       

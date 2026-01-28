@@ -22,6 +22,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [replyContent, setReplyContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isNsfw, setIsNsfw] = useState(false)
   const { addEvent, user } = useStore()
 
   const deriveRootId = (fallbackId: string, source?: Event) => {
@@ -115,6 +116,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
         ['e', rootId, '', 'root'],
         ['e', parentId, '', 'reply']
       ]
+      if (isNsfw) tags.push(['content-warning', 'nsfw'])
 
       const pTags = new Set<string>()
       if (rootPubkey) pTags.add(rootPubkey)
@@ -144,6 +146,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       if (success) {
         console.log('[Thread] Broadcast success')
         setReplyContent('')
+        setIsNsfw(false)
         // Optimistically update UI
         setAllEvents(prev => {
           const next = [...prev, signedEvent]
@@ -246,7 +249,16 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
           className="w-full bg-transparent text-slate-200 border border-slate-800 rounded-lg focus:border-purple-500/50 p-3 text-sm resize-none h-24 font-sans placeholder:text-slate-600 mb-3 disabled:opacity-50"
           placeholder={user.pubkey ? "Type your response..." : "Login required to participate in thread."}
         ></textarea>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
+            <input
+              type="checkbox"
+              checked={isNsfw}
+              onChange={(e) => setIsNsfw(e.target.checked)}
+              className="accent-red-500"
+            />
+            NSFW
+          </label>
           <button 
             onClick={handleReply}
             disabled={!user.pubkey || !replyContent.trim() || isSubmitting}

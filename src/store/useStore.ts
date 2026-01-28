@@ -13,6 +13,8 @@ export interface UserProfile {
   nip05?: string
 }
 
+const MAX_EVENTS = 2000
+
 interface NostrState {
   events: Event[]
   optimisticReactions: Record<string, Record<string, string[]>> // eventId -> { emoji -> pubkeys[] }
@@ -73,7 +75,9 @@ export const useStore = create<NostrState>()(
       setEvents: (events) => set({ events }),
       addEvent: (event) => set((state) => {
         if (state.events.find(e => e.id === event.id)) return state
-        const newEvents = [...state.events, event].sort((a, b) => b.created_at - a.created_at)
+        const newEvents = [...state.events, event]
+          .sort((a, b) => b.created_at - a.created_at)
+          .slice(0, MAX_EVENTS)
         return { events: newEvents }
       }),
       addOptimisticReaction: (eventId, pubkey, emoji) => set((state) => {
@@ -133,7 +137,6 @@ export const useStore = create<NostrState>()(
       partialize: (state) => ({ 
         user: state.user, 
         relays: state.relays, 
-        events: state.events,
         loginMethod: state.loginMethod,
         remoteSigner: state.remoteSigner
       }),

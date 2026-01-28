@@ -34,6 +34,7 @@ function App() {
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [isNsfw, setIsNsfw] = useState(false)
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
   const trendingTags = useTrendingTags()
@@ -115,8 +116,11 @@ function App() {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
     try {
-      await nostrService.createAndPublishPost(postContent)
+      const tags: string[][] = []
+      if (isNsfw) tags.push(['content-warning', 'nsfw'])
+      await nostrService.createAndPublishPost(postContent, tags)
       setPostContent('')
+      setIsNsfw(false)
     } catch (e) {
       console.error('Failed to publish', e)
       alert('Failed to publish post. Check connection.')
@@ -149,7 +153,16 @@ function App() {
                 className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-20 font-sans placeholder:text-slate-600"
                 placeholder={user.pubkey ? "Broadcast to network..." : "Login to write..."}
               ></textarea>
-              <div className="flex justify-end pt-2 border-t border-white/5 mt-2">
+              <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
+                <label className="flex items-center gap-2 text-[9px] font-mono uppercase text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={isNsfw}
+                    onChange={(e) => setIsNsfw(e.target.checked)}
+                    className="accent-red-500"
+                  />
+                  NSFW
+                </label>
                 <button 
                   onClick={handlePublish}
                   disabled={!user.pubkey || !postContent.trim() || isPublishing}
