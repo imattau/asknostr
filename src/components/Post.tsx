@@ -318,7 +318,10 @@ export const Post: React.FC<PostProps> = ({
       </div>
 
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
-        <button className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn">
+        <button 
+          onClick={(e) => { e.stopPropagation(); openThread(e); }}
+          className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
+        >
           <MessageSquare size={12} className="group-hover/btn:scale-110 transition-transform" />
           <span>Reply</span>
         </button>
