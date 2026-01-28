@@ -8,7 +8,7 @@ set -e
 
 # Configuration
 APP_NAME="asknostr"
-INSTALL_DIR="/opt/$APP_NAME"
+INSTALL_DIR="/var/www/$APP_NAME"
 SERVICE_NAME="$APP_NAME.service"
 DEFAULT_PORT=3000
 CADDY_FILE="/etc/caddy/Caddyfile"
