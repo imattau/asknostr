@@ -4,6 +4,7 @@ import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
 import { signerService } from '../services/signer'
 import { nostrService } from '../services/nostr'
+import { DEFAULT_RELAYS } from '../services/nostr'
 import { triggerHaptic } from '../utils/haptics'
 import QRCode from 'react-qr-code'
 
@@ -25,7 +26,7 @@ export const ConnectBunker: React.FC = () => {
     // This allows the user to scan this QR with Amber/Amethyst to initiate the connection "backwards"
     const clientPubkey = signerService.clientPubkey
     // Use a high-availability relay for the handshake
-    const relay = 'wss://relay.damus.io' 
+    const relay = DEFAULT_RELAYS[0]
     const secret = Math.random().toString(36).substring(2, 15)
     generatedRelayRef.current = relay
     generatedSecretRef.current = secret
@@ -98,7 +99,7 @@ export const ConnectBunker: React.FC = () => {
       
       const url = new URL(uri)
       const bunkerPubkey = url.host
-      const relay = url.searchParams.get('relay') || url.searchParams.get('r') || null
+      const relay = url.searchParams.get('relay') || url.searchParams.get('r') || DEFAULT_RELAYS[0]
       const secret = url.searchParams.get('secret') || null
 
       setRemoteSigner({ pubkey: bunkerPubkey, relay, secret })
