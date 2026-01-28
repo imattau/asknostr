@@ -99,7 +99,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     return authors
   }, [approvals])
 
-  const filteredEvents = communityEvents.filter(e => {
+  const filteredEvents = useMemo(() => communityEvents.filter(e => {
     if (deletedIds.includes(e.id)) return false
     if (eventStatusMap[e.id] === 'spam') return false
 
@@ -115,10 +115,42 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       }
       return true
     }
-  })
+  }), [communityEvents, deletedIds, eventStatusMap, approvedAuthors, isModeratedOnly, community, moderators, creator])
 
-  const pinnedEvents = filteredEvents.filter(e => community?.pinned.includes(e.id) || eventStatusMap[e.id] === 'pinned')
-  const regularEvents = filteredEvents.filter(e => !community?.pinned.includes(e.id) && eventStatusMap[e.id] !== 'pinned')
+  const computeEngagement = (event: Event) => {
+    return event.tags.reduce((score, tag) => {
+      if (['p', 'e', 'r', 'a'].includes(tag[0])) return score + 1
+      return score
+    }, 0)
+  }
+
+  const hotScore = (event: Event) => {
+    const ageSeconds = Math.max(1, Math.floor(Date.now() / 1000) - event.created_at)
+    return (computeEngagement(event) + 1) / ageSeconds
+  }
+
+  const sortedEvents = useMemo(() => {
+    const copy = [...filteredEvents]
+    switch (sortBy) {
+      case 'hot':
+        return copy.sort((a, b) => {
+          const res = hotScore(b) - hotScore(a)
+          return res || b.created_at - a.created_at
+        })
+      case 'top':
+        return copy.sort((a, b) => {
+          const aScore = computeEngagement(a)
+          const bScore = computeEngagement(b)
+          return bScore - aScore || b.created_at - a.created_at
+        })
+      case 'new':
+      default:
+        return copy.sort((a, b) => b.created_at - a.created_at)
+    }
+  }, [filteredEvents, sortBy])
+
+  const pinnedEvents = sortedEvents.filter(e => community?.pinned.includes(e.id) || eventStatusMap[e.id] === 'pinned')
+  const regularEvents = sortedEvents.filter(e => !community?.pinned.includes(e.id) && eventStatusMap[e.id] !== 'pinned')
 
   const isUserModerator = moderators.includes(user.pubkey || '') || creator === user.pubkey
   const isCreator = creator === user.pubkey
