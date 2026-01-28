@@ -30,7 +30,7 @@ function App() {
   const { events, addEvent, isConnected, setConnected, user, login, logout } = useStore()
   useSubscriptions() 
   useRelays()
-  const { layout, setLayout, theme, setTheme, stack, popLayer } = useUiStore()
+  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer } = useUiStore()
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -168,36 +168,46 @@ function App() {
   }
 
   const Header = () => (
-    <header className="h-14 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl">
-      <div className="flex items-center gap-3">
-        <img src="/asknostr_logo.png" alt="" className="w-7 h-7 rounded-full border border-slate-800 shadow-[0_0_15px_rgba(168,85,247,0.3)]" />
-        <div className="flex flex-col">
-          <h1 className="text-sm font-black uppercase tracking-tighter gradient-text leading-none">AskNostr_Core</h1>
-          <span className="text-[7px] font-mono opacity-40 uppercase tracking-widest mt-0.5">DECENTRALIZED_GATEWAY</span>
+    <header className="h-14 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl gap-2 overflow-hidden">
+      <div className="flex items-center gap-3 min-w-0">
+        <img src="/asknostr_logo.png" alt="" className="w-7 h-7 rounded-full border border-slate-800 shadow-[0_0_15px_rgba(168,85,247,0.3)] shrink-0" />
+        <div className="flex flex-col min-w-0">
+          <h1 className="text-sm font-black uppercase tracking-tighter gradient-text leading-none truncate">AskNostr_Core</h1>
+          <span className="text-[7px] font-mono opacity-40 uppercase tracking-widest mt-0.5 truncate hidden sm:block">DECENTRALIZED_GATEWAY</span>
         </div>
       </div>
       
-      <div className="flex gap-4 items-center uppercase font-bold text-[9px] font-mono">
+      <div className="flex gap-2 items-center uppercase font-bold text-[9px] font-mono shrink-0">
         <button 
           onClick={() => setLayout(layout === 'swipe' ? 'classic' : 'swipe')} 
-          className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400"
+          className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"
         >
-          <Layout size={14} /> {layout === 'swipe' ? 'Classic_Columns' : 'Mobile_Stack'}
+          <Layout size={14} /> {layout === 'swipe' ? 'Classic' : 'Mobile'}
         </button>
         <button 
           onClick={() => setTheme(theme === 'terminal' ? 'modern' : 'terminal')} 
-          className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400"
+          className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"
         >
           <TerminalIcon size={14} /> Theme
         </button>
         {!user.pubkey ? (
-          <button onClick={login} className="flex items-center gap-1.5 bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]">
+          <button 
+            onClick={() => {
+              if (window.nostr) {
+                login()
+              } else {
+                // If no extension, assume mobile/remote flow
+                pushLayer({ id: 'connect-bunker', type: 'connectbunker', title: 'Connect' })
+              }
+            }}
+            className="flex items-center gap-1.5 bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]"
+          >
             <LogIn size={14} /> Connect
           </button>
         ) : (
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-            <span className="text-slate-500">Online</span>
+            <span className="text-slate-500 hidden sm:inline">Online</span>
           </div>
         )}
       </div>
@@ -220,7 +230,16 @@ function App() {
             <Layout size={18} /> <span>Classic</span>
           </button>
           {!user.pubkey ? (
-            <button onClick={login} className="flex flex-col items-center gap-1 text-[9px] uppercase font-bold text-cyan-400">
+            <button 
+              onClick={() => {
+                if (window.nostr) {
+                  login()
+                } else {
+                  pushLayer({ id: 'connect-bunker', type: 'connectbunker', title: 'Connect' })
+                }
+              }} 
+              className="flex flex-col items-center gap-1 text-[9px] uppercase font-bold text-cyan-400"
+            >
               <LogIn size={18} /> <span>Connect</span>
             </button>
           ) : (

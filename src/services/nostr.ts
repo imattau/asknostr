@@ -33,7 +33,7 @@ class NostrService {
   private pool: SimplePool
   private relays: string[]
   private worker: Worker | null = null
-  private maxActiveRelays: number = 20
+  private maxActiveRelays: number = 8
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
