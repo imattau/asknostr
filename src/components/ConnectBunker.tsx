@@ -26,6 +26,7 @@ export const ConnectBunker: React.FC = () => {
   const { setRemoteSigner, setLoginMethod, setUser } = useStore()
 
   useEffect(() => {
+    console.debug('[ConnectBunker] component mounted, generating URI')
     // Generate a nostrconnect:// URI for this client session
     // This allows the user to scan this QR with Amber/Amethyst to initiate the connection "backwards"
     const clientPubkey = signerService.clientPubkey
@@ -54,7 +55,8 @@ export const ConnectBunker: React.FC = () => {
         const secretFromRef = generatedSecretRef.current
         if (!relayFromRef || !secretFromRef) return
         try {
-          const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
+        console.debug('[ConnectBunker] received subscription event', { pubkey: event.pubkey, kind: event.kind })
+        const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
           const request = JSON.parse(decrypted)
           if (request?.method !== 'connect') return
           const [client, secret] = request.params || []
@@ -97,6 +99,7 @@ export const ConnectBunker: React.FC = () => {
     setError(null)
     triggerHaptic(15)
 
+    console.debug('[ConnectBunker] handleConnect start', { uri })
     try {
       const userPubkey = await signerService.connect(uri)
       
@@ -116,13 +119,14 @@ export const ConnectBunker: React.FC = () => {
     const secret = secretParam || null
 
       setRemoteSigner({ pubkey: bunkerPubkey, relay, secret })
+      console.info('[ConnectBunker] remote signer stored', { bunkerPubkey, relay, secret })
       setLoginMethod('nip46')
       setUser(userPubkey)
 
       triggerHaptic(50)
       popLayer()
     } catch (err: unknown) {
-      console.error('Nostr Connect failed', err)
+      console.error('[ConnectBunker] Nostr Connect failed', err)
       const message = err instanceof Error ? err.message : 'Connection failed. Verify URI and relay connectivity.'
       setError(message)
     } finally {
