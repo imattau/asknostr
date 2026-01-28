@@ -409,7 +409,7 @@ const PostComponent: React.FC<PostProps> = ({
 
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
         {user.pubkey && (
-          <div className="relative">
+          <div className="relative overflow-visible">
             <button
               onClick={(e) => { e.stopPropagation(); setIsShareOpen(prev => !prev) }}
               className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
@@ -418,7 +418,7 @@ const PostComponent: React.FC<PostProps> = ({
               <span>{shareLoading ? 'Sharing...' : 'Share'}</span>
             </button>
             {isShareOpen && (
-              <div className="absolute left-0 top-full mt-2 w-48 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50">
+              <div className="absolute left-0 top-full mt-2 w-48 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-[9999]">
                 {subscribedCommunities.length === 0 ? (
                   <div className="p-3 text-[10px] font-mono uppercase text-slate-500">Join a community to share</div>
                 ) : (
