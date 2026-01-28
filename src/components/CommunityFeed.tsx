@@ -3,6 +3,7 @@ import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
+import { VirtualFeed } from './VirtualFeed'
 import { Shield, Info, Filter, RefreshCw, Pin } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
@@ -345,82 +346,72 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       </div>
 
       <div className="flex-1 overflow-hidden relative">
-        <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
-          <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
-            <textarea 
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              disabled={!user.pubkey || isPublishing}
-              className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 font-sans placeholder:text-slate-600"
-              placeholder={`Post to c/${communityId}...`}
-            ></textarea>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-              <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={isNsfw}
-                  onChange={(e) => setIsNsfw(e.target.checked)}
-                  className="accent-red-500"
-                />
-                NSFW
-              </label>
-              <button 
-                onClick={handlePublish}
-                disabled={!user.pubkey || !postContent.trim() || isPublishing}
-                className="terminal-button rounded py-1 px-3 text-[9px]"
-              >
-                {isPublishing ? '...' : 'Post'}
-              </button>
-            </div>
-          </div>
-
-          {community?.rules && (
-            <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5">
-              <h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest">
-                <Info size={10} /> Rules
-              </h4>
-              <div className="text-[10px] text-slate-400 font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer">
-                {community.rules}
+        <VirtualFeed
+          events={regularEvents}
+          isLoadingMore={false}
+          onLoadMore={() => {}}
+          header={
+            <div className="p-4 space-y-4">
+              <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
+                <textarea 
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  disabled={!user.pubkey || isPublishing}
+                  className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 font-sans placeholder:text-slate-600"
+                  placeholder={`Post to c/${communityId}...`}
+                ></textarea>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                  <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={isNsfw}
+                      onChange={(e) => setIsNsfw(e.target.checked)}
+                      className="accent-red-500"
+                    />
+                    NSFW
+                  </label>
+                  <button 
+                    onClick={handlePublish}
+                    disabled={!user.pubkey || !postContent.trim() || isPublishing}
+                    className="terminal-button rounded py-1 px-3 text-[9px]"
+                  >
+                    {isPublishing ? '...' : 'Post'}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
 
-          {pinnedEvents.length > 0 && (
-            <div className="space-y-4 mb-8">
-              <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2">
-                <Pin size={12} className="rotate-45" /> Pinned
-              </h4>
-              <div className="space-y-4">
-                {pinnedEvents.map(event => (
-                  <Post 
-                    key={event.id} 
-                    event={event} 
-                    isModerator={moderators.includes(event.pubkey)}
-                    isApproved={true}
-                  />
-                ))}
-              </div>
-              <div className="h-px bg-slate-800 mx-4" />
-            </div>
-          )}
+              {community?.rules && (
+                <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5">
+                  <h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest">
+                    <Info size={10} /> Rules
+                  </h4>
+                  <div className="text-[10px] text-slate-400 font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer">
+                    {community.rules}
+                  </div>
+                </div>
+              )}
 
-          <div className="space-y-4">
-            {regularEvents.length === 0 ? (
-              <div className="text-center p-12 opacity-30 italic text-[10px]">
-                {pinnedEvents.length === 0 ? '[NO_POSTS_MATCHING_CRITERIA]' : '[END_OF_TRANSMISSION]'}
-              </div>
-            ) : (
-              regularEvents.map(event => (
-                <Post 
-                  key={event.id} 
-                  event={event} 
-                  isModerator={moderators.includes(event.pubkey)}
-                  isApproved={approvals.some(a => a.tags.some(t => t[0] === 'e' && t[1] === event.id))}
-                />
-              ))
-            )}
-          </div>
-        </div>
+              {pinnedEvents.length > 0 && (
+                <div className="space-y-4 mb-8">
+                  <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2">
+                    <Pin size={12} className="rotate-45" /> Pinned
+                  </h4>
+                  <div className="space-y-4">
+                    {pinnedEvents.map(event => (
+                      <Post 
+                        key={event.id} 
+                        event={event} 
+                        isModerator={moderators.includes(event.pubkey)}
+                        isApproved={true}
+                      />
+                    ))}
+                  </div>
+                  <div className="h-px bg-slate-800 mx-4" />
+                </div>
+              )}
+            </div>
+          }
+        />
       </div>
     </div>
   )

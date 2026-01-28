@@ -9,12 +9,14 @@ interface VirtualFeedProps {
   isLoadingMore: boolean
   onLoadMore: () => void
   onScroll?: (scrollOffset: number) => void
+  header?: React.ReactNode
 }
 
 interface RowProps {
   events: Event[]
   isLoadingMore: boolean
   onLoadMore: () => void
+  header?: React.ReactNode
 }
 
 const Row = ({
@@ -23,7 +25,8 @@ const Row = ({
   style,
   events,
   isLoadingMore,
-  onLoadMore
+  onLoadMore,
+  header
 }: {
   ariaAttributes: {
     'aria-posinset': number
@@ -33,7 +36,16 @@ const Row = ({
   index: number
   style: React.CSSProperties
 } & RowProps): React.ReactElement | null => {
-  const isLoadMoreRow = index === events.length
+  if (header && index === 0) {
+    return (
+      <div style={style} {...ariaAttributes}>
+        {header}
+      </div>
+    )
+  }
+
+  const adjustedIndex = header ? index - 1 : index
+  const isLoadMoreRow = adjustedIndex === events.length
 
   return (
     <div style={style} className="px-4 py-2" {...ariaAttributes}>
@@ -46,14 +58,15 @@ const Row = ({
           {isLoadingMore ? 'Loading...' : 'Load More'}
         </button>
       ) : (
-        <Post event={events[index]} />
+        <Post event={events[adjustedIndex]} />
       )}
     </div>
   )
 }
 
-export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore, onLoadMore, onScroll }) => {
-  const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}` })
+export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore, onLoadMore, onScroll, header }) => {
+  const rowCount = events.length + 1 + (header ? 1 : 0)
+  const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}-${!!header}` })
 
   return (
     <div className="h-full w-full">
@@ -62,10 +75,10 @@ export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore,
           if (!height || !width) return null
           return (
             <List
-              rowCount={events.length + 1}
+              rowCount={rowCount}
               rowHeight={rowHeight}
               rowComponent={Row}
-              rowProps={{ events, isLoadingMore, onLoadMore }}
+              rowProps={{ events, isLoadingMore, onLoadMore, header }}
               style={{ height, width }}
               onScroll={(event) => {
                 if (onScroll) {
