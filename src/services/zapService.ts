@@ -29,27 +29,29 @@ class ZapService {
   }
 
   async createZapRequest(
-    targetEvent: Event,
+    targetPubkey: string,
     amount: number,
+    relays: string[],
     comment: string = '',
-    relays: string[]
+    targetEventId?: string
   ): Promise<Event> {
     const amountInMsats = amount * 1000
     
+    const tags = [
+      ['p', targetPubkey],
+      ['amount', amountInMsats.toString()],
+      ['relays', ...relays],
+    ]
+
+    if (targetEventId) {
+      tags.push(['e', targetEventId])
+    }
+
     const zapRequestTemplate = {
       kind: 9734,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ['p', targetEvent.pubkey],
-        ['e', targetEvent.id],
-        ['amount', amountInMsats.toString()],
-        ['relays', ...relays],
-      ],
+      tags,
       content: comment,
-    }
-
-    if (comment) {
-      // zapRequestTemplate.tags.push(['comment', comment]) // content is preferred for comment in 9734
     }
 
     return signerService.signEvent(zapRequestTemplate)
@@ -72,14 +74,25 @@ class ZapService {
     }
   }
 
-  async sendZap(targetEvent: Event, lud16: string, amount: number, comment?: string): Promise<void> {
+  async sendZap(
+    targetPubkey: string, 
+    lud16: string, 
+    amount: number, 
+    options?: { eventId?: string, comment?: string }
+  ): Promise<void> {
     const callback = await this.getZapEndpoint(lud16)
     if (!callback) {
       throw new Error('Recipient does not support Nostr Zaps (NIP-57)')
     }
 
     const relays = nostrService.getRelays()
-    const zapRequest = await this.createZapRequest(targetEvent, amount, comment, relays)
+    const zapRequest = await this.createZapRequest(
+      targetPubkey, 
+      amount, 
+      relays, 
+      options?.comment || '', 
+      options?.eventId
+    )
     const invoice = await this.fetchInvoice(callback, amount, zapRequest)
 
     if (!invoice) {

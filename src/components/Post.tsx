@@ -238,7 +238,7 @@ const PostComponent: React.FC<PostProps> = ({
 
     triggerHaptic(25)
     try {
-      await zapService.sendZap(event, profile.lud16, amount)
+      await zapService.sendZap(event.pubkey, profile.lud16, amount, { eventId: event.id })
     } catch (err) {
       console.error('Zap failed', err)
       alert(err instanceof Error ? err.message : 'Failed to initiate zap.')
