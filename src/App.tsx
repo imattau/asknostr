@@ -20,6 +20,7 @@ import { CommunityCreate } from './components/CommunityCreate'
 import { CommunityAdmin } from './components/CommunityAdmin'
 import { ClaimStation } from './components/ClaimStation'
 import { ProfileEditor } from './components/ProfileEditor'
+import { ProfileView } from './components/ProfileView'
 import { ConnectBunker } from './components/ConnectBunker'
 import { Search } from './components/Search'
 import { Sidebar } from './components/Sidebar'
@@ -186,6 +187,15 @@ function App() {
     }
   }, [popLayer, stack.length])
   
+  const handleTrendingTagClick = (tag: string) => {
+    pushLayer({
+      id: `tag-feed-${tag}-${Date.now()}`,
+      type: 'feed',
+      title: `Tag_${tag.toUpperCase()}`,
+      params: { filter: { '#t': [tag] } }
+    })
+  }
+  
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
@@ -318,6 +328,8 @@ function App() {
         return <ErrorLog />
       case 'profile':
         return <ProfileEditor />
+      case 'profile-view':
+        return <ProfileView pubkey={layer.params?.pubkey as string | undefined} />
       default:
         return <div className="p-4 opacity-50 font-mono">[CONTENT_UNAVAILABLE]</div>
     }
@@ -498,12 +510,23 @@ function App() {
             <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">Signal_Trends</h2>
             <ul className="space-y-3">
               {trendingTags.length === 0 ? (
-                <li className="opacity-20 italic text-[10px] font-mono uppercase tracking-tighter py-4 text-center">Monitoring_Broadcasts...</li>
+                <li className="opacity-20 italic text-[10px] font-mono uppercase tracking-tighter py-4 text-center">
+                  Monitoring_Broadcasts...
+                </li>
               ) : (
                 trendingTags.map(({ name, count }) => (
-                  <li key={name} className="flex justify-between items-center group cursor-pointer">
-                    <span className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors uppercase font-mono">#{name}</span>
-                    <span className="text-[8px] font-mono text-slate-600 bg-white/5 px-1.5 rounded">{count}x</span>
+                  <li
+                    key={name}
+                    role="button"
+                    onClick={() => handleTrendingTagClick(name)}
+                    className="flex justify-between items-center group cursor-pointer"
+                  >
+                    <span className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors uppercase font-mono">
+                      #{name}
+                    </span>
+                    <span className="text-[8px] font-mono text-slate-600 bg-white/5 px-1.5 rounded">
+                      {count}x
+                    </span>
                   </li>
                 ))
               )}

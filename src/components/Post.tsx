@@ -80,6 +80,16 @@ const PostComponent: React.FC<PostProps> = ({
     })
   }
 
+  const openProfile = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    pushLayer({
+      id: `profile-${event.pubkey}-${Date.now()}`,
+      type: 'profile-view',
+      title: `Profile_${shortenPubkey(npub)}`,
+      params: { pubkey: event.pubkey }
+    })
+  }
+
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
 
@@ -242,27 +252,37 @@ const PostComponent: React.FC<PostProps> = ({
 
       <div className="flex justify-between mb-3 text-xs">
         <div className="flex items-center gap-2">
-          {isProfileLoading ? (
-            <div className="w-6 h-6 bg-slate-800 animate-pulse rounded-full" />
-          ) : profile?.picture ? (
-            <img src={profile.picture} alt="" className="w-6 h-6 rounded-full border border-slate-800 object-cover" />
-          ) : (
-            <div className="w-6 h-6 border border-slate-800 rounded-full flex items-center justify-center text-[8px] bg-slate-900 text-slate-400">?</div>
-          )}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1">
-              <span className={`font-bold tracking-tight text-slate-50 ${isProfileLoading ? 'animate-pulse' : ''}`} title={npub}>
-                {displayPubkey}
-              </span>
-              {isOP && (
-                <span className="text-[8px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1 rounded font-mono font-bold uppercase ml-1">OP</span>
-              )}
-              {isModerator && (
-                <Shield size={12} className="text-green-500 fill-green-500/10" />
+          <button
+            type="button"
+            onClick={openProfile}
+            className="flex items-center gap-2 focus-visible:outline focus-visible:ring focus-visible:ring-cyan-500 rounded-lg"
+          >
+            <div className="w-6 h-6 rounded-full border border-slate-800 overflow-hidden bg-slate-900 flex items-center justify-center">
+              {isProfileLoading ? (
+                <div className="w-full h-full animate-pulse bg-slate-800" />
+              ) : profile?.picture ? (
+                <img src={profile.picture} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-[8px] text-slate-400">?</span>
               )}
             </div>
-            <span className="text-[10px] text-slate-400 font-mono lowercase opacity-70">{formatDate(event.created_at)}</span>
-          </div>
+            <div className="flex flex-col min-w-0 text-left">
+              <div className="flex items-center gap-1">
+                <span className={`font-bold tracking-tight text-slate-50 ${isProfileLoading ? 'animate-pulse' : ''}`} title={npub}>
+                  {displayPubkey}
+                </span>
+                {isOP && (
+                  <span className="text-[8px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1 rounded font-mono font-bold uppercase ml-1">
+                    OP
+                  </span>
+                )}
+                {isModerator && (
+                  <Shield size={12} className="text-green-500 fill-green-500/10" />
+                )}
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono lowercase opacity-70">{formatDate(event.created_at)}</span>
+            </div>
+          </button>
         </div>
         <div className="flex items-center gap-3">
           {isUserModerator && !effectiveApproved && (
