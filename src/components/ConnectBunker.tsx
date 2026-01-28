@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Shield, Key, RefreshCw, AlertCircle, Cpu, Smartphone } from 'lucide-react'
-import { getPublicKey, nip19 } from 'nostr-tools'
+import { nip19 } from 'nostr-tools'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
 import { signerService } from '../services/signer'
@@ -106,10 +106,10 @@ export const ConnectBunker: React.FC = () => {
           }
 
           setIsConnecting(true)
-          await signerService.acknowledgeConnect(event.pubkey, relayFromRef, request.id)
-          const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, relayFromRef)
+          await signerService.acknowledgeConnect(event.pubkey, [relayFromRef], request.id)
+          const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, [relayFromRef])
 
-          setRemoteSigner({ pubkey: event.pubkey, relay: relayFromRef, secret: secretFromRef })
+          setRemoteSigner({ pubkey: event.pubkey, relays: [relayFromRef], secret: secretFromRef })
           setLoginMethod('nip46')
           setUser(userPubkey)
           triggerHaptic(50)
@@ -154,17 +154,19 @@ export const ConnectBunker: React.FC = () => {
       throw new Error('Invalid bunker public key')
     }
 
-    const rawRelay = url.searchParams.get('relay') || url.searchParams.get('r') || DEFAULT_RELAYS[0]
-    const relay = normalizeRelayUrl(rawRelay)
-    if (!relay) {
-      throw new Error('Invalid relay URL in bunker URI')
+    const rawRelays = url.searchParams.getAll('relay')
+    const rRelays = url.searchParams.getAll('r')
+    let relays = [...rawRelays, ...rRelays].map(normalizeRelayUrl).filter(r => !!r) as string[]
+    
+    if (relays.length === 0) {
+      relays = [DEFAULT_RELAYS[0]]
     }
 
     const secretParam = url.searchParams.get('secret')?.trim()
     const secret = secretParam || null
 
-      setRemoteSigner({ pubkey: bunkerPubkey, relay, secret })
-      console.info('[ConnectBunker] remote signer stored', { bunkerPubkey, relay, secret })
+      setRemoteSigner({ pubkey: bunkerPubkey, relays, secret })
+      console.info('[ConnectBunker] remote signer stored', { bunkerPubkey, relays, secret })
       setLoginMethod('nip46')
       setUser(userPubkey)
 
@@ -192,18 +194,31 @@ export const ConnectBunker: React.FC = () => {
     setNsecWarning(null)
     try {
       const decoded = nip19.decode(nsecInput.trim())
-      if (decoded.type !== 'nsec' || typeof decoded.data !== 'string') {
+      let hexKey = ''
+      
+      if (decoded.type === 'nsec') {
+        if (decoded.data instanceof Uint8Array) {
+          hexKey = Array.from(decoded.data).map(b => b.toString(16).padStart(2, '0')).join('')
+        } else if (typeof decoded.data === 'string') {
+          hexKey = decoded.data
+        }
+      }
+
+      if (!hexKey) {
         throw new Error('Invalid nsec key.')
       }
-      signerService.setSecretKey(decoded.data)
-      const userPubkey = getPublicKey(decoded.data)
-      setRemoteSigner({ pubkey: null, relay: null, secret: null })
+
+      signerService.setSecretKey(hexKey)
+      const userPubkey = signerService.clientPubkey
+      
+      setRemoteSigner({ pubkey: null, relays: [], secret: null })
       setLoginMethod('local')
       setUser(userPubkey)
       triggerHaptic(50)
       setNsecWarning('Local key imported—treat this session as sensitive.')
       popLayer()
     } catch (err: unknown) {
+      console.error(err)
       const message = err instanceof Error ? err.message : 'Invalid nsec string'
       setError(message)
     } finally {

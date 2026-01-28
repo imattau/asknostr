@@ -27,7 +27,7 @@ class SignerService {
     const state = useStore.getState()
 
     const resolvedMethod = state.loginMethod
-      || (state.remoteSigner.pubkey && state.remoteSigner.relay ? 'nip46' : null)
+      || (state.remoteSigner.pubkey && state.remoteSigner.relays.length > 0 ? 'nip46' : null)
       || (window.nostr ? 'nip07' : null)
 
     if (resolvedMethod === 'nip07') {
@@ -48,14 +48,14 @@ class SignerService {
 
   private async signWithRemote(template: EventTemplate): Promise<Event> {
     const state = useStore.getState()
-    const { pubkey: bunkerPubkey, relay: bunkerRelay } = state.remoteSigner
+    const { pubkey: bunkerPubkey, relays: bunkerRelays } = state.remoteSigner
     
-    if (!bunkerPubkey || !bunkerRelay) throw new Error('Remote signer not configured')
+    if (!bunkerPubkey || !bunkerRelays || bunkerRelays.length === 0) throw new Error('Remote signer not configured')
 
-    console.log('[Signer] NIP-46 Signing via:', bunkerRelay)
+    console.log('[Signer] NIP-46 Signing via:', bunkerRelays)
     
-    // Ensure we are connected to the bunker relay
-    await nostrService.addRelays([bunkerRelay])
+    // Ensure we are connected to the bunker relays
+    await nostrService.addRelays(bunkerRelays)
 
     const requestId = Math.random().toString(36).substring(7)
     const request = {
@@ -102,13 +102,13 @@ class SignerService {
             console.error('Failed to process NIP-46 response', e)
           }
         },
-        [bunkerRelay]
+        bunkerRelays
       ).then((handle) => {
         subscriptionRef.current = handle
       })
 
       // Publish specifically to the bunker relay to ensure delivery
-      nostrService.publishToRelays([bunkerRelay], reqEvent)
+      nostrService.publishToRelays(bunkerRelays, reqEvent)
     })
   }
 
@@ -138,19 +138,20 @@ class SignerService {
 
   async connect(bunkerUri: string): Promise<string> {
     let pubkey = ''
-    let relay = ''
+    let relays: string[] = []
     let secret = ''
 
     if (bunkerUri.startsWith('bunker://') || bunkerUri.startsWith('nostrconnect://')) {
       const url = new URL(bunkerUri.trim())
       pubkey = normalizeHexPubkey(url.host)
-      const rawRelay = url.searchParams.get('relay') || url.searchParams.get('r') || ''
-      relay = normalizeRelayUrl(rawRelay)
+      const rawRelays = url.searchParams.getAll('relay')
+      const rRelays = url.searchParams.getAll('r')
+      relays = [...rawRelays, ...rRelays].map(normalizeRelayUrl).filter(r => !!r) as string[]
       secret = url.searchParams.get('secret')?.trim() || ''
     }
 
     if (!pubkey) throw new Error('Invalid bunker public key')
-    if (!relay) throw new Error('Invalid bunker relay URL')
+    if (relays.length === 0) throw new Error('Invalid bunker relay URL')
 
     const requestId = Math.random().toString(36).substring(7)
     const request = {
@@ -186,7 +187,7 @@ class SignerService {
               clearTimeout(timeout)
               cleanup()
               if (response.result === 'ack') {
-                const userPubkey = await this.fetchRemotePublicKey(pubkey, relay)
+                const userPubkey = await this.fetchRemotePublicKey(pubkey, relays)
                 resolve(userPubkey)
               } else {
                 reject(new Error('Connection rejected'))
@@ -196,16 +197,16 @@ class SignerService {
             console.error(e)
           }
         },
-        [relay]
+        relays
       ).then((handle) => {
         subscriptionRef.current = handle
       })
 
-      nostrService.publishToRelays([relay], reqEvent)
+      nostrService.publishToRelays(relays, reqEvent)
     })
   }
 
-  async fetchRemotePublicKey(bunkerPubkey: string, relay: string): Promise<string> {
+  async fetchRemotePublicKey(bunkerPubkey: string, relays: string[]): Promise<string> {
     const requestId = Math.random().toString(36).substring(7)
     const request = {
       id: requestId,
@@ -245,16 +246,16 @@ class SignerService {
             console.error(e)
           }
         },
-        [relay]
+        relays
       ).then((handle) => {
         subscriptionRef.current = handle
       })
 
-      nostrService.publishToRelays([relay], reqEvent)
+      nostrService.publishToRelays(relays, reqEvent)
     })
   }
 
-  async acknowledgeConnect(bunkerPubkey: string, relay: string, requestId: string) {
+  async acknowledgeConnect(bunkerPubkey: string, relays: string[], requestId: string) {
     const response = {
       id: requestId,
       result: 'ack'
@@ -268,7 +269,7 @@ class SignerService {
       content: encrypted,
     }, this.localSecretKey!)
 
-    await nostrService.publishToRelays([relay], respEvent)
+    await nostrService.publishToRelays(relays, respEvent)
   }
 
   async decryptFrom(bunkerPubkey: string, content: string): Promise<string> {

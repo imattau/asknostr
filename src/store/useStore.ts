@@ -40,7 +40,7 @@ interface NostrState {
   loginMethod: 'nip07' | 'nip46' | 'local' | null
   remoteSigner: {
     pubkey: string | null
-    relay: string | null
+    relays: string[]
     secret: string | null
   }
   user: {
@@ -60,7 +60,7 @@ interface NostrState {
   setUser: (pubkey: string | null) => void
   setProfile: (profile: UserProfile) => void
   setLoginMethod: (method: 'nip07' | 'nip46' | 'local' | null) => void
-  setRemoteSigner: (signer: { pubkey: string | null, relay: string | null, secret: string | null }) => void
+  setRemoteSigner: (signer: { pubkey: string | null, relays: string[], secret: string | null }) => void
   login: () => Promise<void>
   logout: () => void
 }
@@ -86,7 +86,7 @@ export const useStore = create<NostrState>()(
       loginMethod: null,
       remoteSigner: {
         pubkey: null,
-        relay: null,
+        relays: [],
         secret: null,
       },
       user: {
@@ -168,7 +168,7 @@ export const useStore = create<NostrState>()(
       logout: () => set({ 
         user: { pubkey: null, profile: null }, 
         loginMethod: null,
-        remoteSigner: { pubkey: null, relay: null, secret: null }
+        remoteSigner: { pubkey: null, relays: [], secret: null }
       }),
     }),
     {
@@ -181,7 +181,7 @@ export const useStore = create<NostrState>()(
         loginMethod: state.loginMethod,
         remoteSigner: {
           pubkey: state.remoteSigner.pubkey,
-          relay: state.remoteSigner.relay,
+          relays: state.remoteSigner.relays,
           secret: null
         }
       }),
