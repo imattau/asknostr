@@ -157,13 +157,27 @@ setup_reverse_proxy() {
         return
     fi
 
-    # Backup existing Caddyfile
+    # Ensure conf.d directory exists
+    CONF_DIR="/etc/caddy/conf.d"
+    mkdir -p "$CONF_DIR"
+
+    # Ensure main Caddyfile imports conf.d
     if [ -f "$CADDY_FILE" ]; then
-        cp "$CADDY_FILE" "$CADDY_FILE.bak"
+        if ! grep -q "import $CONF_DIR/\*" "$CADDY_FILE"; then
+            log_info "Adding import directive to $CADDY_FILE"
+            cp "$CADDY_FILE" "$CADDY_FILE.bak"
+            echo "import $CONF_DIR/*" >> "$CADDY_FILE"
+        fi
+    else
+        log_info "Creating new $CADDY_FILE with import directive"
+        echo "import $CONF_DIR/*" > "$CADDY_FILE"
     fi
 
-    # Write Caddyfile
-    cat > "$CADDY_FILE" <<EOF
+    # Write site-specific config
+    SITE_CONFIG="$CONF_DIR/$APP_NAME.caddy"
+    log_info "Writing site configuration to $SITE_CONFIG"
+    
+    cat > "$SITE_CONFIG" <<EOF
 $DOMAIN_NAME {
     tls $SSL_EMAIL
     reverse_proxy localhost:$DEFAULT_PORT
