@@ -236,6 +236,13 @@ export const Post: React.FC<PostProps> = ({
               >
                 <Trash2 size={10} /> <span className="text-[9px] font-bold uppercase">BAN</span>
               </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleApprove('pinned'); }}
+                className="text-purple-500 hover:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded transition-all flex items-center gap-1 font-mono hover:bg-purple-500/20"
+                title="Pin Post"
+              >
+                <Maximize2 size={10} className="rotate-45" /> <span className="text-[9px] font-bold uppercase">PIN</span>
+              </button>
             </div>
           )}
           {isOwnPost && (
