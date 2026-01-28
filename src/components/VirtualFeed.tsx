@@ -64,31 +64,35 @@ const Row = ({
   )
 }
 
-export const VirtualFeed: React.FC<VirtualFeedProps> = ({ events, isLoadingMore, onLoadMore, onScroll, header }) => {
-  const rowCount = events.length + 1 + (header ? 1 : 0)
-  const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}-${!!header}` })
+export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
+  ({ events, isLoadingMore, onLoadMore, onScroll, header }, ref) => {
+    const rowCount = events.length + 1 + (header ? 1 : 0)
+    const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}-${!!header}` })
 
-  return (
-    <div className="h-full w-full">
-      <AutoSizer
-        renderProp={({ height, width }) => {
-          if (!height || !width) return null
-          return (
-            <List
-              rowCount={rowCount}
-              rowHeight={rowHeight}
-              rowComponent={Row}
-              rowProps={{ events, isLoadingMore, onLoadMore, header }}
-              style={{ height, width }}
-              onScroll={(event) => {
-                if (onScroll) {
-                  onScroll(event.currentTarget.scrollTop)
-                }
-              }}
-            />
-          )
-        }}
-      />
-    </div>
-  )
-}
+    return (
+      <div className="h-full w-full">
+        <AutoSizer
+          renderProp={({ height, width }) => {
+            if (!height || !width) return null
+            const ListAny = List as any
+            return (
+              <ListAny
+                ref={ref}
+                rowCount={rowCount}
+                rowHeight={rowHeight}
+                rowComponent={Row}
+                rowProps={{ events, isLoadingMore, onLoadMore, header }}
+                style={{ height, width }}
+                onScroll={(event: any) => {
+                  if (onScroll) {
+                    onScroll(event.currentTarget.scrollTop)
+                  }
+                }}
+              />
+            )
+          }}
+        />
+      </div>
+    )
+  }
+)

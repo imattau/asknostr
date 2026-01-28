@@ -43,6 +43,7 @@ function App() {
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const feedRef = useRef<any>(null)
   const lastScrollTop = useRef(0)
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
@@ -67,6 +68,11 @@ function App() {
     pendingEventsRef.current = []
     setPendingCount(0)
     addEvents(pending)
+    
+    // Jump to top
+    if (feedRef.current) {
+      feedRef.current.scrollTo(0)
+    }
   }, [addEvents])
 
   const enqueueEvent = useCallback((event: Event) => {
@@ -345,6 +351,7 @@ function App() {
                 </div>
               )}
               <VirtualFeed
+                ref={feedRef}
                 events={filteredEvents}
                 isLoadingMore={isLoadingMore}
                 onLoadMore={handleLoadMore}
