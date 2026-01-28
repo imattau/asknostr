@@ -32,7 +32,7 @@ function App() {
   const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
   useSubscriptions() 
   useRelays()
-  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer } = useUiStore()
+  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -240,6 +240,8 @@ function App() {
     }
   }
 
+  const globalFeedLayer: Layer = { id: 'root-feed', type: 'feed', title: 'Global_Feed' }
+
   const Header = () => (
     <header className="h-14 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl gap-2 overflow-hidden">
       <div className="flex items-center gap-3 min-w-0">
@@ -262,6 +264,12 @@ function App() {
           className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"
         >
           <TerminalIcon size={14} /> Theme
+        </button>
+        <button
+          onClick={() => resetStack(globalFeedLayer)}
+          className="hidden sm:flex px-2 py-1 rounded border border-white/5 text-[10px] uppercase tracking-[0.2em] hover:bg-white/5 transition-all text-slate-400"
+        >
+          Global Feed
         </button>
         {!user.pubkey ? (
           <button 
