@@ -101,23 +101,29 @@ class NostrService {
     }
 
     try {
-      // THE FIX: Use pool.subscribe (array of filters) which is the most stable v2 method
-      // for sending multi-filter REQs that relays actually understand.
-      const sub = this.pool.subscribe(
-        urls,
-        cleanFilters as any,
-        {
-          onevent: wrappedCallback,
-          oneose: () => {
-            console.log('[Nostr] Subscription EOSE')
-          },
-          onclose: (reasons: string[]) => {
-            console.log('[Nostr] Subscription closed:', reasons)
+      // THE FIX: SimplePool.subscribe expects a SINGLE filter.
+      // We must map our filter array to individual subscriptions and composite the closers.
+      const subs = cleanFilters.map(filter => 
+        this.pool.subscribe(
+          urls,
+          filter,
+          {
+            onevent: wrappedCallback,
+            oneose: () => {
+              console.log('[Nostr] Subscription EOSE')
+            },
+            onclose: (reasons: string[]) => {
+              console.log('[Nostr] Subscription closed:', reasons)
+            }
           }
-        }
+        )
       )
 
-      return sub
+      return {
+        close: () => {
+          subs.forEach(sub => sub.close())
+        }
+      }
     } catch (e) {
       console.error('[Nostr] Subscription critical failure:', e)
       return { close: () => {} }
