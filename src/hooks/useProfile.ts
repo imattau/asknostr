@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { nostrService, DISCOVERY_RELAYS } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import { get, set } from 'idb-keyval'
@@ -18,8 +18,6 @@ const normalizeProfile = (raw: Record<string, string | undefined>): UserProfile 
 }
 
 export const useProfile = (pubkey: string) => {
-  const queryClient = useQueryClient()
-
   return useQuery({
     queryKey: ['profile', pubkey],
     queryFn: async () => {
