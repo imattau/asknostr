@@ -69,15 +69,13 @@ const PostComponent: React.FC<PostProps> = ({
 
   const openThread = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return
-    
-    if (layout === 'swipe') {
-      pushLayer({
-        id: `thread-${event.id}`,
-        type: 'thread',
-        title: 'Thread_Context',
-        params: { eventId: event.id, rootEvent: event }
-      })
-    }
+
+    pushLayer({
+      id: `thread-${event.id}`,
+      type: 'thread',
+      title: 'Thread_Context',
+      params: { eventId: event.id, rootEvent: event }
+    })
   }
 
   const handleLike = async (emoji: string = '+') => {
