@@ -132,7 +132,11 @@ class NostrService {
 
     console.log('[Nostr] Subscribe:', { urls, filters: cleanFilters })
 
+    const seenIds = new Set<string>()
+
     const wrappedCallback = async (event: Event) => {
+      if (seenIds.has(event.id)) return
+      seenIds.add(event.id)
       const isValid = await this.verifyInWorker(event)
       if (isValid) {
         onEvent(event)
