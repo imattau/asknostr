@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Shield, Key, RefreshCw, AlertCircle, Cpu, Info, QrCode, Smartphone } from 'lucide-react'
+import { Shield, Key, RefreshCw, AlertCircle, Cpu, Smartphone } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
 import { signerService } from '../services/signer'

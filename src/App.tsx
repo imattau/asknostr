@@ -27,7 +27,7 @@ import { useRelays } from './hooks/useRelays'
 import type { CommunityDefinition } from './hooks/useCommunity'
 
 function App() {
-  const { events, addEvent, isConnected, setConnected, user, login, logout, appAdmin } = useStore()
+  const { events, addEvent, isConnected, setConnected, user, login, logout } = useStore()
   useSubscriptions() 
   useRelays()
   const { layout, setLayout, theme, setTheme, stack, popLayer } = useUiStore()
