@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import type { Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
-import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Heart, MessageSquare, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2 } from 'lucide-react'
+import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
 import { useZaps } from '../hooks/useZaps'
@@ -29,7 +30,8 @@ const PostComponent: React.FC<PostProps> = ({
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
   const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
-  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals } = useStore()
+  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, addEvent } = useStore()
+  const { subscribedCommunities } = useSubscriptions()
   const { layout, stack, pushLayer } = useUiStore()
   
   const npub = formatPubkey(event.pubkey)
@@ -77,6 +79,9 @@ const PostComponent: React.FC<PostProps> = ({
       params: { eventId: event.id, rootEvent: event }
     })
   }
+
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
 
   const handleLike = async (emoji: string = '+') => {
     if (!user.pubkey) {
@@ -184,6 +189,33 @@ const PostComponent: React.FC<PostProps> = ({
       alert('Report broadcasted to the network.')
     } catch (e) {
       console.error('Report failed', e)
+    }
+  }
+
+  const shareToCommunity = async (aTag: string) => {
+    if (shareLoading) return
+    setShareLoading(true)
+    try {
+      const tags: string[][] = [
+        ['e', event.id, '', 'root'],
+        ['a', aTag, '', 'root']
+      ]
+      const eventTemplate = {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content: `Shared post from ${shortenPubkey(npub)}`
+      }
+      const signedEvent = await signerService.signEvent(eventTemplate)
+      await nostrService.publish(signedEvent)
+      addEvent(signedEvent)
+      triggerHaptic(30)
+    } catch (e) {
+      console.error('Share failed', e)
+      alert('Unable to share at this time.')
+    } finally {
+      setShareLoading(false)
+      setIsShareOpen(false)
     }
   }
 
@@ -363,6 +395,42 @@ const PostComponent: React.FC<PostProps> = ({
           <MessageSquare size={12} className="group-hover/btn:scale-110 transition-transform" />
           <span>Reply</span>
         </button>
+        {user.pubkey && (
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsShareOpen(prev => !prev) }}
+              className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
+            >
+              <Share2 size={12} className="group-hover/btn:scale-110 transition-transform" />
+              <span>{shareLoading ? 'Sharing...' : 'Share'}</span>
+            </button>
+            {isShareOpen && (
+              <div className="absolute left-0 top-full mt-2 w-48 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50">
+                {subscribedCommunities.length === 0 ? (
+                  <div className="p-3 text-[10px] font-mono uppercase text-slate-500">Join a community to share</div>
+                ) : (
+                  subscribedCommunities.map(aTag => {
+                    const parts = aTag.split(':')
+                    const communityId = parts[2] || aTag
+                    return (
+                      <button
+                        key={aTag}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          await shareToCommunity(aTag)
+                        }}
+                        disabled={shareLoading}
+                        className="w-full text-left px-3 py-2 text-[10px] uppercase tracking-[0.2em] hover:bg-slate-900/80 transition-colors disabled:opacity-40"
+                      >
+                        {communityId}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <button className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn">
           <Repeat2 size={12} className="group-hover/btn:scale-110 transition-transform" />
           <span>Repost</span>
