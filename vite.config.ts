@@ -1,13 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { join } from 'node:path'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const mentionsPath = require.resolve('react-mentions').replace('.cjs.js', '.esm.js')
 
 // https://vite.dev/config/
 export default defineConfig({
   resolve: {
     alias: {
-      'react-mentions': join(process.cwd(), 'node_modules/react-mentions/dist/react-mentions.esm.js'),
+      'react-mentions': mentionsPath,
     },
   },
   plugins: [
