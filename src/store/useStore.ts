@@ -50,6 +50,7 @@ interface NostrState {
   }
   lastRead: Record<string, number> // aTag -> timestamp
   nwcUrl: string | null
+  administeredStations: any[] // CommunityDefinition[]
   setEvents: (events: Event[]) => void
   addEvent: (event: Event) => void
   addEvents: (events: Event[]) => void
@@ -66,6 +67,7 @@ interface NostrState {
   setLoginMethod: (method: 'nip07' | 'nip46' | 'local' | null) => void
   setRemoteSigner: (signer: { pubkey: string | null, relays: string[], secret: string | null }) => void
   setNwcUrl: (url: string | null) => void
+  setAdministeredStations: (stations: any[]) => void
   markAsRead: (aTag: string) => void
   login: () => Promise<void>
   logout: () => void
@@ -102,6 +104,7 @@ export const useStore = create<NostrState>()(
       },
       lastRead: {},
       nwcUrl: null,
+      administeredStations: [],
       setEvents: (events) => set({ events }),
       addEvent: (event) => set((state) => {
         if (state.events.find(e => e.id === event.id)) return state
@@ -160,6 +163,7 @@ export const useStore = create<NostrState>()(
       setLoginMethod: (method) => set({ loginMethod: method }),
       setRemoteSigner: (signer) => set({ remoteSigner: signer }),
       setNwcUrl: (url) => set({ nwcUrl: url }),
+      setAdministeredStations: (administeredStations) => set({ administeredStations }),
       markAsRead: (aTag) => set((state) => ({
         lastRead: { ...state.lastRead, [aTag]: Math.floor(Date.now() / 1000) }
       })),
@@ -187,7 +191,8 @@ export const useStore = create<NostrState>()(
         loginMethod: null,
         remoteSigner: { pubkey: null, relays: [], secret: null },
         lastRead: {},
-        nwcUrl: null
+        nwcUrl: null,
+        administeredStations: []
       }),
     }),
     {
@@ -200,6 +205,7 @@ export const useStore = create<NostrState>()(
         loginMethod: state.loginMethod,
         lastRead: state.lastRead,
         nwcUrl: state.nwcUrl,
+        administeredStations: state.administeredStations,
         remoteSigner: {
           pubkey: state.remoteSigner.pubkey,
           relays: state.remoteSigner.relays,

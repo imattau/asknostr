@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
@@ -7,8 +7,7 @@ import type { CommunityDefinition } from './useCommunity'
 import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useMyCommunities = () => {
-  const { user, events, relays: storeRelays } = useStore()
-  const queryClient = useQueryClient()
+  const { user, events, relays: storeRelays, administeredStations, setAdministeredStations } = useStore()
 
   useEffect(() => {
     if (!user.pubkey) return
@@ -17,12 +16,14 @@ export const useMyCommunities = () => {
       .map(e => parseCommunityEvent(e))
       .filter((c): c is CommunityDefinition => !!c)
 
-    const uniqueLocal = Array.from(
-      new Map(localOwned.map(item => [item.id, item])).values()
-    )
-
-    queryClient.setQueryData(['my-communities', user.pubkey], uniqueLocal)
-  }, [events, queryClient, user.pubkey])
+    if (localOwned.length > 0) {
+      const existingIds = new Set(administeredStations.map(s => s.id))
+      const missing = localOwned.filter(s => !existingIds.has(s.id))
+      if (missing.length > 0) {
+        setAdministeredStations(Array.from(new Map([...administeredStations, ...localOwned].map(s => [s.id, s])).values()))
+      }
+    }
+  }, [events, user.pubkey, administeredStations, setAdministeredStations])
 
   return useQuery<CommunityDefinition[]>({
     queryKey: ['my-communities', user.pubkey, storeRelays],
@@ -30,19 +31,8 @@ export const useMyCommunities = () => {
       if (!user.pubkey) return []
       console.log('[MyCommunities] Scanning for owned stations for:', user.pubkey)
       
-      // 1. Check local store first for instant results
-      const localOwned: CommunityDefinition[] = events
-        .filter(e => e.kind === 34550 && e.pubkey === user.pubkey)
-        .map(e => parseCommunityEvent(e))
-        .filter((c): c is CommunityDefinition => !!c)
-
-      // Deduplicate local results (keep latest version if multiple events exist for same ID)
-      const uniqueLocal = Array.from(
-        new Map(localOwned.map(item => [item.id, item])).values()
-      )
-
       return new Promise<CommunityDefinition[]>((resolve) => {
-        const owned = [...uniqueLocal]
+        const owned = [...administeredStations]
         const seen = new Set<string>()
         let resolved = false
         let subRef: { close: () => void } | null = null
@@ -56,6 +46,9 @@ export const useMyCommunities = () => {
           const uniqueFinal = Array.from(
             new Map(owned.map(item => [item.id, item])).values()
           )
+          if (uniqueFinal.length > administeredStations.length) {
+            setAdministeredStations(uniqueFinal)
+          }
           resolve(uniqueFinal)
         }
         
