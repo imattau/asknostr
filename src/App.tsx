@@ -61,7 +61,22 @@ function App() {
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const feedRef = useRef<any>(null)
+  const columnsContainerRef = useRef<HTMLDivElement>(null)
   const lastScrollTop = useRef(0)
+
+  // Auto-scroll to new columns in Classic view
+  useEffect(() => {
+    if (layout === 'classic' && columnsContainerRef.current) {
+      const container = columnsContainerRef.current
+      // Small timeout or requestAnimationFrame to wait for the new column to render
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          left: container.scrollWidth,
+          behavior: 'smooth'
+        })
+      })
+    }
+  }, [stack.length, layout])
   const liveSubRef = useRef<{ close: () => void } | null>(null)
   const loadMoreSubRef = useRef<{ close: () => void } | null>(null)
   const trendingTags = useTrendingTags()
@@ -623,7 +638,10 @@ function App() {
         </aside>
 
         {/* Miller Columns for Content Stack */}
-        <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative">
+        <div 
+          ref={columnsContainerRef}
+          className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative"
+        >
           {!rightSidebarVisible && (
             <button 
               onClick={() => setRightSidebarVisible(true)}
