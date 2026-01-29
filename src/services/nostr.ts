@@ -68,7 +68,7 @@ class NostrService {
   }
 
   getSearchRelays() {
-    return [...new Set([...this.relays, ...SEARCH_RELAYS])].slice(0, this.maxActiveRelays)
+    return [...new Set([...SEARCH_RELAYS, ...this.relays])].slice(0, this.maxActiveRelays)
   }
 
   async addRelays(newRelays: string[]) {
@@ -163,7 +163,7 @@ class NostrService {
         let eosed = false
         const subscription = this.pool.subscribe(
           urls,
-          filter,
+          [filter],
           {
             onevent: wrappedCallback,
             oneose: () => {
