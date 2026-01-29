@@ -7,7 +7,7 @@ interface SwipeLayoutProps {
   theme: string;
   layout: 'classic' | 'swipe';
   setLayout: (layout: 'classic' | 'swipe') => void;
-  setTheme: (theme: 'terminal' | 'modern') => void;
+  setTheme: (theme: 'terminal' | 'modern' | 'light') => void;
   isHeaderHidden: boolean
   user: { pubkey: string | null; profile: any | null };
   login: () => Promise<void>;
@@ -33,7 +33,7 @@ export const SwipeLayout: React.FC<SwipeLayoutProps> = ({
   renderLayerContent,
 }) => {
   return (
-    <div className={`h-screen w-full flex flex-col bg-[#05070A] ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'}`}>
+    <div className={`h-screen w-full flex flex-col ${theme === 'terminal' ? 'terminal-theme' : theme === 'modern' ? 'modern-theme' : 'light-theme'}`}>
       <Header
         theme={theme}
         layout={layout}

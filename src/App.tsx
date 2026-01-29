@@ -30,6 +30,7 @@ import { useFeed } from './hooks/useFeed'
 import { useSocialGraph } from './hooks/useSocialGraph'
 import { useSubscriptions } from './hooks/useSubscriptions'
 import type { CommunityDefinition } from './hooks/useCommunity'
+import type { Event } from 'nostr-tools'
 
 
 
@@ -152,7 +153,13 @@ function App() {  const { isConnected, user, login, logout } = useStore()
           </div>
         )
       }
-      case 'thread': return <Thread eventId={layer.params?.eventId as string} rootEvent={layer.params?.rootEvent as any} />
+      case 'thread': return (
+        <Thread 
+          eventId={layer.params?.eventId as string} 
+          rootEvent={layer.params?.rootEvent as Event} 
+          forceFullThread={layer.params?.forceFullThread as boolean}
+        />
+      )
       case 'community': return <CommunityFeed communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'modqueue': return <ModQueue communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />
       case 'modlog': return <ModerationLog communityId={layer.params?.communityId as string} creator={layer.params?.creator as string} />

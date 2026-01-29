@@ -64,6 +64,34 @@
   color: var(--foreground);
 }
 
+.light-theme {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --muted: #64748B;
+  --accent-violet: #7C3AED;
+  --accent-magenta: #C026D3;
+  --accent-cyan: #0891B2;
+  --border-slate: #E2E8F0;
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.light-theme .glassmorphism {
+  background-color: rgba(255, 255, 255, 0.6);
+  border-color: #CBD5E1;
+}
+
+.light-theme .terminal-input {
+  background-color: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+
+.light-theme .terminal-border {
+  border-color: #E2E8F0;
+}
+
 @theme {
   --color-slate-950: #05070A;
   --color-slate-50: #F8FAFC;

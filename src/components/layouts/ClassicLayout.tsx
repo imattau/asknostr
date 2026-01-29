@@ -10,7 +10,7 @@ interface ClassicLayoutProps {
   theme: string;
   layout: 'classic' | 'swipe';
   setLayout: (layout: 'classic' | 'swipe') => void;
-  setTheme: (theme: 'terminal' | 'modern') => void;
+  setTheme: (theme: 'terminal' | 'modern' | 'light') => void;
   isHeaderHidden: boolean;
   isConnected: boolean;
   user: { pubkey: string | null; profile: any | null };
@@ -103,7 +103,7 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
   }, [stack.length]);
 
   return (
-    <div className={`h-screen flex flex-col bg-[#05070A] ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'} transition-colors duration-500`}>
+    <div className={`h-screen flex flex-col ${theme === 'terminal' ? 'terminal-theme' : theme === 'modern' ? 'modern-theme' : 'light-theme'} transition-colors duration-500`}>
       <Header
         theme={theme}
         layout={layout}

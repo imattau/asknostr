@@ -10,10 +10,10 @@ export interface Layer {
 }
 
 interface UiState {
-  theme: 'terminal' | 'modern'
+  theme: 'terminal' | 'modern' | 'light'
   layout: 'classic' | 'swipe'
   stack: Layer[]
-  setTheme: (theme: 'terminal' | 'modern') => void
+  setTheme: (theme: 'terminal' | 'modern' | 'light') => void
   setLayout: (layout: 'classic' | 'swipe') => void
   pushLayer: (layer: Layer) => void
   popLayer: () => void

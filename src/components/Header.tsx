@@ -6,7 +6,7 @@ interface HeaderProps {
   theme: string
   layout: 'classic' | 'swipe'
   setLayout: (layout: 'classic' | 'swipe') => void
-  setTheme: (theme: 'terminal' | 'modern') => void
+  setTheme: (theme: 'terminal' | 'modern' | 'light') => void
   isHeaderHidden: boolean
   user: { pubkey: string | null; profile: any | null }
   login: () => Promise<void>
@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex gap-2 items-center uppercase font-bold text-[9px] font-mono shrink-0">
         <span className={`px-2 py-1 border rounded-full text-[8px] tracking-[0.3em] ${!isFeedFetching && !isFeedLoading ? 'text-emerald-300 border-emerald-500/40' : 'text-slate-400 border-slate-700'}`}>{!isFeedFetching && !isFeedLoading ? 'LIVE' : 'SYNCING'}</span>
         <button onClick={() => setLayout(layout === 'swipe' ? 'classic' : 'swipe')} className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"><Layout size={14} /> {layout === 'swipe' ? 'Classic' : 'Mobile'}</button>
-        <button onClick={() => setTheme(theme === 'terminal' ? 'modern' : 'terminal')} className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"><TerminalIcon size={14} /> Theme</button>
+        <button onClick={() => setTheme(theme === 'terminal' ? 'modern' : theme === 'modern' ? 'light' : 'terminal')} className="flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded border border-white/5 transition-all text-slate-400 hidden sm:flex"><TerminalIcon size={14} /> Theme: {theme}</button>
         {layout === 'classic' && !rightSidebarVisible && setRightSidebarVisible && (
           <button onClick={() => setRightSidebarVisible(true)} className="flex items-center gap-1.5 bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all hover:bg-cyan-500/20" title="Expand Metadata Sidebar">
             <PanelLeftOpen size={14} /> <span className="text-[10px] uppercase font-bold tracking-tight">Expand_Metadata</span>

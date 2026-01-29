@@ -4,13 +4,13 @@ import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { Post } from './Post'
 import { useStore } from '../store/useStore'
-import { useUiStore } from '../store/useUiStore'
 import { MessageSquare, RefreshCw } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
 interface ThreadProps {
   eventId: string
   rootEvent?: Event
+  forceFullThread?: boolean
 }
 
 interface ThreadNode {
@@ -18,22 +18,14 @@ interface ThreadNode {
   replies: ThreadNode[]
 }
 
-interface LayerParams {
-  forceFullThread?: boolean;
-}
-
-export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
+export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThread = false }) => {
   const [allEvents, setAllEvents] = useState<Event[]>(rootEvent ? [rootEvent] : [])
   const [isLoading, setIsLoading] = useState(true)
   const [replyContent, setReplyContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
   const { user } = useStore()
-  const { stack } = useUiStore()
   const containerRef = useRef<HTMLDivElement>(null)
-
-  const currentLayer = stack[stack.length - 1]
-  const forceFullThread = (currentLayer?.params as LayerParams)?.forceFullThread
 
   // Auto-scroll to selected reply once loaded
   useEffect(() => {

@@ -345,7 +345,10 @@ const PostComponent: React.FC<PostProps> = ({
           id: `thread-${id}`,
           type: 'thread',
           title: 'Thread_Context',
-          params: { eventId: id }
+          params: { 
+            eventId: id,
+            forceFullThread: true
+          }
         })
       }
     } catch (error) { // Changed 'e' to 'error'

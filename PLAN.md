@@ -66,4 +66,12 @@ Extract event fetching logic from `App.tsx` into a dedicated React Query hook. D
     *   Verify linting and TypeScript compliance (`npm run lint`, `npm run build`).
     *   Run tests (if available) to ensure stability.
 
+### Phase 4: Theme Expansion
+
+9.  **Implement 'Light' Theme:** - **[COMPLETED]**
+    *   Added 'light' option to `UiState` theme.
+    *   Implemented `.light-theme` CSS definitions (Slate 50 background, Slate 900 foreground).
+    *   Updated `Header` to cycle through themes (Terminal -> Modern -> Light).
+    *   Updated Layout components to support the new theme class.
+
 This plan aims to significantly simplify `App.tsx`, improve modularity, and leverage the strengths of React Query for server state management.
