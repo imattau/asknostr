@@ -7,7 +7,7 @@ import type { CommunityDefinition } from './useCommunity'
 import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useMyCommunities = () => {
-  const { user, events } = useStore()
+  const { user, events, relays: storeRelays } = useStore()
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const useMyCommunities = () => {
   }, [events, queryClient, user.pubkey])
 
   return useQuery<CommunityDefinition[]>({
-    queryKey: ['my-communities', user.pubkey],
+    queryKey: ['my-communities', user.pubkey, storeRelays],
     queryFn: async () => {
       if (!user.pubkey) return []
       console.log('[MyCommunities] Scanning for owned stations for:', user.pubkey)
@@ -90,7 +90,7 @@ export const useMyCommunities = () => {
             sub.close()
             return
           }
-          timeoutId = setTimeout(finish, 3000)
+          timeoutId = setTimeout(finish, 6000)
         })
       })
     },
