@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { createPortal } from 'react-dom'
-import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2, PanelLeftClose, PanelLeftOpen, User } from 'lucide-react'
+import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
 import type { Layer } from './store/useUiStore'
@@ -31,148 +30,223 @@ import { useDeletions } from './hooks/useDeletions'
 import { useSubscriptions } from './hooks/useSubscriptions'
 import { useRelays } from './hooks/useRelays'
 import { useSocialGraph } from './hooks/useSocialGraph'
-import { useUserSearch } from './hooks/useUserSearch'
-import { formatPubkey, shortenPubkey } from './utils/nostr'
 import type { CommunityDefinition } from './hooks/useCommunity'
+import { MentionsInput, Mention } from 'react-mentions'
 
-// Defined outside to prevent focus loss on re-render
+
+
+// defined outside
+
+const mentionStyle = {
+
+  control: {
+
+    backgroundColor: 'transparent',
+
+    fontSize: 14,
+
+    lineHeight: '1.5rem',
+
+    fontFamily: 'inherit',
+
+  },
+
+  '&multiLine': {
+
+    control: {
+
+      minHeight: 64,
+
+    },
+
+    highlighter: {
+
+      padding: 0,
+
+      border: 'none',
+
+    },
+
+    input: {
+
+      padding: 0,
+
+      margin: 0,
+
+      border: 'none',
+
+      outline: 'none',
+
+      color: '#e2e8f0', // slate-200
+
+    },
+
+  },
+
+  suggestions: {
+
+    list: {
+
+      backgroundColor: '#0f172a', // slate-900
+
+      border: '1px solid #1e293b', // slate-800
+
+      fontSize: 12,
+
+      borderRadius: 12,
+
+      overflow: 'hidden',
+
+    },
+
+    item: {
+
+      padding: '8px 12px',
+
+      borderBottom: '1px solid #1e293b',
+
+      '&focused': {
+
+        backgroundColor: 'rgba(255,255,255,0.05)',
+
+        color: '#22d3ee', // cyan-400
+
+      },
+
+    },
+
+  },
+
+}
+
+
+
 const HashtagTextarea = ({ 
+
   value, 
+
   onChange, 
+
   placeholder, 
-  disabled, 
-  mentionQuery, 
-  setMentionQuery, 
-  userSuggestions, 
-  onInsertMention 
+
+  disabled,
+
+  onUserSearch
+
 }: any) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [coords, setCoords] = useState({ top: 0, left: 0, bottom: 0 })
-
-  const updateCoords = useCallback(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      setCoords({ top: rect.top, left: rect.left, bottom: rect.bottom })
-    }
-  }, [])
-
-  useEffect(() => {
-    updateCoords()
-    window.addEventListener('scroll', updateCoords, true)
-    window.addEventListener('resize', updateCoords)
-    return () => {
-      window.removeEventListener('scroll', updateCoords, true)
-      window.removeEventListener('resize', updateCoords)
-    }
-  }, [updateCoords])
-
-  const renderHighlighted = (text: string) => {
-    const parts = text.split(/(#\w+|nostr:(?:npub|nprofile)1[a-z0-9]+)/gi)
-    return parts.map((part, i) => {
-      if (part.startsWith('#')) {
-        return <span key={i} className="text-purple-400 font-bold">{part}</span>
-      }
-      if (part.startsWith('nostr:')) {
-        return <span key={i} className="text-cyan-400 font-bold">{part.slice(0, 15)}...</span>
-      }
-      return part
-    })
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value
-    const cursor = e.target.selectionStart
-    onChange(e)
-
-    const textBeforeCursor = val.slice(0, cursor)
-    const lastAt = textBeforeCursor.lastIndexOf('@')
-    if (lastAt !== -1 && !textBeforeCursor.slice(lastAt).includes(' ')) {
-      const query = textBeforeCursor.slice(lastAt + 1)
-      if (query.length >= 2) {
-        setMentionQuery(query)
-        updateCoords()
-      } else {
-        setMentionQuery('')
-      }
-    } else {
-      setMentionQuery('')
-    }
-  }
-
-  const showBelow = coords.top < 300
 
   return (
-    <div ref={containerRef} className="relative w-full min-h-[4rem] mt-3 font-sans text-sm leading-6">
-      {mentionQuery && userSuggestions.length > 0 && coords.left !== 0 && createPortal(
-        <div 
-          className="fixed bg-slate-950 border border-slate-800 rounded-xl overflow-y-auto z-[999999] shadow-2xl animate-in slide-in-from-bottom-2 w-64 max-h-48"
-          style={{
-            top: showBelow ? coords.bottom + 10 : coords.top - 10,
-            left: coords.left,
-            transform: showBelow ? 'none' : 'translateY(-100%)'
-          }}
-        >
-          {userSuggestions.map((res: any) => (
-            <button
-              key={res.pubkey}
-              onClick={() => onInsertMention(res.pubkey)}
-              className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
-            >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0 border border-white/10">
-                {res.profile?.picture ? <img src={res.profile.picture} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-slate-600" />}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-100 truncate">{res.profile?.display_name || res.profile?.name || shortenPubkey(formatPubkey(res.pubkey))}</p>
-                <p className="text-[9px] text-slate-500 font-mono truncate">{res.pubkey}</p>
-              </div>
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
-      <div 
-        className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-transparent p-0 m-0 border-none"
-        style={{ lineHeight: '1.5rem', font: 'inherit', padding: '0', wordBreak: 'break-word' }}
-        aria-hidden="true"
-      >
-        {renderHighlighted(value)}
-      </div>
-      <textarea
+
+    <div className="relative w-full min-h-[4rem] mt-3 font-sans text-sm leading-6">
+
+      <MentionsInput
+
         value={value}
-        onChange={handleChange}
-        disabled={disabled}
-        className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 m-0 resize-none h-16 min-h-[3.5rem] relative z-10 font-inherit"
-        style={{ lineHeight: '1.5rem', font: 'inherit', wordBreak: 'break-word' }}
+
+        onChange={onChange}
+
         placeholder={placeholder}
-      />
+
+        disabled={disabled}
+
+        style={mentionStyle}
+
+        classNames={{
+
+          input: 'focus:ring-0 w-full',
+
+        }}
+
+      >
+
+        <Mention
+
+          trigger="@"
+
+          data={onUserSearch}
+
+          displayTransform={(_id, display) => `@${display}`}
+
+          markup="nostr:[id]"
+
+          className="text-cyan-400 font-bold bg-cyan-500/10 px-0.5 rounded"
+
+          appendSpaceOnAdd
+
+        />
+
+        <Mention
+
+          trigger="#"
+
+          data={(query) => [{ id: query, display: query }]}
+
+          displayTransform={(_id, display) => `#${display}`}
+
+          markup="#[id]"
+
+          className="text-purple-400 font-bold bg-purple-500/10 px-0.5 rounded"
+
+          appendSpaceOnAdd
+
+        />
+
+      </MentionsInput>
+
     </div>
+
   )
-}            
-            function App() {  const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
+
+}
+
+
+
+function App() {  const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
+
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
+
   const { muted } = useSocialGraph()
+
   useSubscriptions() 
+
   useRelays()
 
+
+
   // Set default view for logged-in users on mobile
+
   useEffect(() => {
+
     if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
+
       resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
+
     }
+
   }, [user.pubkey, layout])
 
+
+
   const [postContent, setPostContent] = useState('')
+
   const [isPublishing, setIsPublishing] = useState(false)
+
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+
   const [isNsfw, setIsNsfw] = useState(false)
+
   const [composerCollapsed, setComposerCollapsed] = useState(false)
+
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
+
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+
   const [rightSidebarVisible, setRightSidebarVisible] = useState(true)
-  const [mentionQuery, setMentionQuery] = useState('')
+
   const [columnWidths, setColumnWidths] = useState<Record<number, number>>({})
-  const { data: userSuggestions = [] } = useUserSearch(mentionQuery)
+
   
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const feedRef = useRef<any>(null)
   const columnsContainerRef = useRef<HTMLDivElement>(null)
@@ -423,31 +497,43 @@ const HashtagTextarea = ({
     try {
       const tags: string[][] = []
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
-      const hashtags = postContent.match(/#\w+/g)
+      
+      // Extract hashtags from #[tag] markup
+      const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {
-        hashtags.forEach(tag => {
-          const cleanTag = tag.replace('#', '').toLowerCase()
-          if (!tags.some(t => t[0] === 't' && t[1] === cleanTag)) {
-            tags.push(['t', cleanTag])
+        hashtags.forEach(match => {
+          const tag = match.slice(2, -1).toLowerCase()
+          if (!tags.some(t => t[0] === 't' && t[1] === tag)) {
+            tags.push(['t', tag])
           }
         })
       }
-      const mentionRegex = /nostr:(npub1[a-z0-9]+|nprofile1[a-z0-9]+)/gi
+
+      // Extract Mentions from nostr:[npub1...] markup
+      const mentionRegex = /nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi
       const mentions = postContent.match(mentionRegex)
       if (mentions) {
         mentions.forEach(m => {
           try {
-            const entity = m.replace('nostr:', '')
+            const entity = m.slice(7, -1) // remove nostr:[ and ]
             const decoded = nip19.decode(entity)
             if (decoded.type === 'npub') {
               tags.push(['p', decoded.data as string])
             } else if (decoded.type === 'nprofile') {
               tags.push(['p', (decoded.data as any).pubkey])
             }
-          } catch (e) {}
+          } catch (e) {
+            // Ignore
+          }
         })
       }
-      await nostrService.createAndPublishPost(postContent, tags)
+
+      // Clean the content for publishing: convert nostr:[npub...] back to nostr:npub...
+      const cleanContent = postContent
+        .replace(/#\[(\w+)\]/g, '#$1')
+        .replace(/nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi, 'nostr:$1')
+
+      await nostrService.createAndPublishPost(cleanContent, tags)
       setPostContent('')
       setIsNsfw(false)
     } catch (e) {
@@ -458,13 +544,24 @@ const HashtagTextarea = ({
     }
   }
 
-  const onInsertMention = (pubkey: string) => {
-    const npub = nip19.npubEncode(pubkey)
-    const lastAt = postContent.lastIndexOf('@')
-    const before = postContent.slice(0, lastAt)
-    const after = postContent.slice(lastAt + 1 + mentionQuery.length)
-    setPostContent(`${before}nostr:${npub}${after}`)
-    setMentionQuery('')
+  const handleUserSearch = async (query: string, callback: any) => {
+    if (query.length < 2) return
+    const sub = await nostrService.subscribe(
+      [{ kinds: [0], search: query, limit: 10 }],
+      (event: Event) => {
+        try {
+          const profile = JSON.parse(event.content)
+          callback([{
+            id: nip19.npubEncode(event.pubkey),
+            display: profile.display_name || profile.name || event.pubkey.slice(0, 8)
+          }])
+        } catch (e) {
+          // ignore
+        }
+      },
+      nostrService.getSearchRelays()
+    )
+    setTimeout(() => sub.close(), 2000)
   }
 
   const renderLayerContent = (layer: Layer) => {
@@ -484,20 +581,26 @@ const HashtagTextarea = ({
         return (
           <div className="h-full flex flex-col">
             <div className={`mx-4 mb-2 transition-all duration-300 ease-in-out overflow-hidden ${isHeaderHidden ? 'max-h-0 opacity-0 mb-0' : 'max-h-96 opacity-100'}`}>
-              <div className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${composerCollapsed ? 'max-h-0 opacity-0 pointer-events-none hidden' : 'max-h-72 opacity-100 block'}`}>
+              <div
+                className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${ 
+                  composerCollapsed ? 'max-h-0 opacity-0 pointer-events-none hidden' : 'max-h-72 opacity-100 block'
+                }`}
+              >
                 <div className="flex items-center justify-between pb-2 border-b border-white/5">
                   <span className="text-[9px] uppercase font-bold tracking-[0.3em] text-slate-400">Broadcast</span>
-                  <button onClick={() => setComposerCollapsed(true)} className="text-[10px] uppercase tracking-[0.3em] text-cyan-300 hover:text-cyan-200">hide</button>
+                  <button
+                    onClick={() => setComposerCollapsed(true)}
+                    className="text-[10px] uppercase tracking-[0.3em] text-cyan-300 hover:text-cyan-200"
+                  >
+                    hide
+                  </button>
                 </div>
                 <HashtagTextarea
                   value={postContent}
                   onChange={(e: any) => setPostContent(e.target.value)}
                   disabled={!user.pubkey || isPublishing}
                   placeholder={user.pubkey ? 'Broadcast to network...' : 'Login to write...'}
-                  mentionQuery={mentionQuery}
-                  setMentionQuery={setMentionQuery}
-                  userSuggestions={userSuggestions}
-                  onInsertMention={onInsertMention}
+                  onUserSearch={handleUserSearch}
                 />
                 <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3 text-[9px]">
                   <label className="flex items-center gap-2 uppercase font-mono text-slate-500">
