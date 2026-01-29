@@ -250,10 +250,29 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     const targetId = forceFullThread ? rootId : eventId
     const targetNode = nodes[targetId]
     
-    // If we have the target (either root or specific comment), only show that branch
-    if (targetNode) return [targetNode]
+    // If we have the target (root or comment), return it.
+    // However, if we are in forceFullThread mode, we also want to return any 
+    // "orphan" nodes that point to this root but haven't linked yet.
+    if (targetNode) {
+      if (!forceFullThread) return [targetNode]
+      
+      // Full thread mode: return root + orphans that point to it
+      const results = [targetNode]
+      Object.values(nodes).forEach(node => {
+        if (node.event.id === targetId) return
+        const parentId = deriveParentId(node.event)
+        // If it's an orphan (parent not in nodes) but it belongs to this thread root
+        const isOrphan = !parentId || !nodes[parentId]
+        const referencesRoot = node.event.tags.some(t => t[0] === 'e' && t[1] === rootId)
+        
+        if (isOrphan && referencesRoot && !results.includes(node)) {
+          results.push(node)
+        }
+      })
+      return results
+    }
 
-    // Fallback: If root isn't discovered yet, show all "orphans" (potential roots)
+    // Fallback: If root isn't discovered yet, show all "orphans"
     return Object.values(nodes).filter(node => {
       const parentId = deriveParentId(node.event)
       return !parentId || !nodes[parentId]
