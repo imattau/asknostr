@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { nip19, type Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2, Hash } from 'lucide-react'
@@ -692,7 +693,7 @@ const PostComponent: React.FC<PostProps> = ({
               <Share2 size={12} className="group-hover/btn:scale-110 transition-transform" />
               <span>{shareLoading ? 'Sharing...' : 'Share'}</span>
             </button>
-            {isShareOpen && (
+            {isShareOpen && createPortal(
               <>
                 <div 
                   className="fixed inset-0 z-[10000]" 
@@ -731,7 +732,8 @@ const PostComponent: React.FC<PostProps> = ({
                     )}
                   </div>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
         )}
