@@ -33,10 +33,17 @@ import type { CommunityDefinition } from './hooks/useCommunity'
 
 function App() {
   const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
-  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer } = useUiStore()
+  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
   const { muted } = useSocialGraph()
   useSubscriptions() 
   useRelays()
+
+  // Set default view for logged-in users on mobile
+  useEffect(() => {
+    if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
+      resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
+    }
+  }, [user.pubkey, layout]) // Run on login or layout switch to swipe
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
