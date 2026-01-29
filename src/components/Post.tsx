@@ -138,6 +138,7 @@ const PostComponent: React.FC<PostProps> = ({
 
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
+  const shareBtnRef = React.useRef<HTMLButtonElement>(null)
 
   const handleLike = async (emoji: string = '+') => {
     if (!user.pubkey) {
@@ -684,6 +685,7 @@ const PostComponent: React.FC<PostProps> = ({
         {user.pubkey && (
           <div className="relative overflow-visible">
             <button
+              ref={shareBtnRef}
               onClick={(e) => { e.stopPropagation(); setIsShareOpen(prev => !prev) }}
               className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
             >
@@ -691,29 +693,45 @@ const PostComponent: React.FC<PostProps> = ({
               <span>{shareLoading ? 'Sharing...' : 'Share'}</span>
             </button>
             {isShareOpen && (
-              <div className="absolute left-0 top-full mt-2 w-48 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-[9999]">
-                {subscribedCommunities.length === 0 ? (
-                  <div className="p-3 text-[10px] font-mono uppercase text-slate-500">Join a community to share</div>
-                ) : (
-                  subscribedCommunities.map(aTag => {
-                    const parts = aTag.split(':')
-                    const communityId = parts[2] || aTag
-                    return (
-                      <button
-                        key={aTag}
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          await shareToCommunity(aTag)
-                        }}
-                        disabled={shareLoading}
-                        className="w-full text-left px-3 py-2 text-[10px] uppercase tracking-[0.2em] hover:bg-slate-900/80 transition-colors disabled:opacity-40"
-                      >
-                        {communityId}
-                      </button>
-                    )
-                  })
-                )}
-              </div>
+              <>
+                <div 
+                  className="fixed inset-0 z-[10000]" 
+                  onClick={(e) => { e.stopPropagation(); setIsShareOpen(false); }} 
+                />
+                <div 
+                  className="fixed bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-[10001] w-48 animate-in fade-in zoom-in-95 duration-100"
+                  style={{
+                    top: (shareBtnRef.current?.getBoundingClientRect().top || 0) - 10,
+                    left: (shareBtnRef.current?.getBoundingClientRect().left || 0),
+                    transform: 'translateY(-100%)'
+                  }}
+                >
+                  <div className="p-2 border-b border-white/5 text-[8px] opacity-40 tracking-widest text-center uppercase">Target_Station</div>
+                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                    {subscribedCommunities.length === 0 ? (
+                      <div className="p-3 text-[9px] font-mono uppercase text-slate-500 text-center italic">Join a community first</div>
+                    ) : (
+                      subscribedCommunities.map(aTag => {
+                        const parts = aTag.split(':')
+                        const communityId = parts[2] || aTag
+                        return (
+                          <button
+                            key={aTag}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              await shareToCommunity(aTag)
+                            }}
+                            disabled={shareLoading}
+                            className="w-full text-left px-3 py-2 text-[10px] uppercase tracking-[0.2em] hover:bg-white/5 transition-colors disabled:opacity-40 border-b border-white/5 last:border-0"
+                          >
+                            {communityId}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
