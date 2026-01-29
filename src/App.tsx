@@ -441,6 +441,15 @@ function App() {
         >
           <TerminalIcon size={14} /> Theme
         </button>
+        {layout === 'classic' && !rightSidebarVisible && (
+          <button 
+            onClick={() => setRightSidebarVisible(true)}
+            className="flex items-center gap-1.5 bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all hover:bg-cyan-500/20"
+            title="Expand Metadata Sidebar"
+          >
+            <PanelLeftOpen size={14} /> <span className="text-[10px] uppercase font-bold tracking-tight">Expand_Metadata</span>
+          </button>
+        )}
         {!user.pubkey ? (
           <button 
             onClick={() => {
@@ -496,15 +505,6 @@ function App() {
 
         {/* Miller Columns for Content Stack */}
         <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative">
-          {!rightSidebarVisible && (
-            <button 
-              onClick={() => setRightSidebarVisible(true)}
-              className="absolute right-4 top-4 z-[1002] p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-cyan-400 transition-all hidden xl:flex"
-              title="Expand Sidebar"
-            >
-              <PanelLeftOpen size={18} />
-            </button>
-          )}
           {stack.map((layer, index) => {
             return (
               <div 
