@@ -5,11 +5,13 @@ import { signerService } from '../services/signer'
 import { Server, Wifi, WifiOff, RefreshCw, Plus, Trash2, Save, Info } from 'lucide-react'
 import { useRelayInfo } from '../hooks/useRelayInfo'
 import { useRelays } from '../hooks/useRelays'
+import { useRelayConnection } from '../hooks/useRelayConnection'
 import { triggerHaptic } from '../utils/haptics'
 import { normalizeRelayUrl } from '../utils/nostr'
 
-const RelayItem: React.FC<{ url: string, isConnected: boolean, onRemove?: () => void }> = ({ url, isConnected, onRemove }) => {
+const RelayItem: React.FC<{ url: string, onRemove?: () => void }> = ({ url, onRemove }) => {
   const { data: info } = useRelayInfo(url)
+  const { data: isConnected } = useRelayConnection(url)
 
   return (
     <div className="flex flex-col gap-2 p-4 glassmorphism border-slate-800 rounded-xl group hover:border-purple-500/30 transition-all">
@@ -48,7 +50,7 @@ const RelayItem: React.FC<{ url: string, isConnected: boolean, onRemove?: () => 
 }
 
 export const RelayList: React.FC = () => {
-  const { isConnected, user, setRelays: setStoreRelays } = useStore()
+  const { user, setRelays: setStoreRelays } = useStore()
   const { data: userRelays, isLoading } = useRelays()
   
   const [localRelays, setLocalRelays] = useState<string[]>([])
@@ -173,7 +175,6 @@ export const RelayList: React.FC = () => {
           <RelayItem 
             key={url} 
             url={url} 
-            isConnected={isConnected} 
             onRemove={user.pubkey ? () => handleRemove(url) : undefined} 
           />
         ))}

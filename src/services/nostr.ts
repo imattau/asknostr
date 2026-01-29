@@ -277,6 +277,15 @@ class NostrService {
     return this.publish(signedEvent)
   }
 
+  async getRelayStatus(url: string): Promise<boolean> {
+    try {
+      const relay = await this.pool.ensureRelay(url)
+      return relay.connected
+    } catch {
+      return false
+    }
+  }
+
   close() {
     this.pool.close(this.relays)
     this.worker?.terminate()
