@@ -2,7 +2,7 @@ import React from 'react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
 import { useSubscriptions } from '../hooks/useSubscriptions'
-import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity, Globe, Hash } from 'lucide-react'
+import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity, Globe, Hash, Wallet } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
 const CommunityItem: React.FC<{ aTag: string; onClick: () => void }> = ({ aTag, onClick }) => {
@@ -91,6 +91,14 @@ export const Sidebar: React.FC = () => {
       label: 'Media Servers', 
       icon: Image,
       color: 'text-emerald-400'
+    },
+    { 
+      id: 'wallet-settings', 
+      type: 'wallet' as const, 
+      title: 'Internal_Wallet', 
+      label: 'Wallet Settings', 
+      icon: Wallet,
+      color: 'text-yellow-400'
     },
     { 
       id: 'error-log', 

@@ -1,6 +1,8 @@
 import type { Event } from 'nostr-tools'
 import { signerService } from './signer'
 import { nostrService } from './nostr'
+import { nwcService } from './nwcService'
+import { useStore } from '../store/useStore'
 
 export interface ZapOptions {
   amount: number // in sats
@@ -97,6 +99,17 @@ class ZapService {
 
     if (!invoice) {
       throw new Error('Failed to retrieve lightning invoice from provider')
+    }
+
+    const { nwcUrl } = useStore.getState()
+    if (nwcUrl) {
+      try {
+        console.log('[ZapService] Attempting automated payment via NWC...')
+        await nwcService.payInvoice(invoice)
+        return
+      } catch (err) {
+        console.warn('[ZapService] NWC payment failed, falling back to manual:', err)
+      }
     }
 
     // Open wallet via lightning: URI

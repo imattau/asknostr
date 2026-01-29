@@ -23,6 +23,7 @@ import { ClaimStation } from './components/ClaimStation'
 import { ProfileEditor } from './components/ProfileEditor'
 import { ProfileView } from './components/ProfileView'
 import { ConnectBunker } from './components/ConnectBunker'
+import { NwcSettings } from './components/NwcSettings'
 import { Search } from './components/Search'
 import { Sidebar } from './components/Sidebar'
 import { useDeletions } from './hooks/useDeletions'
@@ -458,8 +459,12 @@ const HashtagTextarea = ({
       case 'connectbunker': return <ConnectBunker />
       case 'search': return <Search />
       case 'relays': return <RelayList />
-      case 'mediaservers': return <MediaServers />
-      case 'errorlog': return <ErrorLog />
+            case 'mediaservers':
+              return <MediaServers />
+            case 'wallet':
+              return <NwcSettings />
+            case 'errorlog':
+              return <ErrorLog />
       case 'profile': return <ProfileEditor />
       case 'profile-view': return <ProfileView pubkey={layer.params?.pubkey as string | undefined} />
       default: return <div className="p-4 opacity-50 font-mono">[CONTENT_UNAVAILABLE]</div>
