@@ -12,6 +12,7 @@ export interface CommunityDefinition {
   description?: string
   rules?: string
   image?: string
+  banner?: string
   moderators: string[] // p tags
   relays: string[] // relay tags
   creator: string // pubkey

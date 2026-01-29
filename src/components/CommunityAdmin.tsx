@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useCommunity } from '../hooks/useCommunity'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
-import { Shield, X, Globe, Save, RefreshCw, User as UserIcon, AlertTriangle } from 'lucide-react'
+import { mediaService } from '../services/mediaService'
+import { Shield, X, Globe, Save, RefreshCw, User as UserIcon, Image as ImageIcon, FileText, Type } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 import { formatPubkey, shortenPubkey } from '../utils/nostr'
 import { set } from 'idb-keyval'
@@ -15,26 +16,36 @@ interface CommunityAdminProps {
 }
 
 export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, creator }) => {
-  const { data: community, isLoading, refetch } = useCommunity(communityId, creator)
+  const { data: community, isLoading } = useCommunity(communityId, creator)
   const { user } = useStore()
   const { popLayer } = useUiStore()
   
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [rules, setRules] = useState('')
+  const [image, setImage] = useState('')
+  const [banner, setBanner] = useState('')
   const [newMod, setNewMod] = useState('')
   const [mods, setMods] = useState<string[]>([])
   const [relays, setRelays] = useState<string>('')
   const [mode, setMode] = useState<'open' | 'restricted'>('open')
   const [isSaving, setIsSaving] = useState(false)
-  const [isRescueMode, setIsRescueMode] = useState(false)
+  const [isUploading, setIsUploading] = useState<'image' | 'banner' | null>(null)
+
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     if (community) {
+      setName(community.name || '')
+      setDescription(community.description || '')
+      setRules(community.rules || '')
+      setImage(community.image || '')
+      setBanner(community.banner || '')
       setMods(community.moderators)
       setRelays(community.relays.join(', '))
       setMode(community.moderationMode || 'open')
-      setIsRescueMode(false)
     } else if (!isLoading && user.pubkey === creator) {
-      // If we are the creator but metadata didn't load, enable rescue mode
-      setIsRescueMode(true)
       setMods([creator])
     }
   }, [community, isLoading, creator, user.pubkey])
@@ -53,6 +64,23 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
     </div>
   )
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'image' | 'banner') => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(target)
+    try {
+      const url = await mediaService.uploadFile(file)
+      if (target === 'image') setImage(url)
+      else setBanner(url)
+      triggerHaptic(20)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setIsUploading(null)
+    }
+  }
+
   const addMod = () => {
     if (newMod && !mods.includes(newMod)) {
       setMods([...mods, newMod])
@@ -62,15 +90,13 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   }
 
   const removeMod = (pubkey: string) => {
-    if (pubkey === creator) return // Cannot remove yourself
+    if (pubkey === creator) return 
     setMods(mods.filter(m => m !== pubkey))
     triggerHaptic(10)
   }
 
   const handleSave = async () => {
     setIsSaving(true)
-    console.log('[Admin] Commit button clicked')
-    
     try {
       const relayList = relays.split(',').map(r => r.trim()).filter(r => r.startsWith('wss://'))
       
@@ -79,10 +105,11 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
         created_at: Math.floor(Date.now() / 1000),
         tags: [
           ['d', communityId],
-          ['name', community?.name || communityId],
-          ['description', community?.description || 'Community Node'],
-          ...(community?.rules ? [['rules', community.rules]] : []),
-          ...(community?.image ? [['image', community.image]] : []),
+          ['name', name || communityId],
+          ['description', description],
+          ['rules', rules],
+          ['image', image],
+          ['banner', banner],
           ['moderation_mode', mode],
           ...relayList.map(r => ['relay', r]),
           ...mods.map(m => ['p', m]),
@@ -91,23 +118,20 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
         content: '',
       }
 
-      console.log('[Admin] Requesting signature...')
       const signedEvent = await signerService.signEvent(eventTemplate)
-      
-      console.log('[Admin] Publishing...')
       await nostrService.publish(signedEvent)
       
-      // Update local store and persistent cache
       const { addEvent } = useStore.getState()
       addEvent(signedEvent)
       
       const updatedDefinition = {
         id: communityId,
         creator: creator,
-        name: community?.name || communityId,
-        description: community?.description || 'Community Node',
-        rules: community?.rules,
-        image: community?.image,
+        name: name || communityId,
+        description,
+        rules,
+        image,
+        banner,
         moderators: mods,
         relays: relayList,
         pinned: community?.pinned || [],
@@ -115,7 +139,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
       }
       await set(`community-${creator}-${communityId}`, updatedDefinition)
 
-      // Invalidate queries
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const qc = (window as any).queryClient
       if (qc) {
@@ -135,7 +158,7 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   }
 
   return (
-    <div className="p-6 space-y-8 pb-20">
+    <div className="p-6 space-y-8 pb-20 overflow-y-auto">
       <header className="terminal-border p-4 bg-cyan-500/10 border-cyan-500/30">
         <h2 className="text-xl font-bold text-cyan-400 uppercase flex items-center gap-2 tracking-tighter">
           <Shield size={24} /> Station_Administration: c/{communityId}
@@ -145,23 +168,100 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
         </p>
       </header>
 
-      {isRescueMode && (
-        <div className="p-4 border border-orange-500/30 bg-orange-500/5 rounded-xl flex items-start gap-3">
-          <AlertTriangle className="text-orange-500 shrink-0" size={18} />
-          <div>
-            <h4 className="text-[10px] font-bold text-orange-500 uppercase font-mono">Rescue_Mode_Active</h4>
-            <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
-              Network metadata failed to load. Proceeding with local authority data. Committing will overwrite previous network definitions.
-            </p>
-            <button 
-              onClick={() => refetch()}
-              className="mt-2 text-[8px] font-mono text-cyan-500 uppercase underline decoration-cyan-500/30 hover:text-cyan-400"
+      {/* Visual Identity Section */}
+      <section className="space-y-6">
+        <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+          <ImageIcon size={14} /> Visual_Identity
+        </h3>
+
+        <div className="grid gap-6">
+          {/* Banner Upload */}
+          <div className="space-y-3">
+            <label className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block px-1">Node_Banner_Image</label>
+            <div 
+              className="relative h-24 rounded-xl border border-slate-800 bg-slate-900 overflow-hidden cursor-pointer group"
+              onClick={() => bannerInputRef.current?.click()}
             >
-              [RETRY_DEEP_SCAN]
-            </button>
+              {banner ? (
+                <img src={banner} className="w-full h-full object-cover opacity-50 group-hover:opacity-30 transition-opacity" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-700">
+                  <ImageIcon size={32} />
+                </div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {isUploading === 'banner' ? <RefreshCw className="animate-spin text-cyan-500" /> : <span className="text-[8px] font-bold text-cyan-400 uppercase font-mono">Update_Banner</span>}
+              </div>
+              <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'banner')} />
+            </div>
+          </div>
+
+          <div className="flex gap-6 items-center">
+            {/* Avatar Upload */}
+            <div className="space-y-2">
+              <label className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block px-1">Node_Avatar</label>
+              <div 
+                className="w-16 h-16 rounded-full border border-slate-800 bg-slate-900 overflow-hidden cursor-pointer group relative flex-shrink-0"
+                onClick={() => imageInputRef.current?.click()}
+              >
+                {image ? (
+                  <img src={image} className="w-full h-full object-cover group-hover:opacity-30 transition-opacity" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-700">
+                    <UserIcon size={24} />
+                  </div>
+                )}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isUploading === 'image' ? <RefreshCw className="animate-spin text-cyan-500" size={16} /> : <ImageIcon size={16} className="text-cyan-400" />}
+                </div>
+                <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'image')} />
+              </div>
+            </div>
+
+            {/* Station Name */}
+            <div className="flex-1 space-y-2">
+              <label className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block px-1 flex items-center gap-2">
+                <Type size={10} /> Node_Designation
+              </label>
+              <input 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Station name..."
+                className="w-full terminal-input rounded-xl px-4 py-3"
+              />
+            </div>
           </div>
         </div>
-      )}
+      </section>
+
+      {/* Manifest Section */}
+      <section className="space-y-4">
+        <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+          <FileText size={14} /> Node_Manifest
+        </h3>
+        
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[9px] font-mono text-slate-500 uppercase tracking-widest px-1 block">Description_String</label>
+            <textarea 
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full terminal-input rounded-xl p-4 min-h-[80px] font-sans text-xs"
+              placeholder="What is this station for?"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-mono text-slate-500 uppercase tracking-widest px-1 block">Operational_Rules</label>
+            <textarea 
+              value={rules}
+              onChange={(e) => setRules(e.target.value)}
+              className="w-full terminal-input rounded-xl p-4 min-h-[80px] font-sans text-xs"
+              placeholder="Enter community guidelines..."
+            />
+          </div>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -182,12 +282,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
             Restricted_Approval
           </button>
         </div>
-        
-        <p className="text-[9px] text-slate-500 font-sans px-2">
-          {mode === 'open' 
-            ? "OPEN: All posts are visible by default. Moderators act on reports or spam." 
-            : "RESTRICTED: New authors require manual approval for their first post to be visible."}
-        </p>
       </section>
 
       <section className="space-y-4">

@@ -18,6 +18,7 @@ export const parseCommunityEvent = (event: Event): CommunityDefinition | null =>
     const description = event.tags.find(t => t[0] === 'description')?.[1]
     const rules = event.tags.find(t => t[0] === 'rules')?.[1]
     const image = event.tags.find(t => t[0] === 'image')?.[1]
+    const banner = event.tags.find(t => t[0] === 'banner')?.[1]
     const moderationMode = (event.tags.find(t => t[0] === 'moderation_mode')?.[1] || 'open') as 'open' | 'restricted'
 
     return {
@@ -26,6 +27,7 @@ export const parseCommunityEvent = (event: Event): CommunityDefinition | null =>
       description: description || '',
       rules,
       image,
+      banner,
       moderators,
       relays,
       pinned,
