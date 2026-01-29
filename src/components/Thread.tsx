@@ -25,6 +25,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
   const { user } = useStore()
+  const { theme } = useUiStore()
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to selected reply once loaded
@@ -290,6 +291,9 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
     )
   }
 
+  const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+
   return (
     <div ref={containerRef} className="p-4 space-y-6 pb-32">
       {isLoading && allEvents.length === 0 ? (
@@ -303,7 +307,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
         </div>
       )}
       
-      <section className="glassmorphism p-4 rounded-xl border-purple-500/20 bg-purple-500/5 mt-8">
+      <section className={`glassmorphism p-4 rounded-xl border-purple-500/20 bg-purple-500/5 mt-8`}>
         <h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-400 uppercase mb-3 tracking-widest">
           <MessageSquare size={14} /> Append_To_Thread
         </h4>
@@ -311,7 +315,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
           value={replyContent}
           onChange={(e) => setReplyContent(e.target.value)}
           disabled={!user.pubkey || isSubmitting}
-          className="w-full bg-transparent text-slate-200 border border-slate-800 rounded-lg focus:border-purple-500/50 p-3 text-sm resize-none h-24 font-sans placeholder:text-slate-600 mb-3 disabled:opacity-50"
+          className={`w-full bg-transparent ${secondaryText} border ${borderClass} rounded-lg focus:border-purple-500/50 p-3 text-sm resize-none h-24 font-sans mb-3 disabled:opacity-50`}
           placeholder={user.pubkey ? "Type your response..." : "Login required to participate in thread."}
         ></textarea>
         <div className="flex items-center justify-between">

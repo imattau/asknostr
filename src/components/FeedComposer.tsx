@@ -25,23 +25,24 @@ const mentionStyle = {
       margin: 0,
       border: 'none',
       outline: 'none',
-      color: '#e2e8f0', // slate-200
+      color: 'inherit',
     },
   },
   suggestions: {
     list: {
-      backgroundColor: '#0f172a', // slate-900
-      border: '1px solid #1e293b', // slate-800
+      backgroundColor: 'var(--background)',
+      border: '1px solid var(--border-slate)',
       fontSize: 12,
       borderRadius: 12,
       overflow: 'hidden',
     },
     item: {
       padding: '8px 12px',
-      borderBottom: '1px solid #1e293b',
+      borderBottom: '1px solid var(--border-slate)',
+      color: 'var(--muted)',
       '&focused': {
         backgroundColor: 'rgba(255,255,255,0.05)',
-        color: '#22d3ee', // cyan-400
+        color: 'var(--accent-cyan)',
       },
     },
   },

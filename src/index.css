@@ -92,6 +92,11 @@
   border-color: #E2E8F0;
 }
 
+.light-theme ::placeholder {
+  color: #64748B;
+  opacity: 1;
+}
+
 @theme {
   --color-slate-950: #05070A;
   --color-slate-50: #F8FAFC;
