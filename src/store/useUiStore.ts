@@ -22,7 +22,7 @@ interface UiState {
 
 export const useUiStore = create<UiState>((set) => ({
   theme: 'terminal',
-  layout: 'swipe',
+  layout: typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'classic' : 'swipe',
   // Start with Global Feed as the default active layer
   stack: [{ id: 'root-feed', type: 'feed', title: 'Global_Feed' }],
   setTheme: (theme) => set({ theme }),
