@@ -196,30 +196,28 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
   const threadTree = useMemo(() => {
     const nodes: Record<string, ThreadNode> = {}
-    const roots: ThreadNode[] = []
-
+    
     allEvents.forEach(event => {
       nodes[event.id] = { event, replies: [] }
     })
 
     allEvents.forEach(event => {
-      const eTags = event.tags.filter(t => t[0] === 'e')
       const parentId = deriveParentId(event)
-      
       if (parentId && nodes[parentId] && parentId !== event.id) {
         nodes[parentId].replies.push(nodes[event.id])
-      } else {
-        // If no parent or parent not found, and it's either the requested event or has no e-tags
-        if (event.id === rootId || (eTags.length === 0)) {
-          if (!roots.find(r => r.event.id === event.id)) {
-            roots.push(nodes[event.id])
-          }
-        }
       }
     })
 
-    return roots
-  }, [allEvents, rootId])
+    // Find the node corresponding to our requested eventId
+    const targetNode = nodes[eventId]
+    if (targetNode) return [targetNode]
+
+    // Fallback: show roots if target not found yet
+    return Object.values(nodes).filter(node => {
+      const parentId = deriveParentId(node.event)
+      return !parentId || !nodes[parentId]
+    })
+  }, [allEvents, eventId])
 
   const renderNode = (node: ThreadNode, depth = 0) => {
     return (
@@ -238,14 +236,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     )
   }
 
-  // Fallback if mainNode not found but we have events
-  const displayNodes = useMemo(() => {
-    const main = threadTree.find(n => n.event.id === eventId)
-    if (main) return [main]
-    // Show all roots if specific ID not found yet
-    return threadTree
-  }, [threadTree, eventId])
-
   return (
     <div className="p-4 space-y-6 pb-32">
       {isLoading && allEvents.length === 0 ? (
@@ -255,7 +245,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
         </div>
       ) : (
         <div className="space-y-6">
-          {displayNodes.map(node => renderNode(node))}
+          {threadTree.map(node => renderNode(node))}
         </div>
       )}
       
