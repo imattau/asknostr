@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2 } from 'lucide-react'
+import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
 import type { Layer } from './store/useUiStore'
@@ -51,6 +51,7 @@ function App() {
   const [composerCollapsed, setComposerCollapsed] = useState(false)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const feedRef = useRef<any>(null)
   const lastScrollTop = useRef(0)
@@ -493,7 +494,16 @@ function App() {
         </aside>
 
         {/* Miller Columns for Content Stack */}
-        <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth">
+        <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative">
+          {!rightSidebarVisible && (
+            <button 
+              onClick={() => setRightSidebarVisible(true)}
+              className="absolute right-4 top-4 z-[1002] p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-cyan-400 transition-all hidden xl:flex"
+              title="Expand Sidebar"
+            >
+              <PanelLeftOpen size={18} />
+            </button>
+          )}
           {stack.map((layer, index) => {
             return (
               <div 
@@ -529,49 +539,60 @@ function App() {
           <div className="flex-grow min-w-[100px]" />
         </div>
 
-        {/* Persistent Discovery Metadata */}
-        <aside className="w-80 border-l border-slate-800 hidden xl:block overflow-y-auto custom-scrollbar p-6 space-y-8 bg-slate-950/20">
-          <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
-            <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">Network_Status</h2>
-            <div className="space-y-3 text-[10px] font-mono">
-              <div className="flex justify-between items-center">
-                <span className="opacity-50 uppercase">Session:</span>
-                <span className={`px-2 py-0.5 rounded-full border ${isConnected ? "text-green-500 border-green-500/20 bg-green-500/5" : "text-red-500 border-red-500/20 bg-red-500/5"}`}>
-                  {isConnected ? "STABLE" : "OFFLINE"}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="opacity-50 uppercase">Buffer:</span>
-                <span className="text-slate-300 font-bold">{events.length}</span>
+        {/* Persistent Discovery Metadata (Collapsable) */}
+        <aside className={`border-l border-slate-800 hidden xl:flex flex-col overflow-hidden transition-all duration-300 bg-slate-950/20 ${rightSidebarVisible ? 'w-80 opacity-100' : 'w-0 opacity-0 border-l-0'}`}>
+          <div className="p-4 border-b border-slate-800 shrink-0 flex justify-between items-center">
+            <span className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-widest">Metadata_Feed</span>
+            <button 
+              onClick={() => setRightSidebarVisible(false)}
+              className="p-1.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <PanelLeftClose size={14} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+            <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
+              <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">Network_Status</h2>
+              <div className="space-y-3 text-[10px] font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="opacity-50 uppercase">Session:</span>
+                  <span className={`px-2 py-0.5 rounded-full border ${isConnected ? "text-green-500 border-green-500/20 bg-green-500/5" : "text-red-500 border-red-500/20 bg-red-500/5"}`}>
+                    {isConnected ? "STABLE" : "OFFLINE"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="opacity-50 uppercase">Buffer:</span>
+                  <span className="text-slate-300 font-bold">{events.length}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
-            <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">Signal_Trends</h2>
-            <ul className="space-y-3">
-              {trendingTags.length === 0 ? (
-                <li className="opacity-20 italic text-[10px] font-mono uppercase tracking-tighter py-4 text-center">
-                  Monitoring_Broadcasts...
-                </li>
-              ) : (
-                trendingTags.map(({ name, count }) => (
-                  <li
-                    key={name}
-                    role="button"
-                    onClick={() => handleTrendingTagClick(name)}
-                    className="flex justify-between items-center group cursor-pointer"
-                  >
-                    <span className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors uppercase font-mono">
-                      #{name}
-                    </span>
-                    <span className="text-[8px] font-mono text-slate-600 bg-white/5 px-1.5 rounded">
-                      {count}x
-                    </span>
+            <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
+              <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">Signal_Trends</h2>
+              <ul className="space-y-3">
+                {trendingTags.length === 0 ? (
+                  <li className="opacity-20 italic text-[10px] font-mono uppercase tracking-tighter py-4 text-center">
+                    Monitoring_Broadcasts...
                   </li>
-                ))
-              )}
-            </ul>
+                ) : (
+                  trendingTags.map(({ name, count }) => (
+                    <li
+                      key={name}
+                      role="button"
+                      onClick={() => handleTrendingTagClick(name)}
+                      className="flex justify-between items-center group cursor-pointer"
+                    >
+                      <span className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors uppercase font-mono">
+                        #{name}
+                      </span>
+                      <span className="text-[8px] font-mono text-slate-600 bg-white/5 px-1.5 rounded">
+                        {count}x
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
           </div>
         </aside>
       </div>
