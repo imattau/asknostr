@@ -234,9 +234,11 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     // Find the node corresponding to our requested branch
     const targetId = forceFullThread ? rootId : eventId
     const targetNode = nodes[targetId]
+    
+    // If we have the target (either root or specific comment), only show that branch
     if (targetNode) return [targetNode]
 
-    // Fallback: show roots if target not found yet
+    // Fallback: If root isn't discovered yet, show all "orphans" (potential roots)
     return Object.values(nodes).filter(node => {
       const parentId = deriveParentId(node.event)
       return !parentId || !nodes[parentId]
