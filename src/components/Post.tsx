@@ -2,11 +2,12 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { nip19, type Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
-import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2, Hash } from 'lucide-react'
+import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2, Hash, MessageSquare } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
 import { useZaps } from '../hooks/useZaps'
+import { useReplyCount } from '../hooks/useReplyCount'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
@@ -69,6 +70,7 @@ const PostComponent: React.FC<PostProps> = ({
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
   const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
+  const { data: replyCount = 0, isLoading: isReplyCountLoading } = useReplyCount(event.id)
   const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, addEvent, optimisticDeletions, addOptimisticDeletion } = useStore()
   const { subscribedCommunities } = useSubscriptions()
   const { layout, stack, pushLayer } = useUiStore()
@@ -700,6 +702,13 @@ const PostComponent: React.FC<PostProps> = ({
       </div>
 
       <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
+        <button 
+          onClick={openThread}
+          className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
+        >
+          <MessageSquare size={12} className={`group-hover/btn:scale-110 transition-transform ${isReplyCountLoading ? 'animate-pulse' : ''}`} />
+          <span>{replyCount || 0} Replies</span>
+        </button>
         {user.pubkey && (
           <div className="relative overflow-visible">
             <button
