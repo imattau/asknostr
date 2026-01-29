@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2, PanelLeftClose, PanelLeftOpen, User } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
@@ -45,6 +46,8 @@ const HashtagTextarea = ({
   userSuggestions, 
   onInsertMention 
 }: any) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+
   const renderHighlighted = (text: string) => {
     const parts = text.split(/(#\w+|nostr:(?:npub|nprofile)1[a-z0-9]+)/gi)
     return parts.map((part, i) => {
@@ -77,46 +80,55 @@ const HashtagTextarea = ({
     }
   }
 
-        return (
-          <div className="relative w-full min-h-[4rem] mt-3 font-sans text-sm leading-6">
-            {mentionQuery && userSuggestions.length > 0 && (
-              <div className="absolute bottom-full left-0 mb-2 w-full max-h-48 bg-slate-900 border border-slate-800 rounded-xl overflow-y-auto z-[1005] shadow-2xl animate-in slide-in-from-bottom-2">
-                {userSuggestions.map((res: any) => (
-                  <button
-                    key={res.pubkey}
-                    onClick={() => onInsertMention(res.pubkey)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left"
-                  >
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0">
-                      {res.profile?.picture ? <img src={res.profile.picture} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-slate-600" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-100 truncate">{res.profile?.display_name || res.profile?.name || shortenPubkey(formatPubkey(res.pubkey))}</p>
-                      <p className="text-[9px] text-slate-500 font-mono truncate">{res.pubkey}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div 
-              className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-transparent p-0 m-0 border-none"
-              style={{ lineHeight: '1.5rem', font: 'inherit', padding: '0', wordBreak: 'break-word' }}
-              aria-hidden="true"
+  const rect = containerRef.current?.getBoundingClientRect()
+
+  return (
+    <div ref={containerRef} className="relative w-full min-h-[4rem] mt-3 font-sans text-sm leading-6">
+      {mentionQuery && userSuggestions.length > 0 && rect && createPortal(
+        <div 
+          className="fixed bg-slate-950 border border-slate-800 rounded-xl overflow-y-auto z-[10005] shadow-2xl animate-in slide-in-from-bottom-2 w-64 max-h-48"
+          style={{
+            top: rect.top - 10,
+            left: rect.left,
+            transform: 'translateY(-100%)'
+          }}
+        >
+          {userSuggestions.map((res: any) => (
+            <button
+              key={res.pubkey}
+              onClick={() => onInsertMention(res.pubkey)}
+              className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
             >
-              {renderHighlighted(value)}
-            </div>
-            <textarea
-              value={value}
-              onChange={handleChange}
-              disabled={disabled}
-              className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 m-0 resize-none h-16 min-h-[3.5rem] relative z-10 font-inherit"
-              style={{ lineHeight: '1.5rem', font: 'inherit', wordBreak: 'break-word' }}
-              placeholder={placeholder}
-                  />
-                </div>
-              )
-            }
-            
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0 border border-white/10">
+                {res.profile?.picture ? <img src={res.profile.picture} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-slate-600" />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-100 truncate">{res.profile?.display_name || res.profile?.name || shortenPubkey(formatPubkey(res.pubkey))}</p>
+                <p className="text-[9px] text-slate-500 font-mono truncate">{res.pubkey}</p>
+              </div>
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+      <div 
+        className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-transparent p-0 m-0 border-none"
+        style={{ lineHeight: '1.5rem', font: 'inherit', padding: '0', wordBreak: 'break-word' }}
+        aria-hidden="true"
+      >
+        {renderHighlighted(value)}
+      </div>
+      <textarea
+        value={value}
+        onChange={handleChange}
+        disabled={disabled}
+        className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 m-0 resize-none h-16 min-h-[3.5rem] relative z-10 font-inherit"
+        style={{ lineHeight: '1.5rem', font: 'inherit', wordBreak: 'break-word' }}
+        placeholder={placeholder}
+      />
+    </div>
+  )
+}            
             function App() {  const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
   const { muted } = useSocialGraph()

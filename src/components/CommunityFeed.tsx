@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
@@ -29,6 +30,8 @@ const HashtagTextarea = ({
   userSuggestions, 
   onInsertMention 
 }: any) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+
   const renderHighlighted = (text: string) => {
     const parts = text.split(/(#\w+|nostr:(?:npub|nprofile)1[a-z0-9]+)/gi)
     return parts.map((part, i) => {
@@ -61,17 +64,26 @@ const HashtagTextarea = ({
     }
   }
 
+  const rect = containerRef.current?.getBoundingClientRect()
+
   return (
-    <div className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
-      {mentionQuery && userSuggestions.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 w-full max-h-48 bg-slate-900 border border-slate-800 rounded-xl overflow-y-auto z-[1005] shadow-2xl animate-in slide-in-from-bottom-2">
+    <div ref={containerRef} className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
+      {mentionQuery && userSuggestions.length > 0 && rect && createPortal(
+        <div 
+          className="fixed bg-slate-950 border border-slate-800 rounded-xl overflow-y-auto z-[10005] shadow-2xl animate-in slide-in-from-bottom-2 w-64 max-h-48"
+          style={{
+            top: rect.top - 10,
+            left: rect.left,
+            transform: 'translateY(-100%)'
+          }}
+        >
           {userSuggestions.map((res: any) => (
             <button
               key={res.pubkey}
               onClick={() => onInsertMention(res.pubkey)}
-              className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
             >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0">
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0 border border-white/10">
                 {res.profile?.picture ? <img src={res.profile.picture} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-slate-600" />}
               </div>
               <div className="min-w-0">
@@ -80,7 +92,8 @@ const HashtagTextarea = ({
               </div>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
       <div 
         className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-transparent p-0 m-0 border-none"
