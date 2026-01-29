@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import type { Event } from 'nostr-tools'
+import type { Event, Filter } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { Post } from './Post'
@@ -79,21 +79,18 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     setIsNsfw(false)
 
     const fetchThread = async () => {
-      console.log('[Thread] Fetching events for ID:', eventId)
+      console.log('[Thread] Fetching events for ID:', eventId, 'Root:', rootId)
       setIsLoading(true)
       
       const eTagIds = getETags(sourceEvent).map(t => t[1]).filter(Boolean)
       const ids = Array.from(new Set([rootId, eventId, ...eTagIds]))
 
-      // If we are forcing full thread, ensure we subscribe to everything starting from absolute root
-      const filters = [
+      // Always subscribe to anything tagging the root OR the specific event to capture all branches
+      const filters: Filter[] = [
         { ids },
-        { kinds: [1], '#e': [rootId] }
+        { kinds: [1], '#e': [rootId] },
+        { kinds: [1], '#e': [eventId] }
       ]
-
-      if (!forceFullThread) {
-        filters.push({ kinds: [1], '#e': [eventId] })
-      }
 
       sub = await nostrService.subscribe(
         filters,
