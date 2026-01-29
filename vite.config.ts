@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      'react-mentions': path.resolve(__dirname, 'node_modules/react-mentions/dist/react-mentions.esm.js'),
+    },
+  },
   plugins: [
     react(),
     VitePWA({
