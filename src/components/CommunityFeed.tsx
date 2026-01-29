@@ -81,15 +81,15 @@ const HashtagTextarea = ({
         <Mention
           trigger="@"
           data={onUserSearch}
-          displayTransform={(_id, display) => `@${display}`}
+          displayTransform={(_id: string, display: string) => `@${display}`}
           markup="nostr:[id]"
           className="text-cyan-400 font-bold bg-cyan-500/10 px-0.5 rounded"
           appendSpaceOnAdd
         />
         <Mention
           trigger="#"
-          data={(query) => [{ id: query, display: query }]}
-          displayTransform={(_id, display) => `#${display}`}
+          data={(query: string) => [{ id: query, display: query }]}
+          displayTransform={(_id: string, display: string) => `#${display}`}
           markup="#[id]"
           className="text-purple-400 font-bold bg-purple-500/10 px-0.5 rounded"
           appendSpaceOnAdd

@@ -159,37 +159,37 @@ const HashtagTextarea = ({
 
       >
 
-        <Mention
+                <Mention
 
-          trigger="@"
+                  trigger="@"
 
-          data={onUserSearch}
+                  data={onUserSearch}
 
-          displayTransform={(_id, display) => `@${display}`}
+                  displayTransform={(_id: string, display: string) => `@${display}`}
 
-          markup="nostr:[id]"
+                  markup="nostr:[id]"
 
-          className="text-cyan-400 font-bold bg-cyan-500/10 px-0.5 rounded"
+                  className="text-cyan-400 font-bold bg-cyan-500/10 px-0.5 rounded"
 
-          appendSpaceOnAdd
+                  appendSpaceOnAdd
 
-        />
+                />
 
-        <Mention
+                <Mention
 
-          trigger="#"
+                  trigger="#"
 
-          data={(query) => [{ id: query, display: query }]}
+                  data={(query: string) => [{ id: query, display: query }]}
 
-          displayTransform={(_id, display) => `#${display}`}
+                  displayTransform={(_id: string, display: string) => `#${display}`}
 
-          markup="#[id]"
+                  markup="#[id]"
 
-          className="text-purple-400 font-bold bg-purple-500/10 px-0.5 rounded"
+                  className="text-purple-400 font-bold bg-purple-500/10 px-0.5 rounded"
 
-          appendSpaceOnAdd
+                  appendSpaceOnAdd
 
-        />
+                />
 
       </MentionsInput>
 
