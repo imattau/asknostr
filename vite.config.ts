@@ -1,13 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
   resolve: {
     alias: {
-      'react-mentions': path.resolve(__dirname, 'node_modules/react-mentions/dist/react-mentions.esm.js'),
+      'react-mentions': 'react-mentions/dist/react-mentions.esm.js',
     },
   },
   plugins: [
@@ -68,14 +67,14 @@ export default defineConfig({
     })
   ],
   optimizeDeps: {
-    include: ['react-mentions'],
+    include: ['react-mentions', 'substyle'],
   },
   build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react-mentions')) {
+            if (id.includes('react-mentions') || id.includes('substyle')) {
               return 'vendor-mentions';
             }
             return 'vendor';
