@@ -1,16 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
+import { join } from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
   resolve: {
     alias: {
-      'react-mentions': resolve(__dirname, 'node_modules/react-mentions/dist/react-mentions.esm.js'),
+      'react-mentions': join(process.cwd(), 'node_modules/react-mentions/dist/react-mentions.esm.js'),
     },
   },
   plugins: [
