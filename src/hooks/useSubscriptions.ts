@@ -7,11 +7,11 @@ import { triggerHaptic } from '../utils/haptics'
 import { get, set } from 'idb-keyval'
 
 export const useSubscriptions = () => {
-  const { user } = useStore()
+  const { user, relays: storeRelays } = useStore()
   const queryClient = useQueryClient()
 
   const { data: subscriptionEvent, isLoading } = useQuery({
-    queryKey: ['subscriptions', user.pubkey],
+    queryKey: ['subscriptions', user.pubkey, storeRelays],
     queryFn: async () => {
       if (!user.pubkey) return null
       
