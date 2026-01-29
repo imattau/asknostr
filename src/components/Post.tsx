@@ -528,6 +528,7 @@ const PostComponent: React.FC<PostProps> = ({
   return (
     <div 
       onClick={openThread}
+      data-event-id={event.id}
       className={`glassmorphism p-4 group transition-all duration-300 relative ${!isThreadView ? 'hover:bg-white/10 cursor-pointer' : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : 'border-l border-slate-800'}`}
     >
       {effectiveApproved && !isThreadView && (

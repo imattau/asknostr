@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import type { Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
@@ -26,9 +26,24 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [isNsfw, setIsNsfw] = useState(false)
   const { addEvent, user, events } = useStore()
   const { stack } = useUiStore()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const currentLayer = stack[stack.length - 1]
   const forceFullThread = (currentLayer?.params as any)?.forceFullThread
+
+  // Auto-scroll to selected reply once loaded
+  useEffect(() => {
+    if (!isLoading && allEvents.length > 0) {
+      // Small delay to ensure render is committed
+      const timer = setTimeout(() => {
+        const element = containerRef.current?.querySelector(`[data-event-id="${eventId}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [isLoading, allEvents.length, eventId])
 
   const getETags = (source?: Event) => source?.tags.filter(t => t[0] === 'e') || []
 
@@ -263,7 +278,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   }
 
   return (
-    <div className="p-4 space-y-6 pb-32">
+    <div ref={containerRef} className="p-4 space-y-6 pb-32">
       {isLoading && allEvents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 opacity-20">
           <RefreshCw size={32} className="animate-spin text-purple-500 mb-4" />
