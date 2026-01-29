@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react'
-import { Paperclip, Loader2 } from 'lucide-react'
+import { Paperclip, Loader2, Share2 } from 'lucide-react'
 import { MentionsInput, Mention } from 'react-mentions'
 import { nip19, type Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
 import { mediaService } from '../services/mediaService'
+import { torrentService } from '../services/torrentService'
 
 const mentionStyle = {
   control: {
@@ -95,7 +96,9 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
   const [isPublishing, setIsPublishing] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const [isSeeding, setIsSeeding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const torrentInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -110,6 +113,22 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
     } finally {
       setIsUploadingMedia(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleTorrentSeed = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsSeeding(true)
+    try {
+      const magnetUri = await torrentService.seedFile(file)
+      setPostContent(prev => prev ? `${prev}\n${magnetUri}` : magnetUri)
+    } catch (err) {
+      console.error('Seeding failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to seed file')
+    } finally {
+      setIsSeeding(false)
+      if (torrentInputRef.current) torrentInputRef.current.value = ''
     }
   }
 
@@ -218,10 +237,17 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
           </label>
           <div className="flex items-center gap-2">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
-            <button type="button" disabled={isUploadingMedia || !user.pubkey} onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50" title="Attach Media">
+            <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
+            
+            <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50" title="Attach Media">
               {isUploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
             </button>
-            <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing} className="terminal-button rounded-lg text-[10px] py-1 px-3">Transmit</button>
+
+            <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-purple-400 transition-colors disabled:opacity-50" title="Seed via BitTorrent">
+              {isSeeding ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+            </button>
+
+            <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded-lg text-[10px] py-1 px-3">Transmit</button>
           </div>
         </div>
       </div>

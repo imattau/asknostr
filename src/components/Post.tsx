@@ -14,6 +14,7 @@ import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { zapService } from '../services/zapService'
 import { triggerHaptic } from '../utils/haptics'
+import { TorrentMedia } from './TorrentMedia'
 
 interface PostProps {
   event: Event
@@ -133,6 +134,9 @@ const PostComponent: React.FC<PostProps> = ({
 
   const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
   const mediaMatches = event.content.match(mediaRegex)
+
+  const magnetRegex = /(magnet:\?xt=urn:btih:[a-zA-Z0-9]+[^\s]*)/gi
+  const magnetMatches = event.content.match(magnetRegex)
 
   const openThread = (e: React.MouseEvent, options?: { force?: boolean }) => {
     if (!options?.force && (e.target as HTMLElement).closest('button')) return
@@ -372,8 +376,10 @@ const PostComponent: React.FC<PostProps> = ({
 
   const renderContent = () => {
     const mediaRegexNoCapture = /https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov)/gi
-    const textParts = event.content.split(mediaRegexNoCapture)
-    const linkRegex = /(https?:\/\/[^\s]+|nostr:(?:npub|nprofile|note|nevent|naddr|nrelay)1[a-z0-9]+|#\w+)/gi
+    const magnetRegexNoCapture = /magnet:\?xt=urn:btih:[a-zA-Z0-9]+[^\s]*/gi
+    
+    const textParts = event.content.split(new RegExp(`${mediaRegexNoCapture.source}|${magnetRegexNoCapture.source}`, 'gi'))
+    const linkRegex = /(https?:\/\/[^\s]+|nostr:(?:npub|nprofile|note|nevent|naddr|nrelay)1[a-z0-9]+|#\w+|magnet:\?xt=urn:btih:[a-zA-Z0-9]+[^\s]*)/gi
 
     const elements: (string | React.ReactNode)[] = []
 
@@ -416,6 +422,12 @@ const PostComponent: React.FC<PostProps> = ({
                 {match}
               </button>
             )
+          } else if (match.startsWith('magnet:')) {
+            elements.push(
+              <span key={`${i}-${j}`} className="text-purple-400 font-mono text-[10px] bg-purple-500/10 px-1 rounded mx-0.5 inline-flex items-center gap-1">
+                <Share2 size={10} /> TORRENT_ENCODED
+              </span>
+            )
           } else {
             elements.push(
               <a 
@@ -437,7 +449,7 @@ const PostComponent: React.FC<PostProps> = ({
     })
 
     const finalContent = elements.filter(e => e !== '')
-    if (finalContent.length === 0 && mediaMatches && mediaMatches.length > 0) return null
+    if (finalContent.length === 0 && ((mediaMatches && mediaMatches.length > 0) || (magnetMatches && magnetMatches.length > 0))) return null
 
     return (
       <div className={`whitespace-pre-wrap break-words ${secondaryText} leading-relaxed font-sans ${isThreadView ? `text-lg ${primaryText}` : 'text-sm'} ${isHidden ? 'blur-sm select-none pointer-events-none' : ''}`}>
@@ -658,31 +670,28 @@ const PostComponent: React.FC<PostProps> = ({
 
       {mediaMatches && mediaMatches.length > 0 && (
         <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
-          {mediaMatches.map((url, idx) => {
-            const isVideo = url.match(/\.(mp4|webm|mov)$/i)
-            return (
-              <div key={idx} className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''}`}>
-                {isVideo ? (
-                  <video 
-                    src={url} 
-                    controls 
-                    className="max-h-[400px] w-full"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <img 
-                    src={url} 
-                    alt="Media content" 
-                    className="max-h-[500px] w-full object-contain cursor-zoom-in"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.open(url, '_blank')
-                    }}
-                  />
-                )}
-              </div>
-            )
-          })}
+          {mediaMatches.map((url, idx) => (
+            <div key={idx} className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''}`}>
+              {url.match(/\.(mp4|webm|mov)$/i) ? (
+                <video 
+                  src={url} 
+                  controls 
+                  className="max-h-[400px] w-full"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <img 
+                  src={url} 
+                  alt="Media content" 
+                  className="max-h-[500px] w-full object-contain cursor-zoom-in"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(url, '_blank')
+                  }}
+                />
+              )}
+            </div>
+          ))}
           {isHidden && (
             <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-white/90' : 'bg-slate-950/70'} border border-red-500/30 rounded-lg`}>
               <button
@@ -693,6 +702,16 @@ const PostComponent: React.FC<PostProps> = ({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {magnetMatches && magnetMatches.length > 0 && (
+        <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
+          {magnetMatches.map((uri, idx) => (
+            <div key={idx} className={isHidden ? 'blur-md' : ''} onClick={(e) => e.stopPropagation()}>
+              <TorrentMedia magnetUri={uri} />
+            </div>
+          ))}
         </div>
       )}
       

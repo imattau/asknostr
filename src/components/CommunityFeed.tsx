@@ -4,10 +4,11 @@ import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
 import { VirtualFeed } from './VirtualFeed'
-import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2 } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2, Share2 } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { mediaService } from '../services/mediaService'
+import { torrentService } from '../services/torrentService'
 import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
 import { useDeletions } from '../hooks/useDeletions'
@@ -133,7 +134,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const [isSeeding, setIsSeeding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const torrentInputRef = useRef<HTMLInputElement>(null)
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
@@ -250,6 +253,22 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     }
   }
 
+  const handleTorrentSeed = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsSeeding(true)
+    try {
+      const magnetUri = await torrentService.seedFile(file)
+      setPostContent(prev => prev ? `${prev}\n${magnetUri}` : magnetUri)
+    } catch (err) {
+      console.error('Seeding failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to seed file')
+    } finally {
+      setIsSeeding(false)
+      if (torrentInputRef.current) torrentInputRef.current.value = ''
+    }
+  }
+
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
@@ -353,8 +372,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
                 <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
                 <div className="flex items-center gap-2">
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
-                  <button type="button" disabled={isUploadingMedia || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">{isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}</button>
-                  <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
+                  <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
+                  
+                  <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">
+                    {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
+                  </button>
+
+                  <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} text-purple-400 transition-colors disabled:opacity-50`} title="Seed via BitTorrent">
+                    {isSeeding ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                  </button>
+
+                  <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
                 </div>
               </div>
             </div>

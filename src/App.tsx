@@ -29,14 +29,9 @@ import { useDeletions } from './hooks/useDeletions'
 import { useFeed } from './hooks/useFeed'
 import { useSocialGraph } from './hooks/useSocialGraph'
 import { useSubscriptions } from './hooks/useSubscriptions'
+import { torrentService } from './services/torrentService'
 import type { CommunityDefinition } from './hooks/useCommunity'
 import type { Event } from 'nostr-tools'
-
-
-
-
-
-
 
 function App() {  const { isConnected, user, login, logout } = useStore()
 
@@ -47,6 +42,10 @@ function App() {  const { isConnected, user, login, logout } = useStore()
       useSubscriptions() 
 
       useRelays()
+
+  useEffect(() => {
+    torrentService.init().catch(err => console.error('[App] Torrent init failed:', err))
+  }, [])
 
   
 
