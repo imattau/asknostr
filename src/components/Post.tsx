@@ -602,7 +602,17 @@ const PostComponent: React.FC<PostProps> = ({
           {!isThreadView && layout === 'swipe' && (
             <Maximize2 size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-cyan-500" />
           )}
-          <span className="text-slate-500 font-mono text-[9px] uppercase tracking-widest bg-slate-900/50 px-1 rounded border border-slate-800">k:{event.kind}</span>
+          <div className="flex gap-1 items-center">
+            {(() => {
+              const isReply = event.tags.some(t => t[0] === 'e')
+              return isReply ? (
+                <span className="text-purple-400 font-mono text-[8px] uppercase tracking-wider bg-purple-500/10 px-1 rounded border border-purple-500/20">REPLY</span>
+              ) : (
+                <span className="text-cyan-400 font-mono text-[8px] uppercase tracking-wider bg-cyan-500/10 px-1 rounded border border-cyan-500/20">ROOT</span>
+              )
+            })()}
+            <span className="text-slate-500 font-mono text-[9px] uppercase tracking-widest bg-slate-900/50 px-1 rounded border border-slate-800">k:{event.kind}</span>
+          </div>
         </div>
       </div>
       
