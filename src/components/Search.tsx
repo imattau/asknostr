@@ -20,7 +20,8 @@ export const Search: React.FC = () => {
   const [results, setResults] = useState<Event[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
-  // @ts-ignore
+  // @ts-expect-error - TS6133: 'searchPerformedRef' is declared but its value is never read. (false positive for ref.current usage)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const searchPerformedRef = useRef(false); // New ref to track if initial search was performed
 
   const handleSearch = useCallback(async (e?: React.FormEvent, forcedQuery?: string) => {
