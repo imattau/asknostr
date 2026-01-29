@@ -48,6 +48,7 @@ interface NostrState {
     pubkey: string | null
     profile: UserProfile | null
   }
+  lastRead: Record<string, number> // aTag -> timestamp
   setEvents: (events: Event[]) => void
   addEvent: (event: Event) => void
   addEvents: (events: Event[]) => void
@@ -63,6 +64,7 @@ interface NostrState {
   setProfile: (profile: UserProfile) => void
   setLoginMethod: (method: 'nip07' | 'nip46' | 'local' | null) => void
   setRemoteSigner: (signer: { pubkey: string | null, relays: string[], secret: string | null }) => void
+  markAsRead: (aTag: string) => void
   login: () => Promise<void>
   logout: () => void
 }
@@ -96,6 +98,7 @@ export const useStore = create<NostrState>()(
         pubkey: null,
         profile: null,
       },
+      lastRead: {},
       setEvents: (events) => set({ events }),
       addEvent: (event) => set((state) => {
         if (state.events.find(e => e.id === event.id)) return state
@@ -153,6 +156,9 @@ export const useStore = create<NostrState>()(
       setProfile: (profile) => set((state) => ({ user: { ...state.user, profile } })),
       setLoginMethod: (method) => set({ loginMethod: method }),
       setRemoteSigner: (signer) => set({ remoteSigner: signer }),
+      markAsRead: (aTag) => set((state) => ({
+        lastRead: { ...state.lastRead, [aTag]: Math.floor(Date.now() / 1000) }
+      })),
       login: async () => {
         if (window.nostr) {
           try {
@@ -175,7 +181,8 @@ export const useStore = create<NostrState>()(
       logout: () => set({ 
         user: { pubkey: null, profile: null }, 
         loginMethod: null,
-        remoteSigner: { pubkey: null, relays: [], secret: null }
+        remoteSigner: { pubkey: null, relays: [], secret: null },
+        lastRead: {}
       }),
     }),
     {
@@ -186,6 +193,7 @@ export const useStore = create<NostrState>()(
         relays: state.relays, 
         mediaServers: state.mediaServers,
         loginMethod: state.loginMethod,
+        lastRead: state.lastRead,
         remoteSigner: {
           pubkey: state.remoteSigner.pubkey,
           relays: state.remoteSigner.relays,

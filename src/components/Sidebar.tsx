@@ -1,12 +1,48 @@
 import React from 'react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
-import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity, Globe } from 'lucide-react'
+import { useSubscriptions } from '../hooks/useSubscriptions'
+import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity, Globe, Hash } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
+
+const CommunityItem: React.FC<{ aTag: string; onClick: () => void }> = ({ aTag, onClick }) => {
+  const { events, lastRead } = useStore()
+  const parts = aTag.split(':')
+  const communityId = parts[2] || aTag
+  const lastReadTime = lastRead[aTag] || 0
+
+  const unreadCount = events.filter(e => 
+    e.kind === 1 && 
+    e.created_at > lastReadTime &&
+    e.tags.some(t => t[0] === 'a' && t[1] === aTag)
+  ).length
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 group transition-all"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+          <Hash size={14} className="text-purple-400" />
+        </div>
+        <span className="text-xs font-bold text-slate-400 group-hover:text-slate-100 transition-colors truncate uppercase tracking-tight">
+          {communityId}
+        </span>
+      </div>
+      {unreadCount > 0 && (
+        <span className="bg-cyan-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center animate-in zoom-in duration-300">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
+    </button>
+  )
+}
 
 export const Sidebar: React.FC = () => {
   const { pushLayer, resetStack, layout } = useUiStore()
   const { user, logout, loginMethod } = useStore()
+  const { subscribedCommunities } = useSubscriptions()
 
   const menuItems = [
     { 
@@ -131,6 +167,31 @@ export const Sidebar: React.FC = () => {
             ))}
           </div>
         </section>
+
+        {user.pubkey && subscribedCommunities.length > 0 && (
+          <section>
+            <h3 className="text-[10px] font-mono font-bold text-slate-600 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2">
+              <Circle size={8} className="fill-purple-500 text-purple-500" /> My_Stations
+            </h3>
+            <div className="space-y-1">
+              {subscribedCommunities.map((aTag) => {
+                const parts = aTag.split(':')
+                return (
+                  <CommunityItem 
+                    key={aTag} 
+                    aTag={aTag} 
+                    onClick={() => pushLayer({
+                      id: `community-${parts[2]}`,
+                      type: 'community',
+                      title: `c/${parts[2]}`,
+                      params: { communityId: parts[2], creator: parts[1] }
+                    })} 
+                  />
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {user.pubkey && (
           <section>

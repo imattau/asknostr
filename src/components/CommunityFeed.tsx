@@ -108,7 +108,7 @@ interface CommunityFeedProps {
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creator }) => {
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
-  const { events, user, addEvent } = useStore()
+  const { events, user, addEvent, markAsRead } = useStore()
   const { muted } = useSocialGraph()
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
@@ -126,6 +126,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   const communityATag = `34550:${creator}:${communityId}`
   const { data: labels = [] } = useLabels(communityATag)
+
+  // Mark as read on mount
+  useEffect(() => {
+    if (user.pubkey) {
+      markAsRead(communityATag)
+    }
+  }, [communityATag, user.pubkey, markAsRead])
 
   // Dedicated Community Post Fetching
   useEffect(() => {
