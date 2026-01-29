@@ -421,6 +421,49 @@ const PostComponent: React.FC<PostProps> = ({
     )
   }
 
+  if (event.kind === 1063) {
+    const url = event.tags.find(t => t[0] === 'url')?.[1]
+    const mime = event.tags.find(t => t[0] === 'm')?.[1]
+    const alt = event.tags.find(t => t[0] === 'alt')?.[1]
+    const dim = event.tags.find(t => t[0] === 'dim')?.[1]
+    const size = event.tags.find(t => t[0] === 'size')?.[1]
+    const isVideo = mime?.startsWith('video/')
+    const isAudio = mime?.startsWith('audio/')
+
+    return (
+      <div className="glassmorphism p-4 rounded-xl border-slate-800 space-y-3">
+        <div className="flex justify-between items-center mb-2">
+          <button onClick={openProfile} className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-900 border border-slate-800">
+              {profile?.picture && <img src={profile.picture} className="w-full h-full object-cover" />}
+            </div>
+            <span className="text-[10px] font-bold text-slate-400">{displayPubkey}</span>
+          </button>
+          <span className="text-[8px] font-mono opacity-30 uppercase tracking-widest">NIP-94 File_Metadata</span>
+        </div>
+
+        {url && (
+          <div className="rounded-lg overflow-hidden border border-slate-800 bg-slate-950/50">
+            {isVideo ? (
+              <video src={url} controls className="max-h-[400px] w-full" />
+            ) : isAudio ? (
+              <audio src={url} controls className="w-full p-2" />
+            ) : (
+              <img src={url} alt={alt || 'Media'} className="max-h-[500px] w-full object-contain" />
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3 items-center pt-2 border-t border-white/5">
+          {mime && <span className="text-[9px] font-mono text-cyan-500 bg-cyan-500/5 px-1.5 py-0.5 rounded border border-cyan-500/20">{mime.toUpperCase()}</span>}
+          {dim && <span className="text-[9px] font-mono text-slate-500">{dim}</span>}
+          {size && <span className="text-[9px] font-mono text-slate-500">{(parseInt(size) / 1024 / 1024).toFixed(2)} MB</span>}
+          {event.content && <p className="text-[11px] text-slate-300 italic w-full mt-1">"{event.content}"</p>}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div 
       onClick={openThread}
