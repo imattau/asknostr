@@ -65,16 +65,17 @@ const HashtagTextarea = ({
   }
 
   const rect = containerRef.current?.getBoundingClientRect()
+  const showBelow = rect ? rect.top < 300 : false
 
   return (
     <div ref={containerRef} className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
       {mentionQuery && userSuggestions.length > 0 && rect && createPortal(
         <div 
-          className="fixed bg-slate-950 border border-slate-800 rounded-xl overflow-y-auto z-[10005] shadow-2xl animate-in slide-in-from-bottom-2 w-64 max-h-48"
+          className="fixed bg-slate-950 border border-slate-800 rounded-xl overflow-y-auto z-[999999] shadow-2xl animate-in slide-in-from-bottom-2 w-64 max-h-48"
           style={{
-            top: rect.top - 10,
+            top: showBelow ? rect.bottom + 10 : rect.top - 10,
             left: rect.left,
-            transform: 'translateY(-100%)'
+            transform: showBelow ? 'none' : 'translateY(-100%)'
           }}
         >
           {userSuggestions.map((res: any) => (
