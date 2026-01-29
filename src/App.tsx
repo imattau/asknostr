@@ -253,6 +253,18 @@ function App() {
     try {
       const tags: string[][] = []
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
+      
+      // Extract hashtags
+      const hashtags = postContent.match(/#\w+/g)
+      if (hashtags) {
+        hashtags.forEach(tag => {
+          const cleanTag = tag.replace('#', '').toLowerCase()
+          if (!tags.some(t => t[0] === 't' && t[1] === cleanTag)) {
+            tags.push(['t', cleanTag])
+          }
+        })
+      }
+
       await nostrService.createAndPublishPost(postContent, tags)
       setPostContent('')
       setIsNsfw(false)
@@ -262,6 +274,35 @@ function App() {
     } finally {
       setIsPublishing(false)
     }
+  }
+
+  const HashtagTextarea = ({ value, onChange, placeholder, disabled }: any) => {
+    const renderHighlighted = (text: string) => {
+      const parts = text.split(/(#\w+)/g)
+      return parts.map((part, i) => 
+        part.startsWith('#') 
+          ? <span key={i} className="text-purple-400 font-bold">{part}</span> 
+          : part
+      )
+    }
+
+    return (
+      <div className="relative w-full min-h-[4rem] mt-3">
+        <div 
+          className="absolute inset-0 pointer-events-none text-sm font-sans whitespace-pre-wrap break-words text-transparent p-0 leading-normal"
+          aria-hidden="true"
+        >
+          {renderHighlighted(value)}
+        </div>
+        <textarea
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-16 min-h-[3.5rem] font-sans placeholder:text-slate-600 relative z-10 leading-normal"
+          placeholder={placeholder}
+        />
+      </div>
+    )
   }
 
   const renderLayerContent = (layer: Layer) => {
@@ -295,11 +336,10 @@ function App() {
                     hide
                   </button>
                 </div>
-                <textarea
+                <HashtagTextarea
                   value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
+                  onChange={(e: any) => setPostContent(e.target.value)}
                   disabled={!user.pubkey || isPublishing}
-                  className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-16 min-h-[3.5rem] font-sans placeholder:text-slate-600 mt-3"
                   placeholder={user.pubkey ? 'Broadcast to network...' : 'Login to write...'}
                 />
                 <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3 text-[9px]">

@@ -344,7 +344,7 @@ const PostComponent: React.FC<PostProps> = ({
   const renderContent = () => {
     const mediaRegexNoCapture = /https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov)/gi
     const textParts = event.content.split(mediaRegexNoCapture)
-    const linkRegex = /(https?:\/\/[^\s]+|nostr:(?:npub|nprofile|note|nevent|naddr|nrelay)1[a-z0-9]+)/gi
+    const linkRegex = /(https?:\/\/[^\s]+|nostr:(?:npub|nprofile|note|nevent|naddr|nrelay)1[a-z0-9]+|#\w+)/gi
 
     const elements: (string | React.ReactNode)[] = []
 
@@ -368,6 +368,24 @@ const PostComponent: React.FC<PostProps> = ({
                 link={match}
                 onClick={handleNostrLink}
               />
+            )
+          } else if (match.startsWith('#')) {
+            elements.push(
+              <button
+                key={`${i}-${j}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  pushLayer({
+                    id: `search-${match}-${Date.now()}`,
+                    type: 'search',
+                    title: 'Tag_Search',
+                    params: { initialQuery: match }
+                  })
+                }}
+                className="text-purple-400 hover:underline font-mono text-[11px] bg-purple-500/10 px-1 rounded mx-0.5"
+              >
+                {match}
+              </button>
             )
           } else {
             elements.push(

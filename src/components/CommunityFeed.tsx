@@ -201,6 +201,35 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     }
   }
 
+  const HashtagTextarea = ({ value, onChange, placeholder, disabled }: any) => {
+    const renderHighlighted = (text: string) => {
+      const parts = text.split(/(#\w+)/g)
+      return parts.map((part, i) => 
+        part.startsWith('#') 
+          ? <span key={i} className="text-purple-400 font-bold">{part}</span> 
+          : part
+      )
+    }
+
+    return (
+      <div className="relative w-full min-h-[2.5rem] mt-1">
+        <div 
+          className="absolute inset-0 pointer-events-none text-xs font-sans whitespace-pre-wrap break-words text-transparent p-0 leading-normal"
+          aria-hidden="true"
+        >
+          {renderHighlighted(value)}
+        </div>
+        <textarea
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 min-h-[2.5rem] font-sans placeholder:text-slate-600 relative z-10 leading-normal"
+          placeholder={placeholder}
+        />
+      </div>
+    )
+  }
+
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
@@ -210,6 +239,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         ['t', communityId]
       ]
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
+
+      // Extract hashtags
+      const hashtags = postContent.match(/#\w+/g)
+      if (hashtags) {
+        hashtags.forEach(tag => {
+          const cleanTag = tag.replace('#', '').toLowerCase()
+          if (!tags.some(t => t[0] === 't' && t[1] === cleanTag)) {
+            tags.push(['t', cleanTag])
+          }
+        })
+      }
       
       const eventTemplate = {
         kind: 1,
@@ -381,13 +421,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
           header={
             <div className="p-4 space-y-4">
               <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
-                <textarea 
+                <HashtagTextarea
                   value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
+                  onChange={(e: any) => setPostContent(e.target.value)}
                   disabled={!user.pubkey || isPublishing}
-                  className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 font-sans placeholder:text-slate-600"
                   placeholder={`Post to c/${communityId}...`}
-                ></textarea>
+                />
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                   <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500">
                     <input

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Search as SearchIcon, User, Globe, Hash, RefreshCw, ChevronRight, Users, MessageSquare } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
@@ -8,16 +8,19 @@ import { Post } from './Post'
 import { triggerHaptic } from '../utils/haptics'
 
 export const Search: React.FC = () => {
-  const [query, setQuery] = useState('')
+  const { stack, pushLayer } = useUiStore()
+  const currentLayer = stack[stack.length - 1]
+  const initialQuery = (currentLayer?.params as any)?.initialQuery || ''
+
+  const [query, setQuery] = useState(initialQuery)
   const [results, setResults] = useState<Event[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
-  
-  const { pushLayer } = useUiStore()
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!query.trim()) return
+  const handleSearch = async (e?: React.FormEvent, forcedQuery?: string) => {
+    if (e) e.preventDefault()
+    const targetQuery = forcedQuery || query
+    if (!targetQuery.trim()) return
 
     setIsSearching(true)
     setResults([])
@@ -25,16 +28,16 @@ export const Search: React.FC = () => {
     triggerHaptic(10)
 
     // 1. Try NIP-05 Resolution if it looks like an identifier
-    if (query.includes('@')) {
-      const res = await resolveNip05(query)
+    if (targetQuery.includes('@')) {
+      const res = await resolveNip05(targetQuery)
       if (res) {
-        setNip05Result({ pubkey: res.pubkey, identifier: query })
+        setNip05Result({ pubkey: res.pubkey, identifier: targetQuery })
       }
     }
 
     // 2. Network-wide search (NIP-50) for notes, communities and profiles
     await nostrService.subscribe(
-      [{ kinds: [1, 0, 34550], search: query, limit: 60 }],
+      [{ kinds: [1, 0, 34550], search: targetQuery, limit: 60 }],
       (event: Event) => {
         setResults(prev => {
           if (prev.find(e => e.id === event.id)) return prev
@@ -47,6 +50,13 @@ export const Search: React.FC = () => {
     // Give it some time to gather results
     setTimeout(() => setIsSearching(false), 4000)
   }
+
+  // Auto-search if initialQuery provided
+  useEffect(() => {
+    if (initialQuery) {
+      handleSearch(undefined, initialQuery)
+    }
+  }, []) // Run once on mount
 
   const categorizedResults = useMemo(() => {
     return {
