@@ -25,6 +25,7 @@ interface PostProps {
 }
 
 const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = ({ link, onClick }) => {
+  const { theme } = useUiStore()
   const entity = link.replace('nostr:', '')
   let pubkey = ''
   let type: 'profile' | 'other' = 'other'
@@ -47,13 +48,15 @@ const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = (
     ? (profile.display_name || profile.name || shortenPubkey(entity))
     : shortenPubkey(entity)
 
+  const textColor = theme === 'light' ? 'text-cyan-600' : 'text-cyan-400'
+
   return (
     <button 
       onClick={(e) => {
         e.stopPropagation()
         onClick(link)
       }}
-      className="text-cyan-400 hover:underline font-mono text-[11px] bg-cyan-500/10 px-1 rounded mx-0.5 inline-flex items-center gap-1"
+      className={`${textColor} hover:underline font-mono text-[11px] bg-cyan-500/10 px-1 rounded mx-0.5 inline-flex items-center gap-1`}
     >
       <Hash size={10} className="opacity-50" />
       {label}
@@ -75,8 +78,19 @@ const PostComponent: React.FC<PostProps> = ({
   const { data: replyCount = 0, isLoading: isReplyCountLoading } = useReplyCount(event.id)
   const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, optimisticDeletions, addOptimisticDeletion } = useStore()
   const { subscribedCommunities } = useSubscriptions()
-  const { layout, stack, pushLayer } = useUiStore()
+  const { layout, stack, pushLayer, theme } = useUiStore()
   
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const bgHover = theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/10'
+  const accentPurple = theme === 'light' ? 'text-purple-600' : 'text-purple-400'
+  const accentCyan = theme === 'light' ? 'text-cyan-600' : 'text-cyan-400'
+  const reactionBtnClass = theme === 'light' 
+    ? 'bg-slate-100 border-slate-200 text-slate-500 hover:border-slate-300' 
+    : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+
   const npub = formatPubkey(event.pubkey)
   const displayPubkey = profile?.display_name || profile?.name || shortenPubkey(npub)
   const isOwnPost = user.pubkey === event.pubkey
@@ -397,7 +411,7 @@ const PostComponent: React.FC<PostProps> = ({
                     params: { initialQuery: match }
                   })
                 }}
-                className="text-purple-400 hover:underline font-mono text-[11px] bg-purple-500/10 px-1 rounded mx-0.5"
+                className={`${accentPurple} hover:underline font-mono text-[11px] bg-purple-500/10 px-1 rounded mx-0.5`}
               >
                 {match}
               </button>
@@ -410,7 +424,7 @@ const PostComponent: React.FC<PostProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-purple-400 hover:underline break-all"
+                className={`${accentPurple} hover:underline break-all`}
               >
                 {match}
               </a>
@@ -426,7 +440,7 @@ const PostComponent: React.FC<PostProps> = ({
     if (finalContent.length === 0 && mediaMatches && mediaMatches.length > 0) return null
 
     return (
-      <div className={`whitespace-pre-wrap break-words text-slate-300 leading-relaxed font-sans ${isThreadView ? 'text-lg text-slate-50' : 'text-sm'} ${isHidden ? 'blur-sm select-none pointer-events-none' : ''}`}>
+      <div className={`whitespace-pre-wrap break-words ${secondaryText} leading-relaxed font-sans ${isThreadView ? `text-lg ${primaryText}` : 'text-sm'} ${isHidden ? 'blur-sm select-none pointer-events-none' : ''}`}>
         {finalContent}
       </div>
     )
@@ -535,7 +549,7 @@ const PostComponent: React.FC<PostProps> = ({
     <div 
       onClick={openThread}
       data-event-id={event.id}
-      className={`glassmorphism p-4 group transition-all duration-300 relative ${bgColorClass} ${!isThreadView ? 'hover:bg-white/10 cursor-pointer' : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : 'border-l border-slate-800'}`}
+      className={`glassmorphism p-4 group transition-all duration-300 relative ${bgColorClass} ${!isThreadView ? `${bgHover} cursor-pointer` : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : `border-l ${borderClass}`}`}
     >
       {effectiveApproved && !isThreadView && (
         <div className="absolute -top-2 -left-2 bg-slate-950 text-green-500 border border-green-500/50 p-0.5 rounded-full z-10 shadow-[0_0_10px_rgba(34,197,94,0.4)]">
@@ -561,7 +575,7 @@ const PostComponent: React.FC<PostProps> = ({
             </div>
             <div className="flex flex-col min-w-0 text-left">
               <div className="flex items-center gap-1">
-                <span className={`font-bold tracking-tight text-slate-50 ${isProfileLoading ? 'animate-pulse' : ''}`} title={npub}>
+                <span className={`font-bold tracking-tight ${primaryText} ${isProfileLoading ? 'animate-pulse' : ''}`} title={npub}>
                   {displayPubkey}
                 </span>
                 {isOP && (
@@ -573,7 +587,7 @@ const PostComponent: React.FC<PostProps> = ({
                   <Shield size={12} className="text-green-500 fill-green-500/10" />
                 )}
               </div>
-              <span className="text-[10px] text-slate-400 font-mono lowercase opacity-70">{formatDate(event.created_at)}</span>
+              <span className={`text-[10px] ${mutedText} font-mono lowercase opacity-70`}>{formatDate(event.created_at)}</span>
             </div>
           </button>
         </div>
@@ -615,9 +629,9 @@ const PostComponent: React.FC<PostProps> = ({
             {(() => {
               const isReply = event.tags.some(t => t[0] === 'e')
               return isReply ? (
-                <span className="text-purple-400 font-mono text-[8px] uppercase tracking-wider bg-purple-500/10 px-1 rounded border border-purple-500/20">REPLY</span>
+                <span className={`${accentPurple} font-mono text-[8px] uppercase tracking-wider bg-purple-500/10 px-1 rounded border border-purple-500/20`}>REPLY</span>
               ) : (
-                <span className="text-cyan-400 font-mono text-[8px] uppercase tracking-wider bg-cyan-500/10 px-1 rounded border border-cyan-500/20">ROOT</span>
+                <span className={`${accentCyan} font-mono text-[8px] uppercase tracking-wider bg-cyan-500/10 px-1 rounded border border-cyan-500/20`}>ROOT</span>
               )
             })()}
             <span className="text-slate-500 font-mono text-[9px] uppercase tracking-widest bg-slate-900/50 px-1 rounded border border-slate-800">k:{event.kind}</span>
@@ -687,7 +701,7 @@ const PostComponent: React.FC<PostProps> = ({
           <button
             key={emoji}
             onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${hasUserReacted(emoji) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}`}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${hasUserReacted(emoji) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : reactionBtnClass}`}
           >
             <span className="flex items-center leading-none">{emoji === '+' ? '❤️' : emoji}</span>
             <span className="font-bold leading-none">{getReactionCount(emoji, data.count)}</span>
@@ -708,7 +722,7 @@ const PostComponent: React.FC<PostProps> = ({
         )}
       </div>
 
-      <div className="flex gap-8 text-[10px] uppercase font-bold text-slate-400">
+      <div className={`flex gap-8 text-[10px] uppercase font-bold ${mutedText}`}>
         <button 
           onClick={openThread}
           className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
@@ -776,7 +790,7 @@ const PostComponent: React.FC<PostProps> = ({
         </button>
         <button 
           onClick={(e) => { e.stopPropagation(); handleLike(); }}
-          className={`flex items-center gap-1.5 transition-colors group/btn ${hasUserReacted('+') ? 'text-red-500' : 'hover:text-red-500 text-slate-400'}`}
+          className={`flex items-center gap-1.5 transition-colors group/btn ${hasUserReacted('+') ? 'text-red-500' : `hover:text-red-500 ${mutedText}`}`}
         >
           <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${hasUserReacted('+') ? 'fill-red-500/20' : ''}`} />
           <span className="leading-none">{getReactionCount('+', eventReactions.filter(r => r.content === '+' || r.content === '').length)} Like</span>
