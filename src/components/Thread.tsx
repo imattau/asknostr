@@ -18,7 +18,7 @@ interface ThreadNode {
 }
 
 export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
-  const [allEvents, setAllEvents] = useState<Event[]>([])
+  const [allEvents, setAllEvents] = useState<Event[]>(rootEvent ? [rootEvent] : [])
   const [isLoading, setIsLoading] = useState(true)
   const [replyContent, setReplyContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -64,7 +64,12 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
     let sub: { close: () => void } | undefined
     let resolved = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
-    setAllEvents([])
+    
+    // Do NOT clear allEvents here if we have a rootEvent, 
+    // it causes the "flash to root" behavior.
+    if (!rootEvent) {
+      setAllEvents([])
+    }
     setReplyContent('')
     setIsNsfw(false)
 
