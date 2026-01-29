@@ -62,7 +62,7 @@ const HashtagTextarea = ({
   }
 
   return (
-    <div className="relative w-full min-h-[2.5rem] mt-1">
+    <div className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
       {mentionQuery && userSuggestions.length > 0 && (
         <div className="absolute bottom-full left-0 mb-2 w-full max-h-48 bg-slate-900 border border-slate-800 rounded-xl overflow-y-auto z-[1005] shadow-2xl animate-in slide-in-from-bottom-2">
           {userSuggestions.map((res: any) => (
@@ -83,7 +83,8 @@ const HashtagTextarea = ({
         </div>
       )}
       <div 
-        className="absolute inset-0 pointer-events-none text-xs font-sans whitespace-pre-wrap break-words text-transparent p-0 leading-normal"
+        className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-transparent p-0 m-0 border-none"
+        style={{ lineHeight: '1.25rem', font: 'inherit', padding: '0', wordBreak: 'break-word' }}
         aria-hidden="true"
       >
         {renderHighlighted(value)}
@@ -92,7 +93,8 @@ const HashtagTextarea = ({
         value={value}
         onChange={handleChange}
         disabled={disabled}
-        className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 min-h-[2.5rem] font-sans placeholder:text-slate-600 relative z-10 leading-normal"
+        className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 m-0 resize-none h-10 min-h-[2.5rem] relative z-10 font-inherit"
+        style={{ lineHeight: '1.25rem', font: 'inherit', wordBreak: 'break-word' }}
         placeholder={placeholder}
       />
     </div>
