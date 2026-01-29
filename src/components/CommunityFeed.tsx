@@ -13,6 +13,7 @@ import { useUiStore } from '../store/useUiStore'
 import { useDeletions } from '../hooks/useDeletions'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useLabels } from '../hooks/useLabels'
+import { useSocialGraph } from '../hooks/useSocialGraph'
 import type { Event } from 'nostr-tools'
 
 interface CommunityFeedProps {
@@ -23,6 +24,7 @@ interface CommunityFeedProps {
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creator }) => {
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
   const { events, user, addEvent } = useStore()
+  const { muted } = useSocialGraph()
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
   const [postContent, setPostContent] = useState('')
@@ -106,6 +108,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const filteredEvents = useMemo(() => communityEvents.filter(e => {
     if (deletedIds.includes(e.id)) return false
     if (eventStatusMap[e.id] === 'spam') return false
+    if (muted.includes(e.pubkey)) return false
 
     // Filter out replies: If an event has an 'e' tag, it's usually a reply in this context
     // (excluding the community 'a' tag which is handled separately)

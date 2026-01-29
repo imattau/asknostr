@@ -28,11 +28,13 @@ import { Sidebar } from './components/Sidebar'
 import { useDeletions } from './hooks/useDeletions'
 import { useSubscriptions } from './hooks/useSubscriptions'
 import { useRelays } from './hooks/useRelays'
+import { useSocialGraph } from './hooks/useSocialGraph'
 import type { CommunityDefinition } from './hooks/useCommunity'
 
 function App() {
   const { events, addEvents, isConnected, setConnected, user, login, logout } = useStore()
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer } = useUiStore()
+  const { muted } = useSocialGraph()
   useSubscriptions() 
   useRelays()
   const [postContent, setPostContent] = useState('')
@@ -265,7 +267,7 @@ function App() {
         const firstTag = tagFilter?.[0]
         const filteredEvents = (firstTag 
           ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === firstTag.toLowerCase()))
-          : events).filter(e => !deletedSet.has(e.id))
+          : events).filter(e => !deletedSet.has(e.id) && !muted.includes(e.pubkey))
 
         return (
           <div className="h-full flex flex-col">
