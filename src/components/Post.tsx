@@ -372,6 +372,55 @@ const PostComponent: React.FC<PostProps> = ({
   const isUserModerator = currentLayer?.type === 'community' && 
                          layerParams?.moderators?.includes(user.pubkey || '')
 
+  if (event.kind === 4550) {
+    const status = event.tags.find(t => t[0] === 'status')?.[1] || 'approved'
+    const targetEventId = event.tags.find(t => t[0] === 'e')?.[1]
+    
+    const getStatusColor = () => {
+      switch (status) {
+        case 'approved': return 'text-green-400 border-green-500/30 bg-green-500/10'
+        case 'pinned': return 'text-purple-400 border-purple-500/30 bg-purple-500/10'
+        case 'spam': return 'text-red-400 border-red-500/30 bg-red-500/10'
+        default: return 'text-slate-400 border-slate-500/30 bg-slate-500/10'
+      }
+    }
+
+    return (
+      <div 
+        className={`p-3 rounded-xl border flex items-center justify-between gap-4 transition-all hover:bg-white/5 cursor-pointer ${getStatusColor()}`}
+        onClick={(e) => {
+          if (targetEventId) {
+            e.stopPropagation()
+            pushLayer({
+              id: `thread-${targetEventId}`,
+              type: 'thread',
+              title: 'Moderated_Content',
+              params: { eventId: targetEventId }
+            })
+          }
+        }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex-shrink-0 p-1.5 rounded-lg bg-black/20">
+            <Shield size={14} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-tight truncate">
+              {displayPubkey} {status} a post
+            </p>
+            {event.content && (
+              <p className="text-[9px] opacity-70 italic truncate">"{event.content}"</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[8px] font-mono opacity-40">{formatDate(event.created_at)}</span>
+          <Maximize2 size={12} className="opacity-40" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div 
       onClick={openThread}
