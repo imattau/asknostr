@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { nip19, type Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
-import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2 } from 'lucide-react'
+import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2, Hash } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
@@ -19,6 +19,43 @@ interface PostProps {
   isModerator?: boolean
   isApproved?: boolean
   opPubkey?: string
+}
+
+const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = ({ link, onClick }) => {
+  const entity = link.replace('nostr:', '')
+  let pubkey = ''
+  let type: 'profile' | 'other' = 'other'
+
+  try {
+    const decoded = nip19.decode(entity)
+    if (decoded.type === 'npub') {
+      pubkey = decoded.data as string
+      type = 'profile'
+    } else if (decoded.type === 'nprofile') {
+      pubkey = (decoded.data as any).pubkey
+      type = 'profile'
+    }
+  } catch (e) {
+    // Ignore decode errors
+  }
+
+  const { data: profile } = useProfile(pubkey)
+  const label = type === 'profile' && profile 
+    ? (profile.display_name || profile.name || shortenPubkey(entity))
+    : shortenPubkey(entity)
+
+  return (
+    <button 
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick(link)
+      }}
+      className="text-cyan-400 hover:underline font-mono text-[11px] bg-cyan-500/10 px-1 rounded mx-0.5 inline-flex items-center gap-1"
+    >
+      <Hash size={10} className="opacity-50" />
+      {label}
+    </button>
+  )
 }
 
 const PostComponent: React.FC<PostProps> = ({
@@ -326,16 +363,11 @@ const PostComponent: React.FC<PostProps> = ({
           const match = matches[matchIndex++]
           if (match.startsWith('nostr:')) {
             elements.push(
-              <button 
+              <NostrLink 
                 key={`${i}-${j}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleNostrLink(match)
-                }}
-                className="text-cyan-400 hover:underline font-mono text-[11px] bg-cyan-500/10 px-1 rounded mx-0.5"
-              >
-                {match.replace('nostr:', '')}
-              </button>
+                link={match}
+                onClick={handleNostrLink}
+              />
             )
           } else {
             elements.push(
