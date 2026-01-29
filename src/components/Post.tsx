@@ -133,7 +133,7 @@ const PostComponent: React.FC<PostProps> = ({
       params: { 
         eventId: event.id, 
         rootEvent: event,
-        forceFullThread: true // Always force full thread expansion when opening a thread layer
+        forceFullThread: isRoot || fromFeed
       }
     })
   }
