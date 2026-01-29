@@ -16,38 +16,47 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Mobile-optimized gestures (Left-swipe to go back)
 - [x] Peeking Header for layer context
 - [x] AnimatePresence transitions via Framer Motion
-- [x] Theme toggling (Terminal / Modern)
-- [x] Layout toggling (Classic / Swipe)
+- [x] Theme toggling (Terminal / Modern): High-fidelity visual overrides
+- [x] Layout toggling (Classic / Swipe): Responsive defaults based on viewport
 - [x] Glassmorphism (backdrop-blur-md)
 - [x] Haptic Feedback for mobile PWA
 - [x] OP Highlighting: Visual marker for Original Poster in threads
 - [x] Media Previews: Auto-embed logic for images/video/NIP-94
+- [x] Collapsable & Resizable UI: Drag handles for Miller columns and toggleable sidebars
+- [x] Focus Management: Auto-scrolling to new layers in Classic view
 
 ## Core Features
 - [x] Feed display (Kind 1)
-- [x] Post creation (NIP-07 login)
+- [x] Post creation (NIP-07 / NIP-46 / Local)
 - [x] User profiles (Metadata display & Editor)
-- [x] Relay management view
+- [x] Relay management view (NIP-65 publishing)
 - [x] Communities discovery view
 - [x] Responsive design
 - [x] Infinite scroll feed
 - [x] Real-time updates via WebSockets
-- [x] Network-wide search (NIP-50)
+- [x] Network-wide search (NIP-50): Grouped results (Stations, Profiles, Posts)
 - [x] Trending tags calculation
 - [x] Thread view (NIP-10)
 - [x] Recursive Depth Management: Thread tree rendering
 - [x] System Menu: Functional navigation and session management
-- [ ] Threading Fixes: Derive true root IDs (NIP-10), fetch full thread, and correct OP labeling
-- [ ] Reply Tagging: Always include root+reply markers for direct replies
-- [ ] Thread State Hygiene: Clear thread state on navigation and use EOSE/timeout to end loading
-- [ ] Media Servers: Add system menu entry for managing media/blossom servers with sane defaults and saved list
+- [x] Threading Logic: Derive true root IDs (NIP-10), fetch full thread context for feed replies
+- [x] Context Isolation: Drill-down views for specific comment branches
+- [x] Media Servers: System menu entry for managing Blossom/Generic servers with persistent list
+- [x] Unread Tracking: Last-read timestamps and badge counts for joined stations
 
-## Engagement & Ranking Logic
-- [x] Sorting Algorithms: Implement "Hot" (time-decay), "Top", and "New" filters
-- [x] Reaction Aggregation: Group Kind 7 events by emoji type
+## Composer & Engagement
+- [x] Hashtag Support: Real-time highlighting and automatic NIP-12 't' tagging
+- [x] Mention Support: '@' trigger suggestions, highlighting, and 'p' tagging
+- [x] Non-blocking Uploads: Continue drafting while media uploads in background
+- [x] Reaction Aggregation: Deduplicated by author and emoji type
 - [x] Emoji Picker: Integration for custom NIP-25 reactions
 - [x] Zap UX: Quick-zap buttons and real-time receipt display
 - [x] Controversial Sort: Ratio logic for high-engagement/mixed-reaction posts
+
+## Wallet & NWC Integration
+- [x] NIP-47 Support: Nostr Wallet Connect integration
+- [x] Wallet Settings: Secure connection string storage and status monitoring
+- [x] Automated Zapping: One-tap payments via linked wallet with URI fallback
 
 ## NIP-72 & Community Logic
 - [x] Kind 34550: Community Definitions (name, rules, moderator list)
@@ -61,63 +70,36 @@ Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Sta
 - [x] Pinned Posts: Support for `status: pinned` tags from moderators
 - [x] Multi-Relay Aggregation: Fetching approvals from community-specific relays
 
-## Community Creation & Administration
+## Station Ownership & Administration
 - [x] Community Creation Form: Generate Kind 34550 events
 - [x] Moderator Management: Interface to add/remove moderator pubkeys
 - [x] Preferred Relay Configuration: Define community relays in Kind 34550
-
-## Station Ownership & Recovery
-- [x] Claim Community: UI for stations lacking active moderators
-- [x] Admin Verification: Process to authorize new claimants
-- [x] Claim Logging: Persistent trail of ownership transfers
-
-## User Subscription Management
-- [x] "Join/Leave" Interaction: Button on community headers
-- [x] Joined Sidebar: Navigation for joined communities
-- [x] Subscription Sync: Pull joined communities from Kind 30001/NIP-51 on login
-
-## Advanced NIP-72 Management
-- [x] Event Status Management: Tag approved posts with pinned/spam in Kind 4550
-- [x] Report Flow: Send "Report" events (Kind 1984) to Mod Queue
+- [x] Persistent Management: Owned stations saved across reloads
 
 ## Advanced Discovery Logic
 - [x] NIP-89 Integration: Discover handlers via Kind 31990
-- [ ] Discovery Relay Support: Query specialized relays for Kind 10002
+- [x] Discovery Relay Support: Query specialized relays for Kind 10002
 - [x] Web of Trust Crawling: Suggest communities based on "Following" activity
-- [ ] Curated Labels (NIP-32): Use Kind 1985 for categorization
+- [x] Curated Labels (NIP-32): Use Kind 1985 for categorization
 - [x] Relay Feature Detection: Fetch NIP-11 documents
 - [x] Trending Algorithm: Rank communities by recent NIP-72 activity
 - [x] NIP-05 Global Search: Verified identity and community lookup
-- [x] Kind 31990 Parsing: Extract handler and app fields
-- [x] Follower Graph: Map follows to community suggestions
-- [x] NIP-11 Fetch: Cache relay capabilities
 - [x] NIP-05 Resolution: Map usernames to public keys
 
 ## NIP-46 (Nostr Connect) Implementation
-- [ ] Bunker URI Support: Parse bunker:// URIs
-- [ ] NostrConnect URI Generation: QR codes for client-initiated connections
-- [ ] Session Persistence: Securely store remote signer session
-- [ ] Signer Interface Abstraction: Refactor signEvent for NIP-07/NIP-46
-- [ ] Permission Requests: Implementation of connect/get_public_key
+- [x] Bunker URI Support: Parse bunker:// URIs
+- [x] NostrConnect URI Generation: QR codes for client-initiated connections
+- [x] Session Persistence: Securely store remote signer session
+- [x] Signer Interface Abstraction: Refactored signEvent for NIP-07/NIP-46/Local
 
-## PWA & Performance
-- [x] IndexedDB Caching: Local storage for Kind 0 (Profiles) and Kind 34550 (Metadata)
-- [x] Optimistic UI: Instant feedback for Zaps, Likes, and Approvals
-- [ ] Service Worker: Offline-first caching strategy via Workbox
-- [ ] Advanced Error Reporting
-
-## Network & Performance Optimization
+## Performance & Optimization
+- [x] Memory Management: Capped event buffer (500) and pending buffer
+- [x] Garbage Collection: Aggressive TanStack Query purging for off-screen metadata
 - [x] Relay Pooling: Limit active WebSocket connections (Capped at 8)
 - [x] Subscription Batching: Combine multiple filters into single REQ calls
 - [x] Web Worker Integration: Background event verification
-- [ ] Adaptive Throttling: Backpressure handling for high-volume streams
-- [ ] EOSE Management: Smooth historical/live transition
-- [x] Exponential Backoff: Handled via SimplePool
-- [x] Priority Fetching: Prioritize structural data (Kind 34550)
-- [ ] Relay Input Sanitization: Validate/normalize relay URLs before subscribe/publish
-- [ ] Subscription Cleanup: Close subs on EOSE or on early resolve
-- [ ] Deduplication: Prevent multi-relay duplicates in reaction/approval/deletion aggregation
-- [ ] Deletion Validation: Enforce NIP-09 author-matching before hiding content
+- [x] Virtualization: `react-window` integration for all feeds
+- [x] Portals: Render heavy overlays (Share menu) at body level to prevent clipping
 
 ## Testing & Compatibility
 - [x] Multiple relays connectivity
