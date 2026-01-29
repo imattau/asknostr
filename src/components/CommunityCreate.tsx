@@ -8,6 +8,7 @@ import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { Shield, Plus, Info, Globe, Image as ImageIcon, RefreshCw, Hash } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
+import { useQueryClient } from '@tanstack/react-query'
 
 const communitySchema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
@@ -24,6 +25,7 @@ export const CommunityCreate: React.FC = () => {
   const { user } = useStore()
   const { popLayer } = useUiStore()
   const [logs, setLogs] = useState<string[]>([])
+  const queryClient = useQueryClient()
   
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<CommunityFormData>({
     resolver: zodResolver(communitySchema),
@@ -73,19 +75,11 @@ export const CommunityCreate: React.FC = () => {
         addLog('STATION_DEFINED: BROADCAST_SUCCESS')
       }
       
-      // Add to local store
-      const { addEvent } = useStore.getState()
-      addEvent(signedEvent)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const qc = (window as any).queryClient
-      if (qc) {
-        setTimeout(() => {
-          qc.invalidateQueries({ queryKey: ['my-communities'] })
-          qc.invalidateQueries({ queryKey: ['global-community-discovery'] })
-          addLog('UI_STATE_SYNCHRONIZED')
-        }, 2000)
-      }
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['my-communities'] })
+        queryClient.invalidateQueries({ queryKey: ['global-community-discovery'] })
+        addLog('UI_STATE_SYNCHRONIZED')
+      }, 2000)
 
       triggerHaptic(50)
       alert(`Community station ${data.id} successfully initialized.`)

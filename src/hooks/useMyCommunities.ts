@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
@@ -7,23 +6,7 @@ import type { CommunityDefinition } from './useCommunity'
 import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useMyCommunities = () => {
-  const { user, events, relays: storeRelays, administeredStations, setAdministeredStations } = useStore()
-
-  useEffect(() => {
-    if (!user.pubkey) return
-    const localOwned: CommunityDefinition[] = events
-      .filter(e => e.kind === 34550 && e.pubkey === user.pubkey)
-      .map(e => parseCommunityEvent(e))
-      .filter((c): c is CommunityDefinition => !!c)
-
-    if (localOwned.length > 0) {
-      const existingIds = new Set(administeredStations.map(s => s.id))
-      const missing = localOwned.filter(s => !existingIds.has(s.id))
-      if (missing.length > 0) {
-        setAdministeredStations(Array.from(new Map([...administeredStations, ...localOwned].map(s => [s.id, s])).values()))
-      }
-    }
-  }, [events, user.pubkey, administeredStations, setAdministeredStations])
+  const { user, relays: storeRelays, administeredStations, setAdministeredStations } = useStore()
 
   return useQuery<CommunityDefinition[]>({
     queryKey: ['my-communities', user.pubkey, storeRelays],

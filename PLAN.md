@@ -1,107 +1,69 @@
-# AskNostr Project Plan
+# Plan to Simplify Codebase: Refactor App.tsx and Centralize Server State with React Query
 
-Reddit-inspired Nostr client with a terminal-inspired theme and modern Swipe-Stack layout.
+## Goal
+Simplify the codebase, improve readability, maintainability, and align with best practices by refactoring the "God Component" (`src/App.tsx`) and centralizing server-side data management using React Query.
 
-## Core Setup
-- [x] Initialize React project with Vite & TypeScript
-- [x] Setup Tailwind CSS (v4 with PostCSS)
-- [x] Setup Zustand for state management
-- [x] Integrate Nostr SDK (nostr-tools v2)
-- [x] Integrate TanStack Query for caching
-- [x] Terminal-inspired theme implementation
+## Current Issues Identified
+- `src/App.tsx` acts as a "God Component", mixing UI layout, state management, and data fetching logic.
+- `src/store/useStore.ts` (Zustand) is incorrectly used to manage server state (`events`), leading to an anti-pattern when React Query is already available and suitable.
+- The event fetching logic in `App.tsx` is manual and can be prone to inconsistencies.
 
-## Layout & UX
-- [x] Classic Desktop Layout (Reddit-inspired)
-- [x] Swipe-Stack Layout (Miller Columns)
-- [x] Mobile-optimized gestures (Left-swipe to go back)
-- [x] Peeking Header for layer context
-- [x] AnimatePresence transitions via Framer Motion
-- [x] Theme toggling (Terminal / Modern): High-fidelity visual overrides
-- [x] Layout toggling (Classic / Swipe): Responsive defaults based on viewport
-- [x] Glassmorphism (backdrop-blur-md)
-- [x] Haptic Feedback for mobile PWA
-- [x] OP Highlighting: Visual marker for Original Poster in threads
-- [x] Media Previews: Auto-embed logic for images/video/NIP-94
-- [x] Collapsable & Resizable UI: Drag handles for Miller columns and toggleable sidebars
-- [x] Focus Management: Auto-scrolling to new layers in Classic view
+## Proposed Solution
+Extract event fetching logic from `App.tsx` into a dedicated React Query hook. Decompose `App.tsx` into smaller, focused components. Migrate `events` management from Zustand to React Query.
 
-## Core Features
-- [x] Feed display (Kind 1)
-- [x] Post creation (NIP-07 / NIP-46 / Local)
-- [x] User profiles (Metadata display & Editor)
-- [x] Relay management view (NIP-65 publishing)
-- [x] Communities discovery view
-- [x] Responsive design
-- [x] Infinite scroll feed
-- [x] Real-time updates via WebSockets
-- [x] Network-wide search (NIP-50): Grouped results (Stations, Profiles, Posts)
-- [x] Trending tags calculation
-- [x] Thread view (NIP-10)
-- [x] Recursive Depth Management: Thread tree rendering
-- [x] System Menu: Functional navigation and session management
-- [x] Threading Logic: Derive true root IDs (NIP-10), fetch full thread context for feed replies
-- [x] Context Isolation: Drill-down views for specific comment branches
-- [x] Media Servers: System menu entry for managing Blossom/Generic servers with persistent list
-- [x] Unread Tracking: Last-read timestamps and badge counts for joined stations
+## Discrete Tasks
 
-## Composer & Engagement
-- [x] Hashtag Support: Real-time highlighting and automatic NIP-12 't' tagging
-- [x] Mention Support: '@' trigger suggestions, highlighting, and 'p' tagging
-- [x] Non-blocking Uploads: Continue drafting while media uploads in background
-- [x] Reaction Aggregation: Deduplicated by author and emoji type
-- [x] Emoji Picker: Integration for custom NIP-25 reactions
-- [x] Zap UX: Quick-zap buttons and real-time receipt display
-- [x] Controversial Sort: Ratio logic for high-engagement/mixed-reaction posts
+### Phase 1: Establish React Query for Event Feed
 
-## Wallet & NWC Integration
-- [x] NIP-47 Support: Nostr Wallet Connect integration
-- [x] Wallet Settings: Secure connection string storage and status monitoring
-- [x] Automated Zapping: One-tap payments via linked wallet with URI fallback
+1.  **Create `src/hooks/useFeed.ts` (new file):** - **[COMPLETED]**
+    *   Develop a new custom React Query hook responsible for fetching and managing the main event feed.
+    *   This hook should leverage `nostrService.subscribe` to fetch events.
+    *   It should accept parameters for filtering and pagination if needed (e.g., `communityId`, `sortBy`).
+    *   It should use `useQuery` or `useInfiniteQuery` (depending on pagination needs) to manage the `events` state, caching, and background updates.
+    *   The structure of `src/hooks/useRelays.ts` can serve as a reference.
 
-## NIP-72 & Community Logic
-- [x] Kind 34550: Community Definitions (name, rules, moderator list)
-- [x] Kind 4550: Approval events for moderating posts
-- [x] Moderated Feed Filter: Show Kind 1 posts with matching Kind 4550 approval
-- [x] Moderator Badge System: UI indicators for moderators
-- [x] Mod Queue: Dashboard for community owners to approve/ignore posts
-- [x] Community Rules Sidebar: Display rules and description from metadata
-- [x] Relay Discovery: Prioritize "preferred relays" from community definition
-- [x] Verification: Ensure Kind 4550 signatures match Kind 34550 moderator pubkeys
-- [x] Pinned Posts: Support for `status: pinned` tags from moderators
-- [x] Multi-Relay Aggregation: Fetching approvals from community-specific relays
+2.  **Remove `events` state from `src/store/useStore.ts`:** - **[COMPLETED]**
+    *   Delete the `events` array and all related actions (e.g., `addEvent`, `addEvents`, `clearEvents`) from `useStore.ts`.
+    *   Update any references to `events` from `useStore` to instead use the new `useFeed` hook.
 
-## Station Ownership & Administration
-- [x] Community Creation Form: Generate Kind 34550 events
-- [x] Moderator Management: Interface to add/remove moderator pubkeys
-- [x] Preferred Relay Configuration: Define community relays in Kind 34550
-- [x] Persistent Management: Owned stations saved across reloads
+3.  **Integrate `useFeed` into `src/App.tsx`:** - **[COMPLETED]**
+    *   Replace the manual event fetching logic (`fetchEvents`) in `App.tsx` with calls to the new `useFeed` hook.
+    *   Update `App.tsx` to consume `events` data directly from `useFeed`.
 
-## Advanced Discovery Logic
-- [x] NIP-89 Integration: Discover handlers via Kind 31990
-- [x] Discovery Relay Support: Query specialized relays for Kind 10002
-- [x] Web of Trust Crawling: Suggest communities based on "Following" activity
-- [x] Curated Labels (NIP-32): Use Kind 1985 for categorization
-- [x] Relay Feature Detection: Fetch NIP-11 documents
-- [x] Trending Algorithm: Rank communities by recent NIP-72 activity
-- [x] NIP-05 Global Search: Verified identity and community lookup
-- [x] NIP-05 Resolution: Map usernames to public keys
+### Phase 2: Decompose `App.tsx`
 
-## NIP-46 (Nostr Connect) Implementation
-- [x] Bunker URI Support: Parse bunker:// URIs
-- [x] NostrConnect URI Generation: QR codes for client-initiated connections
-- [x] Session Persistence: Securely store remote signer session
-- [x] Signer Interface Abstraction: Refactored signEvent for NIP-07/NIP-46/Local
+4.  **Create `src/components/layouts/ClassicLayout.tsx` (new file):** - **[COMPLETED]**
+    *   Move the JSX structure and logic for the "classic" layout (when `layout === 'classic'`) from `App.tsx` into this new component.
+    *   This component will receive necessary props (e.g., `events`, `layers`, `pushLayer`, `popLayer`).
 
-## Performance & Optimization
-- [x] Memory Management: Capped event buffer (500) and pending buffer
-- [x] Garbage Collection: Aggressive TanStack Query purging for off-screen metadata
-- [x] Relay Pooling: Limit active WebSocket connections (Capped at 8)
-- [x] Subscription Batching: Combine multiple filters into single REQ calls
-- [x] Web Worker Integration: Background event verification
-- [x] Virtualization: `react-window` integration for all feeds
-- [x] Portals: Render heavy overlays (Share menu) at body level to prevent clipping
+5.  **Create `src/components/layouts/SwipeLayout.tsx` (new file):** - **[COMPLETED]**
+    *   Move the JSX structure and logic for the "swipe" layout (when `layout === 'swipe'`) from `App.tsx` into this new component.
+    *   This component will receive necessary props.
 
-## Testing & Compatibility
-- [x] Multiple relays connectivity
-- [x] Linting and Type-checking (Clean)
-- [x] Cross-device responsiveness
+6.  **Create `src/components/FeedComposer.tsx` (new file):** - **[COMPLETED]**
+    *   Extract the event publishing form/logic currently residing within `App.tsx` (e.g., `handlePublish`, `postContent`, `isNsfw`) into a dedicated `FeedComposer` component.
+    *   This component will handle its own state for composing new posts and interact with `nostrService` or a higher-level hook for publishing.
+
+7.  **Refactor `App.tsx` to orchestrate layouts and data:** - **[COMPLETED]**
+    *   `App.tsx` should now primarily focus on global state (from `useUiStore` and possibly `useStore` for user-specific data), routing (if any), and rendering the appropriate layout component (`ClassicLayout` or `SwipeLayout`).
+    *   It should pass `events` (from `useFeed`) and other necessary props down to the layout components.
+    *   Remove all UI-related JSX and state management that can be delegated to sub-components.
+    *   **Progress:** Extracted `Header`, `SwipeLayout`, `ClassicLayout`, `FeedComposer`. `App.tsx` is now a high-level orchestrator. Cleaned up state and imports.
+
+### Phase 3: Review and Refine
+
+8.  **Review and Refine:** - **[COMPLETED]**
+    *   Verified build integrity with `npm run build` (TypeScript compilation).
+    *   Fixed type errors, missing props, and unused variables.
+    *   Updated `useFeed` configuration for React Query v5 compatibility (`gcTime`).
+    *   Refactored `CommunityFeed`, `ModQueue`, `ModerationLog`, `Sidebar`, `Thread`, `Post`, `CommunityAdmin`, `CommunityCreate` to rely on `useFeed` and `useQueryClient` instead of `useStore`.
+    *   Restored logic in components that was temporarily broken during refactoring.
+    *   Ensured zero build errors.
+
+8.  **Review all modified files:**
+    *   Ensure all previous functionality is retained.
+    *   Check for any remaining anti-patterns or redundant code.
+    *   Verify linting and TypeScript compliance (`npm run lint`, `npm run build`).
+    *   Run tests (if available) to ensure stability.
+
+This plan aims to significantly simplify `App.tsx`, improve modularity, and leverage the strengths of React Query for server state management.

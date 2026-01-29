@@ -73,7 +73,7 @@ const PostComponent: React.FC<PostProps> = ({
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
   const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
   const { data: replyCount = 0, isLoading: isReplyCountLoading } = useReplyCount(event.id)
-  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, addEvent, optimisticDeletions, addOptimisticDeletion } = useStore()
+  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, optimisticDeletions, addOptimisticDeletion } = useStore()
   const { subscribedCommunities } = useSubscriptions()
   const { layout, stack, pushLayer } = useUiStore()
   
@@ -302,7 +302,6 @@ const PostComponent: React.FC<PostProps> = ({
       }
       const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
-      addEvent(signedEvent)
       triggerHaptic(30)
     } catch (e) {
       console.error('Share failed', e)

@@ -32,7 +32,7 @@ class SignerService {
 
     if (resolvedMethod === 'nip07') {
       if (!window.nostr) throw new Error('NIP-07 extension missing')
-      return window.nostr.signEvent(event)
+      return (window.nostr.signEvent(event as any) as unknown) as Promise<Event>
     }
 
     if (resolvedMethod === 'nip46') {

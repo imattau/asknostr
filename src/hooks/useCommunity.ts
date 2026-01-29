@@ -1,7 +1,5 @@
-import { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { nostrService } from '../services/nostr'
-import { useStore } from '../store/useStore'
 import type { Event } from 'nostr-tools'
 import { get, set } from 'idb-keyval'
 import { parseCommunityEvent } from '../utils/nostr-parsers'
@@ -21,46 +19,13 @@ export interface CommunityDefinition {
 }
 
 export const useCommunity = (communityId: string, creatorPubkey: string) => {
-  const { events } = useStore()
-  const queryClient = useQueryClient()
-
-  useEffect(() => {
-    if (!communityId || !creatorPubkey) return
-    const communityATag = `34550:${creatorPubkey}:${communityId}`
-    const localEvent = events.find(e => 
-      e.kind === 34550 && 
-      e.pubkey === creatorPubkey && 
-      (e.tags.some(t => t[0] === 'd' && t[1] === communityId) || e.tags.some(t => t[0] === 'a' && t[1] === communityATag))
-    )
-    if (localEvent) {
-      const definition = parseCommunityEvent(localEvent)
-      if (definition) {
-        queryClient.setQueryData(['community', communityId, creatorPubkey], definition)
-      }
-    }
-  }, [communityId, creatorPubkey, events, queryClient])
 
   return useQuery<CommunityDefinition | null>({
     queryKey: ['community', communityId, creatorPubkey],
     queryFn: async () => {
       console.log(`[useCommunity] Loading metadata for ${communityId} by ${creatorPubkey}`)
       
-      const communityATag = `34550:${creatorPubkey}:${communityId}`
-
-      // 1. Check local store first (Strongest source of truth for current session)
-      const localEvent = events.find(e => 
-        e.kind === 34550 && 
-        e.pubkey === creatorPubkey && 
-        (e.tags.some(t => t[0] === 'd' && t[1] === communityId) || e.tags.some(t => t[0] === 'a' && t[1] === communityATag))
-      )
-      
-      if (localEvent) {
-        console.log('[useCommunity] Found in local store buffer')
-        const definition = parseCommunityEvent(localEvent)
-        if (definition) return definition
-      }
-
-      // 2. Check IndexedDB
+      // 1. Check IndexedDB
       const cacheKey = `community-${creatorPubkey}-${communityId}`
       const cached = await get(cacheKey)
       if (cached) {

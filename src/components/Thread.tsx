@@ -28,7 +28,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [replyContent, setReplyContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
-  const { addEvent, user, events } = useStore()
+  const { user } = useStore()
   const { stack } = useUiStore()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -73,8 +73,8 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   }, [])
 
   const sourceEvent = useMemo(() => {
-    return rootEvent || events.find(e => e.id === eventId)
-  }, [rootEvent, events, eventId])
+    return rootEvent || allEvents.find(e => e.id === eventId)
+  }, [rootEvent, allEvents, eventId])
 
   const rootId = useMemo(() => deriveRootId(eventId, sourceEvent), [eventId, sourceEvent, deriveRootId])
 
@@ -127,7 +127,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
               return [...prev, event].sort((a, b) => a.created_at - b.created_at)
             })
-            addEvent(event)
           },
           undefined,
           {
@@ -158,7 +157,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       if (timeoutId) clearTimeout(timeoutId)
       sub?.close()
     }
-  }, [eventId, rootId, addEvent, sourceEvent, rootEvent])
+  }, [eventId, rootId, sourceEvent, rootEvent])
 
   const handleReply = async () => {
     console.log('[Thread] handleReply initiated')
@@ -219,14 +218,12 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
           const next = [...prev, signedEvent]
           return next.sort((a, b) => a.created_at - b.created_at)
         })
-        addEvent(signedEvent)
         triggerHaptic(50)
       } else {
         console.warn('[Thread] Broadcast failed on all relays')
         alert('Reply signed but failed to broadcast to any relays. It may not be visible to others.')
         // Still add locally so user doesn't lose data?
         setAllEvents(prev => [...prev, signedEvent])
-        addEvent(signedEvent)
       }
     } catch (e) {
       console.error('[Thread] Reply failed:', e)

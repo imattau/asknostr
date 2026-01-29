@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
-import { useStore } from '../store/useStore'
 
-export const useDeletions = (eventIds: string[]) => {
-  const { events } = useStore()
+export const useDeletions = (events: Event[]) => {
+  const eventIds = events.map(e => e.id)
 
   return useQuery({
     queryKey: ['deletions', eventIds],

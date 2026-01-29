@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
-import { useStore } from '../store/useStore'
+import { useFeed } from '../hooks/useFeed'
 import { Post } from './Post'
 import { Shield, AlertCircle, AlertTriangle } from 'lucide-react'
 import { nostrService } from '../services/nostr'
@@ -14,12 +14,13 @@ interface ModQueueProps {
 
 export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
   const { data: community } = useCommunity(communityId, creator)
-  const { events } = useStore()
+  const communityATag = `34550:${creator}:${communityId}`
+  const { data: events = [] } = useFeed({ filters: [{ '#a': [communityATag] }] })
   const [reports, setReports] = useState<Event[]>([])
   
   // Get all events for this community
   const communityEvents = events.filter(e => 
-    e.tags.some(t => t[0] === 'a' && t[1] === `34550:${creator}:${communityId}`)
+    e.tags.some(t => t[0] === 'a' && t[1] === communityATag)
   )
 
   const moderators = community?.moderators || []

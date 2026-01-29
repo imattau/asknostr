@@ -1,18 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { nostrService } from '../services/nostr'
-import { useStore } from '../store/useStore'
 
 export const useReplyCount = (eventId: string) => {
-  const { events } = useStore()
 
   return useQuery({
     queryKey: ['reply-count', eventId],
     queryFn: async () => {
       // 1. Check local store buffer first for instant data
-      const localCount = events.filter(e => 
-        e.kind === 1 && 
-        e.tags.some(t => t[0] === 'e' && t[1] === eventId)
-      ).length
+      const localCount = 0
 
       return new Promise<number>((resolve) => {
         let count = localCount

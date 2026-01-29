@@ -2,11 +2,13 @@ import React from 'react'
 import { useUiStore } from '../store/useUiStore'
 import { useStore } from '../store/useStore'
 import { useSubscriptions } from '../hooks/useSubscriptions'
+import { useFeed } from '../hooks/useFeed'
 import { Shield, User, Server, LogOut, Settings, ChevronRight, Circle, Layout, Search, Cpu, Key, Image, Activity, Globe, Hash, Wallet } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
+import type { Event } from 'nostr-tools'
 
-const CommunityItem: React.FC<{ aTag: string; onClick: () => void }> = ({ aTag, onClick }) => {
-  const { events, lastRead } = useStore()
+const CommunityItem: React.FC<{ aTag: string; onClick: () => void; events: Event[] }> = ({ aTag, onClick, events }) => {
+  const { lastRead } = useStore()
   const parts = aTag.split(':')
   const communityId = parts[2] || aTag
   const lastReadTime = lastRead[aTag] || 0
@@ -43,6 +45,7 @@ export const Sidebar: React.FC = () => {
   const { pushLayer, resetStack, layout } = useUiStore()
   const { user, logout, loginMethod } = useStore()
   const { subscribedCommunities } = useSubscriptions()
+  const { data: events = [] } = useFeed({ filters: [{ kinds: [1], limit: 50 }] })
 
   const menuItems = [
     { 
@@ -188,6 +191,7 @@ export const Sidebar: React.FC = () => {
                   <CommunityItem 
                     key={aTag} 
                     aTag={aTag} 
+                    events={events}
                     onClick={() => pushLayer({
                       id: `community-${parts[2]}`,
                       type: 'community',

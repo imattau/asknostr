@@ -1,0 +1,240 @@
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import type { Layer } from '../../store/useUiStore';
+import { Sidebar } from '../Sidebar';
+import { useTrendingTags } from '../../hooks/useTrendingTags';
+import { Header } from '../Header';
+import type { Event } from 'nostr-tools';
+
+interface ClassicLayoutProps {
+  theme: string;
+  layout: 'classic' | 'swipe';
+  setLayout: (layout: 'classic' | 'swipe') => void;
+  setTheme: (theme: 'terminal' | 'modern') => void;
+  isHeaderHidden: boolean;
+  isConnected: boolean;
+  user: { pubkey: string | null; profile: any | null };
+  login: () => Promise<void>;
+  logout: () => void;
+  isFeedLoading: boolean;
+  isFeedFetching: boolean;
+  stack: Layer[];
+  popLayer: () => void;
+  pushLayer: (layer: Layer) => void;
+  renderLayerContent: (layer: Layer) => React.ReactNode;
+  events: Event[];
+}
+
+interface ResizeHandleProps {
+  index: number;
+  columnWidths: Record<number, number>;
+  onResize: (index: number, width: number) => void;
+}
+
+const ResizeHandle: React.FC<ResizeHandleProps> = ({ index, columnWidths, onResize }) => {
+  const isResizing = useRef(false);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    isResizing.current = true;
+    const startX = e.pageX;
+    const startWidth = columnWidths[index] || 500;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = startWidth + (moveEvent.pageX - startX);
+      onResize(index, newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-cyan-500/50 transition-colors z-20 group"
+    >
+      <div className="absolute top-1/2 -translate-y-1/2 right-0 w-0.5 h-8 bg-slate-800 group-hover:bg-cyan-400 rounded-full" />
+    </div>
+  );
+};
+
+export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
+  theme, layout, setLayout, setTheme, isHeaderHidden, isConnected, user, login, logout,
+  isFeedLoading, isFeedFetching, stack, popLayer, pushLayer, renderLayerContent,
+  events,
+}) => {
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
+  const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});
+  const columnsContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleResize = useCallback((index: number, width: number) => {
+    setColumnWidths((prev) => ({ ...prev, [index]: Math.max(300, Math.min(width, 1200)) }));
+  }, []);
+
+  const handleLayerClose = useCallback(
+    (index: number) => {
+      const layersToPop = stack.length - index;
+      for (let i = 0; i < layersToPop; i++) {
+        popLayer();
+      }
+    },
+    [popLayer, stack.length]
+  );
+
+  const trendingTags = useTrendingTags(events);
+
+  useEffect(() => {
+    if (columnsContainerRef.current) {
+      const container = columnsContainerRef.current;
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          left: container.scrollWidth,
+          behavior: 'smooth',
+        });
+      });
+    }
+  }, [stack.length]);
+
+  return (
+    <div className={`h-screen flex flex-col bg-[#05070A] ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'} transition-colors duration-500`}>
+      <Header
+        theme={theme}
+        layout={layout}
+        setLayout={setLayout}
+        setTheme={setTheme}
+        isHeaderHidden={isHeaderHidden}
+        user={user}
+        login={login}
+        logout={logout}
+        isFeedFetching={isFeedFetching}
+        isFeedLoading={isFeedLoading}
+        rightSidebarVisible={rightSidebarVisible}
+        setRightSidebarVisible={setRightSidebarVisible}
+        pushLayer={pushLayer}
+      />
+      <div className="flex-1 flex overflow-hidden">
+        <aside className="w-64 border-r border-slate-800 shrink-0 bg-slate-950/20">
+          <Sidebar />
+        </aside>
+        <div
+          ref={columnsContainerRef}
+          className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative"
+        >
+          {!rightSidebarVisible && (
+            <button
+              onClick={() => setRightSidebarVisible(true)}
+              className="absolute right-4 top-4 z-[1002] p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-cyan-400 transition-all hidden xl:flex"
+              title="Expand Sidebar"
+            >
+              <PanelLeftOpen size={18} /> <span className="text-[10px] uppercase font-bold tracking-tight">Expand_Metadata</span>
+            </button>
+          )}
+          {stack.map((layer, index) => (
+            <div
+              key={`${layer.id}-${index}`}
+              className="shrink-0 border-r border-slate-800 flex flex-col h-full bg-[#05070A] animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible"
+              style={{ width: `${columnWidths[index] || 500}px` }}
+            >
+              <header className="h-14 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md flex items-center px-4 gap-4 shrink-0">
+                {index > 0 && (
+                  <button
+                    onClick={() => handleLayerClose(index)}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-tighter transition-colors"
+                  >
+                    [CLOSE]
+                  </button>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] truncate text-slate-400">
+                    {layer.title}
+                  </h2>
+                </div>
+                <div className="text-[8px] font-mono opacity-20 uppercase">L:{index + 1}</div>
+              </header>
+              <div className="flex-1 overflow-y-auto custom-scrollbar">{renderLayerContent(layer)}</div>
+              <ResizeHandle index={index} columnWidths={columnWidths} onResize={handleResize} />
+            </div>
+          ))}
+          <div className="flex-grow min-w-[100px]" />
+        </div>
+        <aside
+          className={`border-l border-slate-800 hidden xl:flex flex-col overflow-hidden transition-all duration-300 bg-slate-950/20 ${
+            rightSidebarVisible ? 'w-80 opacity-100' : 'w-0 opacity-0 border-l-0'
+          }`}
+        >
+          <div className="p-4 border-b border-slate-800 shrink-0 flex justify-between items-center">
+            <span className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-widest">
+              Metadata_Feed
+            </span>
+            <button
+              onClick={() => setRightSidebarVisible(false)}
+              className="p-1.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <PanelLeftClose size={14} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+            <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
+              <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">
+                Network_Status
+              </h2>
+              <div className="space-y-3 text-[10px] font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="opacity-50 uppercase">Session:</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full border ${
+                      isConnected
+                        ? 'text-green-500 border-green-500/20 bg-green-500/5'
+                        : 'text-red-500 border-red-500/20 bg-red-500/5'
+                    }`}
+                  >
+                    {isConnected ? 'STABLE' : 'OFFLINE'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="opacity-50 uppercase">Buffer:</span>
+                  <span className="text-slate-300 font-bold">{events.length}</span>
+                </div>
+              </div>
+            </div>
+            <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
+              <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">
+                Signal_Trends
+              </h2>
+              <ul className="space-y-3">
+                {trendingTags.length === 0 ? (
+                  <li className="opacity-20 italic text-[10px] font-mono uppercase tracking-tighter py-4 text-center">
+                    Monitoring_Broadcasts...
+                  </li>
+                ) : (
+                  trendingTags.map(({ name, count }) => (
+                    <li key={name} role="button" onClick={() => pushLayer({
+                      id: `tag-feed-${name}-${Date.now()}`,
+                      type: 'feed',
+                      title: `Tag_${name.toUpperCase()}`,
+                      params: { filter: { '#t': [name] } }
+                    })} className="flex justify-between items-center group cursor-pointer">
+                      <span className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors uppercase font-mono">
+                        #{name}
+                      </span>
+                      <span className="text-[8px] font-mono text-slate-600 bg-white/5 px-1.5 rounded">
+                        {count}x
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};

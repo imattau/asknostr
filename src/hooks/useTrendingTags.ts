@@ -1,9 +1,7 @@
 import { useMemo } from 'react'
-import { useStore } from '../store/useStore'
+import type { Event } from 'nostr-tools'
 
-export const useTrendingTags = () => {
-  const { events } = useStore()
-
+export const useTrendingTags = (events: Event[] = []) => {
   return useMemo(() => {
     const tagCounts: Record<string, number> = {}
     

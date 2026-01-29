@@ -9,6 +9,7 @@ import { Shield, X, Globe, Save, RefreshCw, User as UserIcon, Image as ImageIcon
 import { triggerHaptic } from '../utils/haptics'
 import { formatPubkey, shortenPubkey } from '../utils/nostr'
 import { set } from 'idb-keyval'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface CommunityAdminProps {
   communityId: string
@@ -19,6 +20,7 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   const { data: community, isLoading } = useCommunity(communityId, creator)
   const { user } = useStore()
   const { popLayer } = useUiStore()
+  const queryClient = useQueryClient()
   
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -121,9 +123,8 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
       const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
       
-      const { addEvent } = useStore.getState()
-      addEvent(signedEvent)
-      
+      // Removed addEvent
+
       const updatedDefinition = {
         id: communityId,
         creator: creator,
@@ -139,12 +140,8 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
       }
       await set(`community-${creator}-${communityId}`, updatedDefinition)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const qc = (window as any).queryClient
-      if (qc) {
-        qc.invalidateQueries({ queryKey: ['community', communityId, creator] })
-        qc.invalidateQueries({ queryKey: ['my-communities'] })
-      }
+      queryClient.invalidateQueries({ queryKey: ['community', communityId, creator] })
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] })
 
       triggerHaptic(50)
       alert('Station parameters successfully committed to network.')

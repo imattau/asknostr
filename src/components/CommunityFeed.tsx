@@ -16,6 +16,8 @@ import { useLabels } from '../hooks/useLabels'
 import { useSocialGraph } from '../hooks/useSocialGraph'
 import { nip19, type Event } from 'nostr-tools'
 import { MentionsInput, Mention } from 'react-mentions'
+import { useFeed } from '../hooks/useFeed'
+
 
 const mentionStyle = {
   control: {
@@ -112,7 +114,14 @@ interface CommunityFeedProps {
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creator }) => {
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
-  const { events, user, addEvent, markAsRead } = useStore()
+  
+  const communityATag = `34550:${creator}:${communityId}`
+  const { data: events = [] } = useFeed({
+    filters: [{ kinds: [1, 4550], '#a': [communityATag], limit: 100 }],
+    customRelays: community?.relays
+  })
+
+  const { user, markAsRead } = useStore()
   const { muted } = useSocialGraph()
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
@@ -125,25 +134,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const communityATag = `34550:${creator}:${communityId}`
   const { data: labels = [] } = useLabels(communityATag)
 
   useEffect(() => {
     if (user.pubkey) markAsRead(communityATag)
   }, [communityATag, user.pubkey, markAsRead])
-
-  useEffect(() => {
-    let sub: { close: () => void } | undefined
-    const fetchCommunityPosts = async () => {
-      sub = await nostrService.subscribe(
-        [{ kinds: [1, 4550], '#a': [communityATag], limit: 100 }],
-        (event: Event) => addEvent(event),
-        community?.relays
-      )
-    }
-    fetchCommunityPosts()
-    return () => sub?.close()
-  }, [communityATag, community?.relays, addEvent])
 
   const isSubscribed = optimisticSub !== null ? optimisticSub : subscribedCommunities.includes(communityATag)
 
@@ -162,7 +157,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const eventIds = communityEvents.map(e => e.id)
   const moderators = useMemo(() => community?.moderators || [], [community?.moderators])
   const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
-  const { data: deletedIds = [] } = useDeletions(eventIds)
+  const { data: deletedIds = [] } = useDeletions(communityEvents) // Updated to pass events, not ids? Wait, useDeletions expects events now.
 
   const eventStatusMap = useMemo(() => {
     const map: Record<string, string> = {}
@@ -285,7 +280,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       const signedEvent = await signerService.signEvent(eventTemplate)
       const success = await nostrService.publish(signedEvent)
       if (success) {
-        setPostContent(''); setIsNsfw(false); addEvent(signedEvent); triggerHaptic(20)
+        setPostContent(''); setIsNsfw(false); triggerHaptic(20)
       } else { alert('Broadcast failed') }
     } catch (e) {
       console.error('Failed to publish', e); alert('Publish error')
@@ -342,7 +337,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
                                   <HashtagTextarea 
                                     value={postContent} 
-                                    onChange={(_event, newValue) => setPostContent(newValue)} 
+                                    onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
                                     disabled={!user.pubkey || isPublishing} 
                                     placeholder={`Post to c/${communityId}...`} 
                                     onUserSearch={handleUserSearch}

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Event } from 'nostr-tools'
 import { sanitizeRelayUrls } from '../utils/relays'
 
 export interface UserProfile {
@@ -28,10 +27,9 @@ const DEFAULT_MEDIA_SERVERS: MediaServer[] = [
   { id: 'media-nostr-build', url: 'https://nostr.build', type: 'generic' },
 ]
 
-const MAX_EVENTS = 500
+
 
 interface NostrState {
-  events: Event[]
   optimisticReactions: Record<string, Record<string, string[]>> // eventId -> { emoji -> pubkeys[] }
   optimisticDeletions: string[] // array of event IDs to treat as deleted
   optimisticApprovals: string[]
@@ -51,9 +49,6 @@ interface NostrState {
   lastRead: Record<string, number> // aTag -> timestamp
   nwcUrl: string | null
   administeredStations: any[] // CommunityDefinition[]
-  setEvents: (events: Event[]) => void
-  addEvent: (event: Event) => void
-  addEvents: (events: Event[]) => void
   addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => void
   addOptimisticDeletion: (eventId: string) => void
   addOptimisticApproval: (eventId: string) => void
@@ -85,7 +80,6 @@ declare global {
 export const useStore = create<NostrState>()(
   persist(
     (set, get) => ({
-      events: [],
       optimisticReactions: {},
       optimisticDeletions: [],
       optimisticApprovals: [],
@@ -105,24 +99,6 @@ export const useStore = create<NostrState>()(
       lastRead: {},
       nwcUrl: null,
       administeredStations: [],
-      setEvents: (events) => set({ events }),
-      addEvent: (event) => set((state) => {
-        if (state.events.find(e => e.id === event.id)) return state
-        const newEvents = [...state.events, event]
-          .sort((a, b) => b.created_at - a.created_at)
-          .slice(0, MAX_EVENTS)
-        return { events: newEvents }
-      }),
-      addEvents: (events) => set((state) => {
-        if (!events.length) return state
-        const existing = new Set(state.events.map(e => e.id))
-        const incoming = events.filter(e => !existing.has(e.id))
-        if (incoming.length === 0) return state
-        const newEvents = [...state.events, ...incoming]
-          .sort((a, b) => b.created_at - a.created_at)
-          .slice(0, MAX_EVENTS)
-        return { events: newEvents }
-      }),
       addOptimisticReaction: (eventId, pubkey, emoji) => set((state) => {
         const currentEvent = state.optimisticReactions[eventId] || {}
         const currentEmoji = currentEvent[emoji] || []

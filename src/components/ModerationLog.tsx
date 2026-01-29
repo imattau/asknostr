@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import type { Event } from 'nostr-tools'
-import { nostrService } from '../services/nostr'
-import { useStore } from '../store/useStore'
+import { useFeed } from '../hooks/useFeed'
 import { Shield, Clock, AlertTriangle, CheckCircle, Trash2, User } from 'lucide-react'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 
@@ -11,47 +10,15 @@ interface ModerationLogProps {
 }
 
 export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creator }) => {
-  const { events } = useStore()
-  const [networkEvents, setNetworkEvents] = useState<Event[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
   const communityATag = `34550:${creator}:${communityId}`
+  const { data: events = [], isLoading } = useFeed({
+    filters: [{ kinds: [4550, 1984], '#a': [communityATag], limit: 100 }]
+  })
 
-  useEffect(() => {
-    let sub: { close: () => void } | undefined
-
-    const fetchLog = async () => {
-      setIsLoading(true)
-      // Fetch Kind 4550 (Approvals) and Kind 1984 (Reports)
-      sub = await nostrService.subscribe(
-        [
-          { kinds: [4550, 1984], '#a': [communityATag], limit: 100 },
-          { kinds: [1984], '#e': events.filter(e => e.tags.some(t => t[0] === 'a' && t[1] === communityATag)).map(e => e.id), limit: 50 }
-        ],
-        (event: Event) => {
-          setNetworkEvents(prev => {
-            if (prev.find(e => e.id === event.id)) return prev
-            return [event, ...prev]
-          })
-        }
-      )
-      setTimeout(() => setIsLoading(false), 3000)
-    }
-
-    fetchLog()
-    return () => sub?.close()
-  }, [communityATag, events])
-
-  // Merge local and network events
+  // Sort events
   const allModEvents = React.useMemo(() => {
-    const localModEvents = events.filter(e => 
-      (e.kind === 4550 || e.kind === 1984) && 
-      e.tags.some(t => t[0] === 'a' && t[1] === communityATag)
-    )
-
-    const combined = [...new Map([...networkEvents, ...localModEvents].map(e => [e.id, e])).values()]
-    return combined.sort((a, b) => b.created_at - a.created_at)
-  }, [networkEvents, events, communityATag])
+    return [...events].sort((a, b) => b.created_at - a.created_at)
+  }, [events])
 
   const renderLogEntry = (log: Event) => {
     const targetId = log.tags.find(t => t[0] === 'e')?.[1]
