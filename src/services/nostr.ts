@@ -16,11 +16,14 @@ export const DEFAULT_RELAYS = [
 ]
 
 export const DISCOVERY_RELAYS = [
-  ...DEFAULT_RELAYS,
-  'wss://purplepag.es',
-  'wss://relay.nostr.band',
-  'wss://relay.primal.net',
-  'wss://nostr.land'
+  ...new Set([
+    ...DEFAULT_RELAYS,
+    'wss://purplepag.es',
+    'wss://relay.nostr.band',
+    'wss://relay.primal.net',
+    'wss://nostr.land',
+    'wss://relay.snort.social'
+  ])
 ]
 
 export const SEARCH_RELAYS = [
@@ -35,7 +38,7 @@ class NostrService {
   private relays: string[]
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
-  private maxActiveRelays: number = 20
+  private maxActiveRelays: number = 12
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()

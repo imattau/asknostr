@@ -24,15 +24,18 @@ export const useGlobalDiscovery = () => {
       const discovered = [...uniqueLocal]
 
       const runSubscription = async (relays: string[]) => {
+        console.log(`[Discovery] Scanning ${relays.length} relays for communities...`)
+        let count = 0
         return new Promise<void>((resolve) => {
           nostrService.subscribe(
-            [{ kinds: [34550], limit: 100 }],
+            [{ kinds: [34550], limit: 50 }],
             (event: Event) => {
               const definition = parseCommunityEvent(event)
               if (definition) {
                 const exists = discovered.some(s => s.id === definition.id && s.creator === definition.creator)
                 if (!exists) {
                   discovered.push(definition)
+                  count++
                 }
               }
             },
@@ -40,6 +43,7 @@ export const useGlobalDiscovery = () => {
           ).then(sub => {
             setTimeout(() => {
               sub.close()
+              console.log(`[Discovery] Scan complete. Found ${count} new items on this set.`)
               resolve()
             }, 6000)
           })
