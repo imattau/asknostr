@@ -85,12 +85,18 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       const eTagIds = getETags(sourceEvent).map(t => t[1]).filter(Boolean)
       const ids = Array.from(new Set([rootId, eventId, ...eTagIds]))
 
+      // If we are forcing full thread, ensure we subscribe to everything starting from absolute root
+      const filters = [
+        { ids },
+        { kinds: [1], '#e': [rootId] }
+      ]
+
+      if (!forceFullThread) {
+        filters.push({ kinds: [1], '#e': [eventId] })
+      }
+
       sub = await nostrService.subscribe(
-        [
-          { ids },
-          { kinds: [1], '#e': [rootId] },
-          { kinds: [1], '#e': [eventId] }
-        ],
+        filters,
         (event: Event) => {
           console.log('[Thread] Event received:', event.id, 'kind:', event.kind)
           setAllEvents(prev => {
