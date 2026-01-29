@@ -119,10 +119,12 @@ const PostComponent: React.FC<PostProps> = ({
   const openThread = (e: React.MouseEvent, options?: { force?: boolean }) => {
     if (!options?.force && (e.target as HTMLElement).closest('button')) return
 
+    const isRoot = !event.tags.some(t => t[0] === 'e')
+
     pushLayer({
       id: `thread-${event.id}-${Date.now()}`,
       type: 'thread',
-      title: 'Context_Drill_Down',
+      title: isRoot ? 'Thread_Context' : 'Context_Drill_Down',
       params: { eventId: event.id, rootEvent: event }
     })
   }
