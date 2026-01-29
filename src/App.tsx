@@ -139,12 +139,51 @@ const HashtagTextarea = ({
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [rightSidebarVisible, setRightSidebarVisible] = useState(true)
   const [mentionQuery, setMentionQuery] = useState('')
+  const [columnWidths, setColumnWidths] = useState<Record<number, number>>({})
   const { data: userSuggestions = [] } = useUserSearch(mentionQuery)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const feedRef = useRef<any>(null)
   const columnsContainerRef = useRef<HTMLDivElement>(null)
   const lastScrollTop = useRef(0)
+
+  const handleResize = (index: number, width: number) => {
+    setColumnWidths(prev => ({ ...prev, [index]: Math.max(300, Math.min(width, 1200)) }))
+  }
+
+  const ResizeHandle = ({ index }: { index: number }) => {
+    const isResizing = useRef(false)
+
+    const onMouseDown = (e: React.MouseEvent) => {
+      isResizing.current = true
+      const startX = e.pageX
+      const startWidth = columnWidths[index] || 500
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!isResizing.current) return
+        const newWidth = startWidth + (moveEvent.pageX - startX)
+        handleResize(index, newWidth)
+      }
+
+      const onMouseUp = () => {
+        isResizing.current = false
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    }
+
+    return (
+      <div 
+        onMouseDown={onMouseDown}
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-cyan-500/50 transition-colors z-20 group"
+      >
+        <div className="absolute top-1/2 -translate-y-1/2 right-0 w-0.5 h-8 bg-slate-800 group-hover:bg-cyan-400 rounded-full" />
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (layout === 'classic' && columnsContainerRef.current) {
@@ -522,13 +561,18 @@ const HashtagTextarea = ({
             <button onClick={() => setRightSidebarVisible(true)} className="absolute right-4 top-4 z-[1002] p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-cyan-400 transition-all hidden xl:flex" title="Expand Sidebar"><PanelLeftOpen size={18} /></button>
           )}
           {stack.map((layer, index) => (
-            <div key={`${layer.id}-${index}`} className="w-[500px] shrink-0 border-r border-slate-800 flex flex-col h-full bg-[#05070A] animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl">
+            <div 
+              key={`${layer.id}-${index}`} 
+              className="shrink-0 border-r border-slate-800 flex flex-col h-full bg-[#05070A] animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible"
+              style={{ width: `${columnWidths[index] || 500}px` }}
+            >
               <header className="h-14 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md flex items-center px-4 gap-4 shrink-0">
                 {index > 0 && <button onClick={() => handleLayerClose(index)} className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-tighter transition-colors">[CLOSE]</button>}
                 <div className="flex-1 min-w-0"><h2 className="text-[10px] font-black uppercase tracking-[0.2em] truncate text-slate-400">{layer.title}</h2></div>
                 <div className="text-[8px] font-mono opacity-20 uppercase">L:{index + 1}</div>
               </header>
               <div className="flex-1 overflow-y-auto custom-scrollbar">{renderLayerContent(layer)}</div>
+              <ResizeHandle index={index} />
             </div>
           ))}
           <div className="flex-grow min-w-[100px]" />
