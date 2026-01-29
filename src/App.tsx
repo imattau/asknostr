@@ -40,6 +40,7 @@ function App() {
 
   // Set default view for logged-in users on mobile
   useEffect(() => {
+    // Only force sidebar as root if on mobile (swipe) and currently showing feed
     if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
       resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
     }
