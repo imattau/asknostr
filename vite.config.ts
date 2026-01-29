@@ -15,6 +15,9 @@ export default defineConfig({
   resolve: {
     alias: {
       'react-mentions': mentionsPath,
+      'path': 'path-browserify',
+      'crypto': 'crypto-browserify',
+      'stream': 'stream-browserify',
     },
   },
   plugins: [
