@@ -65,7 +65,13 @@ const HashtagTextarea = ({
   placeholder,
   disabled,
   onUserSearch
-}: any) => {
+}: {
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  onUserSearch: (query: string, callback: (data: { id: string; display: string }[]) => void) => void;
+}) => {
   return (
     <div className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
       <MentionsInput
@@ -154,7 +160,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   )
 
   const eventIds = communityEvents.map(e => e.id)
-  const moderators = community?.moderators || []
+  const moderators = useMemo(() => community?.moderators || [], [community?.moderators])
   const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
   const { data: deletedIds = [] } = useDeletions(eventIds)
 
@@ -264,8 +270,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             const entity = m.slice(7, -1)
             const decoded = nip19.decode(entity)
             if (decoded.type === 'npub') tags.push(['p', decoded.data as string])
-            else if (decoded.type === 'nprofile') tags.push(['p', (decoded.data as any).pubkey])
-          } catch (e) {}
+            else if (decoded.type === 'nprofile') tags.push(['p', (decoded.data as { pubkey: string }).pubkey])
+          } catch (e) {
+            console.error('Failed to decode mention', e)
+          }
         })
       }
 
@@ -284,7 +292,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     } finally { setIsPublishing(false) }
   }
 
-  const handleUserSearch = async (query: string, callback: any) => {
+  const handleUserSearch = async (query: string, callback: (data: { id: string; display: string }[]) => void) => {
     if (query.length < 2) return
     const sub = await nostrService.subscribe(
       [{ kinds: [0], search: query, limit: 10 }],
@@ -297,7 +305,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               display: profile.display_name || profile.name || event.pubkey.slice(0, 8)
             }
           ])
-        } catch (e) {}
+        } catch (e) {
+          console.error('Failed to parse profile in user search', e)
+        }
       },
       nostrService.getSearchRelays()
     )
@@ -330,14 +340,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         <VirtualFeed events={regularEvents} isLoadingMore={false} onLoadMore={() => {}} header={
           <div className="p-4 space-y-4">
             <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
-              <HashtagTextarea 
-                value={postContent} 
-                onChange={(e: any) => setPostContent(e.target.value)} 
-                disabled={!user.pubkey || isPublishing} 
-                placeholder={`Post to c/${communityId}...`} 
-                onUserSearch={handleUserSearch}
-              />
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                        <HashtagTextarea 
+                          value={postContent} 
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPostContent(e.target.value)} 
+                          disabled={!user.pubkey || isPublishing} 
+                          placeholder={`Post to c/${communityId}...`} 
+                          onUserSearch={handleUserSearch}
+                        />              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                 <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500"><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
                 <div className="flex items-center gap-2">
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
@@ -347,7 +356,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               </div>
             </div>
             {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className="text-[10px] text-slate-400 font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer">{community.rules}</div></div>}
-            {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} />)}</div><div className="h-px bg-slate-800 mx-4" /></div>}
+            {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className="h-px bg-slate-800 mx-4" /></div>}
           </div>
         } />
       </div>

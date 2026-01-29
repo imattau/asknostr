@@ -58,13 +58,13 @@ const Row = ({
           {isLoadingMore ? 'Loading...' : 'Load More'}
         </button>
       ) : (
-        <Post event={events[adjustedIndex]} />
+        <Post event={events[adjustedIndex]} depth={0} />
       )}
     </div>
   )
 }
 
-export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
+export const VirtualFeed = React.forwardRef<List, VirtualFeedProps>(
   ({ events, isLoadingMore, onLoadMore, onScroll, header }, ref) => {
     const rowCount = events.length + 1 + (header ? 1 : 0)
     const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}-${!!header}` })
@@ -83,7 +83,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 rowComponent={Row}
                 rowProps={{ events, isLoadingMore, onLoadMore, header }}
                 style={{ height, width }}
-                onScroll={(event: any) => {
+                onScroll={(event: React.UIEvent<HTMLDivElement>) => {
                   if (onScroll) {
                     onScroll(event.currentTarget.scrollTop)
                   }

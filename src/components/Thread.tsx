@@ -18,6 +18,10 @@ interface ThreadNode {
   replies: ThreadNode[]
 }
 
+interface LayerParams {
+  forceFullThread?: boolean;
+}
+
 export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [allEvents, setAllEvents] = useState<Event[]>(rootEvent ? [rootEvent] : [])
   const [isLoading, setIsLoading] = useState(true)
@@ -29,7 +33,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const currentLayer = stack[stack.length - 1]
-  const forceFullThread = (currentLayer?.params as any)?.forceFullThread
+  const forceFullThread = (currentLayer?.params as LayerParams)?.forceFullThread
 
   // Auto-scroll to selected reply once loaded
   useEffect(() => {
@@ -47,16 +51,16 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
 
   const getETags = (source?: Event) => source?.tags.filter(t => t[0] === 'e') || []
 
-  const deriveRootId = (fallbackId: string, source?: Event) => {
+  const deriveRootId = useCallback((fallbackId: string, source?: Event) => {
     if (!source) return fallbackId
     const eTags = getETags(source)
     const rootTag = eTags.find(t => t[3] === 'root')
     if (rootTag?.[1]) return rootTag[1]
     if (eTags.length > 0 && eTags[0][1]) return eTags[0][1]
     return fallbackId
-  }
+  }, [])
 
-  const deriveParentId = (event: Event) => {
+  const deriveParentId = useCallback((event: Event) => {
     const eTags = getETags(event)
     const hasMarkers = eTags.some(t => t[3])
     const replyTag = eTags.find(t => t[3] === 'reply')
@@ -66,13 +70,13 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       if (eTags.length === 1) return eTags[0][1]
     }
     return null
-  }
+  }, [])
 
   const sourceEvent = useMemo(() => {
     return rootEvent || events.find(e => e.id === eventId)
   }, [rootEvent, events, eventId])
 
-  const rootId = useMemo(() => deriveRootId(eventId, sourceEvent), [eventId, sourceEvent])
+  const rootId = useMemo(() => deriveRootId(eventId, sourceEvent), [eventId, sourceEvent, deriveRootId])
 
   const rootEventResolved = useMemo(() => {
     return allEvents.find(e => e.id === rootId) || (sourceEvent?.id === rootId ? sourceEvent : undefined)
@@ -154,7 +158,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       if (timeoutId) clearTimeout(timeoutId)
       sub?.close()
     }
-  }, [eventId, rootId, addEvent, sourceEvent])
+  }, [eventId, rootId, addEvent, sourceEvent, rootEvent])
 
   const handleReply = async () => {
     console.log('[Thread] handleReply initiated')
@@ -277,7 +281,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       const parentId = deriveParentId(node.event)
       return !parentId || !nodes[parentId]
     })
-  }, [allEvents, eventId, rootId, forceFullThread])
+  }, [allEvents, eventId, rootId, forceFullThread, deriveParentId])
 
   const renderNode = (node: ThreadNode, depth = 0) => {
     return (
@@ -286,6 +290,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
           event={node.event} 
           isThreadView={depth === 0} 
           opPubkey={rootPubkey || threadTree[0]?.event.pubkey} 
+          depth={depth} // Pass the depth prop
         />
         {node.replies.length > 0 && (
           <div className="space-y-4 border-l-2 border-slate-800 ml-4 pl-4 mt-4">

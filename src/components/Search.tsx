@@ -7,17 +7,22 @@ import type { Event } from 'nostr-tools'
 import { Post } from './Post'
 import { triggerHaptic } from '../utils/haptics'
 
+interface SearchParams {
+  initialQuery?: string;
+}
+
 export const Search: React.FC = () => {
   const { stack, pushLayer } = useUiStore()
   const currentLayer = stack[stack.length - 1]
-  const initialQuery = (currentLayer?.params as any)?.initialQuery || ''
+  const initialQuery = (currentLayer?.params as SearchParams)?.initialQuery || ''
 
   const [query, setQuery] = useState(initialQuery)
   const [results, setResults] = useState<Event[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
+  const searchPerformedRef = useRef(false); // New ref to track if initial search was performed
 
-  const handleSearch = async (e?: React.FormEvent, forcedQuery?: string) => {
+  const handleSearch = useCallback(async (e?: React.FormEvent, forcedQuery?: string) => {
     if (e) e.preventDefault()
     const targetQuery = forcedQuery || query
     if (!targetQuery.trim()) return
@@ -49,14 +54,59 @@ export const Search: React.FC = () => {
 
     // Give it some time to gather results
     setTimeout(() => setIsSearching(false), 4000)
-  }
+  }, [query, setIsSearching, setResults, setNip05Result])
 
   // Auto-search if initialQuery provided
   useEffect(() => {
-    if (initialQuery) {
-      handleSearch(undefined, initialQuery)
-    }
-  }, []) // Run once on mount
+    let isMounted = true; // Flag to prevent state updates on unmounted component
+    
+    const performInitialSearch = async () => {
+      if (initialQuery && isMounted) {
+        setIsSearching(true)
+        setResults([])
+        setNip05Result(null)
+        triggerHaptic(10)
+        
+        const targetQuery = initialQuery;
+
+        // 1. Try NIP-05 Resolution if it looks like an identifier
+        if (targetQuery.includes('@')) {
+          const res = await resolveNip05(targetQuery)
+          if (res && isMounted) { // Check isMounted before setting state
+            setNip05Result({ pubkey: res.pubkey, identifier: targetQuery })
+          }
+        }
+
+        // 2. Network-wide search (NIP-50) for notes, communities and profiles
+        const sub = await nostrService.subscribe(
+          [{ kinds: [1, 0, 34550], search: targetQuery, limit: 60 }],
+          (event: Event) => {
+            if (isMounted) { // Check isMounted before setting state
+              setResults(prev => {
+                if (prev.find(e => e.id === event.id)) return prev
+                return [...prev, event].sort((a, b) => b.created_at - a.created_at)
+              })
+            }
+          },
+          nostrService.getSearchRelays()
+        );
+
+        // Give it some time to gather results and then clean up subscription
+        setTimeout(() => {
+          if (isMounted) { // Check isMounted before setting state
+            setIsSearching(false);
+          }
+          sub?.close();
+        }, 4000);
+      }
+    };
+
+    performInitialSearch();
+
+    return () => {
+      isMounted = false; // Cleanup on unmount
+    };
+  }, [initialQuery, setIsSearching, setResults, setNip05Result]); // Dependencies now include all state setters
 
   const categorizedResults = useMemo(() => {
     return {
@@ -183,7 +233,7 @@ export const Search: React.FC = () => {
             <div className="grid gap-3">
               {categorizedResults.profiles.map(event => {
                 let metadata = { name: '', picture: '', about: '', display_name: '' }
-                try { metadata = JSON.parse(event.content) } catch (e) {}
+                try { metadata = JSON.parse(event.content) } catch (error) { console.error("Failed to parse profile metadata", error); }
                 const name = metadata.display_name || metadata.name || event.pubkey.slice(0, 8)
                 return (
                   <button

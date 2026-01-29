@@ -21,6 +21,7 @@ interface PostProps {
   isModerator?: boolean
   isApproved?: boolean
   opPubkey?: string
+  depth?: number // Add depth prop
 }
 
 const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = ({ link, onClick }) => {
@@ -34,11 +35,11 @@ const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = (
       pubkey = decoded.data as string
       type = 'profile'
     } else if (decoded.type === 'nprofile') {
-      pubkey = (decoded.data as any).pubkey
+      pubkey = (decoded.data as { pubkey: string }).pubkey // More specific type
       type = 'profile'
     }
-  } catch (e) {
-    // Ignore decode errors
+  } catch (error) { // Changed 'e' to 'error' and will log
+    console.error('Failed to decode nostr entity in NostrLink', error)
   }
 
   const { data: profile } = useProfile(pubkey)
@@ -65,7 +66,8 @@ const PostComponent: React.FC<PostProps> = ({
   isThreadView = false,
   isModerator = false,
   isApproved = false,
-  opPubkey
+  opPubkey,
+  depth = 0 // Default to 0 if not provided
 }) => {
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
@@ -331,7 +333,7 @@ const PostComponent: React.FC<PostProps> = ({
     try {
       const decoded = nip19.decode(entity)
       if (decoded.type === 'npub' || decoded.type === 'nprofile') {
-        const pubkey = decoded.type === 'npub' ? decoded.data : (decoded.data as any).pubkey
+        const pubkey = decoded.type === 'npub' ? decoded.data : (decoded.data as { pubkey: string }).pubkey // More specific type
         pushLayer({
           id: `profile-${pubkey}-${Date.now()}`,
           type: 'profile-view',
@@ -339,7 +341,7 @@ const PostComponent: React.FC<PostProps> = ({
           params: { pubkey }
         })
       } else if (decoded.type === 'note' || decoded.type === 'nevent') {
-        const id = decoded.type === 'note' ? decoded.data : (decoded.data as any).id
+        const id = decoded.type === 'note' ? decoded.data : (decoded.data as { id: string }).id // More specific type
         pushLayer({
           id: `thread-${id}`,
           type: 'thread',
@@ -347,8 +349,8 @@ const PostComponent: React.FC<PostProps> = ({
           params: { eventId: id }
         })
       }
-    } catch (e) {
-      console.error('Failed to decode nostr entity', e)
+    } catch (error) { // Changed 'e' to 'error'
+      console.error('Failed to decode nostr entity', error)
     }
   }
 
@@ -525,11 +527,13 @@ const PostComponent: React.FC<PostProps> = ({
     )
   }
 
+  const bgColorClass = depth % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950';
+
   return (
     <div 
       onClick={openThread}
       data-event-id={event.id}
-      className={`glassmorphism p-4 group transition-all duration-300 relative ${!isThreadView ? 'hover:bg-white/10 cursor-pointer' : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : 'border-l border-slate-800'}`}
+      className={`glassmorphism p-4 group transition-all duration-300 relative ${bgColorClass} ${!isThreadView ? 'hover:bg-white/10 cursor-pointer' : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : 'border-l border-slate-800'}`}
     >
       {effectiveApproved && !isThreadView && (
         <div className="absolute -top-2 -left-2 bg-slate-950 text-green-500 border border-green-500/50 p-0.5 rounded-full z-10 shadow-[0_0_10px_rgba(34,197,94,0.4)]">
@@ -817,5 +821,6 @@ export const Post = React.memo(
     prev.isThreadView === next.isThreadView &&
     prev.isModerator === next.isModerator &&
     prev.isApproved === next.isApproved &&
-    prev.opPubkey === next.opPubkey
+    prev.opPubkey === next.opPubkey &&
+    prev.depth === next.depth
 )
