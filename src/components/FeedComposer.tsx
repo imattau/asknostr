@@ -97,6 +97,7 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
   const [isNsfw, setIsNsfw] = useState(false)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [isSeeding, setIsSeeding] = useState(false)
+  const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
@@ -121,8 +122,9 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
     if (!file) return
     setIsSeeding(true)
     try {
-      const magnetUri = await torrentService.seedFile(file)
-      setPostContent(prev => prev ? `${prev}\n${magnetUri}` : magnetUri)
+      const { magnet, fallbackUrl } = await torrentService.dualUpload(file, user.pubkey || '')
+      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
+      if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
     } catch (err) {
       console.error('Seeding failed', err)
       alert(err instanceof Error ? err.message : 'Failed to seed file')
@@ -138,7 +140,9 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
     try {
       const tags: string[][] = []
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
+      if (pendingFallbackUrl) tags.push(['url', pendingFallbackUrl])
       
+      // ... (keep hashtag/mention extraction)
       // Extract hashtags from #[tag] markup
       const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {
@@ -177,6 +181,7 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
       await nostrService.createAndPublishPost(cleanContent, tags)
       setPostContent('')
       setIsNsfw(false)
+      setPendingFallbackUrl(undefined)
     } catch (e) {
       console.error('Failed to publish', e)
       alert('Failed to publish post. Check connection.')

@@ -4,6 +4,7 @@ import type { Layer } from '../../store/useUiStore';
 import { Sidebar } from '../Sidebar';
 import { useTrendingTags } from '../../hooks/useTrendingTags';
 import { Header } from '../Header';
+import { torrentService } from '../../services/torrentService';
 import type { Event } from 'nostr-tools';
 
 interface ClassicLayoutProps {
@@ -72,7 +73,15 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
 }) => {
   const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
   const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});
+  const [activeTorrents, setActiveTorrents] = useState<any[]>([]);
   const columnsContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveTorrents([...torrentService.getActiveTorrents()]);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleResize = useCallback((index: number, width: number) => {
     setColumnWidths((prev) => ({ ...prev, [index]: Math.max(300, Math.min(width, 1200)) }));
@@ -211,6 +220,23 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
                 </div>
               </div>
             </div>
+
+            <div className={`terminal-border glassmorphism p-5 rounded-2xl ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/50'} shadow-xl`}>
+              <h2 className={`text-[10px] font-mono font-bold uppercase ${mutedText} mb-4 border-b ${borderClass} pb-2 tracking-widest`}>
+                Storage_Contribution
+              </h2>
+              <div className="space-y-3 text-[10px] font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="opacity-50 uppercase">Swarms:</span>
+                  <span className="text-purple-500 font-bold">{activeTorrents.length} ACTIVE</span>
+                </div>
+                <div className="w-full bg-black/20 rounded-full h-1 overflow-hidden">
+                  <div className="bg-purple-500 h-full animate-pulse" style={{ width: activeTorrents.length > 0 ? '60%' : '0%' }} />
+                </div>
+                <p className="text-[8px] opacity-40 uppercase">Helping the community scale</p>
+              </div>
+            </div>
+
             <div className={`terminal-border glassmorphism p-5 rounded-2xl ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/50'} shadow-xl`}>
               <h2 className={`text-[10px] font-mono font-bold uppercase ${mutedText} mb-4 border-b ${borderClass} pb-2 tracking-widest`}>
                 Signal_Trends

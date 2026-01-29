@@ -135,9 +135,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [isSeeding, setIsSeeding] = useState(false)
+  const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
+  // ... (keep primaryText, secondaryText, etc.)
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
@@ -146,6 +148,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const containerBg = theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]'
 
   const { data: labels = [] } = useLabels(communityATag)
+
+  // ... (keep handleToggle, effects, sortedEvents logic)
 
   useEffect(() => {
     if (user.pubkey) markAsRead(communityATag)
@@ -258,8 +262,9 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     if (!file) return
     setIsSeeding(true)
     try {
-      const magnetUri = await torrentService.seedFile(file)
-      setPostContent(prev => prev ? `${prev}\n${magnetUri}` : magnetUri)
+      const { magnet, fallbackUrl } = await torrentService.dualUpload(file, user.pubkey || '')
+      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
+      if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
     } catch (err) {
       console.error('Seeding failed', err)
       alert(err instanceof Error ? err.message : 'Failed to seed file')
@@ -275,6 +280,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     try {
       const tags = [['a', communityATag, '', 'root'], ['t', communityId]]
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
+      if (pendingFallbackUrl) tags.push(['url', pendingFallbackUrl])
 
       const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {
@@ -307,7 +313,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       const signedEvent = await signerService.signEvent(eventTemplate)
       const success = await nostrService.publish(signedEvent)
       if (success) {
-        setPostContent(''); setIsNsfw(false); triggerHaptic(20)
+        setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); triggerHaptic(20)
       } else { alert('Broadcast failed') }
     } catch (e) {
       console.error('Failed to publish', e); alert('Publish error')

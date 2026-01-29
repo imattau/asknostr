@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { nip19, type Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
@@ -13,6 +13,7 @@ import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { zapService } from '../services/zapService'
+import { torrentService } from '../services/torrentService'
 import { triggerHaptic } from '../utils/haptics'
 import { TorrentMedia } from './TorrentMedia'
 
@@ -81,6 +82,24 @@ const PostComponent: React.FC<PostProps> = ({
   const { subscribedCommunities } = useSubscriptions()
   const { layout, stack, pushLayer, theme } = useUiStore()
   
+  const [isSeedingLocally, setIsSeedingLocally] = useState(false)
+
+  useEffect(() => {
+    const checkSeeding = () => {
+      const active = torrentService.getActiveTorrents()
+      const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/gi
+      const matches = [...event.content.matchAll(magnetRegex)]
+      const infoHashes = matches.map(m => m[1].toLowerCase())
+      
+      const isSeeding = active.some((t: any) => infoHashes.includes(t.infoHash.toLowerCase()))
+      setIsSeedingLocally(isSeeding)
+    }
+
+    checkSeeding()
+    const interval = setInterval(checkSeeding, 10000)
+    return () => clearInterval(interval)
+  }, [event.content])
+
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
@@ -597,6 +616,12 @@ const PostComponent: React.FC<PostProps> = ({
                 )}
                 {isModerator && (
                   <Shield size={12} className="text-green-500 fill-green-500/10" />
+                )}
+                {isSeedingLocally && (
+                  <div className="flex items-center gap-1 ml-1" title="You are seeding this content">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shadow-[0_0_5px_rgba(168,85,247,0.5)]" />
+                    <span className="text-[7px] font-bold text-purple-400 uppercase">Seeding</span>
+                  </div>
                 )}
               </div>
               <span className={`text-[10px] ${mutedText} font-mono lowercase opacity-70`}>{formatDate(event.created_at)}</span>

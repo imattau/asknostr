@@ -37,7 +37,7 @@ function App() {  const { isConnected, user, login, logout } = useStore()
 
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
 
-  const { muted } = useSocialGraph()
+  const { muted, following } = useSocialGraph()
 
       useSubscriptions() 
 
@@ -47,6 +47,10 @@ function App() {  const { isConnected, user, login, logout } = useStore()
     torrentService.init().catch(err => console.error('[App] Torrent init failed:', err))
   }, [])
 
+  useEffect(() => {
+    torrentService.setFollowedUsers(following)
+  }, [following])
+
   
 
         // Use the new useFeed hook for event data
@@ -54,6 +58,11 @@ function App() {  const { isConnected, user, login, logout } = useStore()
   
 
         const { data: events = [], isLoading: isFeedLoading, isFetching: isFeedFetching, refetch: refetchFeed } = useFeed({ filters: [{ kinds: [1], limit: 50 }] });
+
+  useEffect(() => {
+    // Process new events for social seeding
+    events.forEach(e => torrentService.processEvent(e))
+  }, [events])
 
   
 
