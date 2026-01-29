@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
@@ -31,6 +31,24 @@ const HashtagTextarea = ({
   onInsertMention 
 }: any) => {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState({ top: 0, left: 0, bottom: 0 })
+
+  const updateCoords = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setCoords({ top: rect.top, left: rect.left, bottom: rect.bottom })
+    }
+  }, [])
+
+  useEffect(() => {
+    updateCoords()
+    window.addEventListener('scroll', updateCoords, true)
+    window.addEventListener('resize', updateCoords)
+    return () => {
+      window.removeEventListener('scroll', updateCoords, true)
+      window.removeEventListener('resize', updateCoords)
+    }
+  }, [updateCoords])
 
   const renderHighlighted = (text: string) => {
     const parts = text.split(/(#\w+|nostr:(?:npub|nprofile)1[a-z0-9]+)/gi)
@@ -56,6 +74,7 @@ const HashtagTextarea = ({
       const query = textBeforeCursor.slice(lastAt + 1)
       if (query.length >= 2) {
         setMentionQuery(query)
+        updateCoords()
       } else {
         setMentionQuery('')
       }
@@ -64,17 +83,16 @@ const HashtagTextarea = ({
     }
   }
 
-  const rect = containerRef.current?.getBoundingClientRect()
-  const showBelow = rect ? rect.top < 300 : false
+  const showBelow = coords.top < 300
 
   return (
     <div ref={containerRef} className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
-      {mentionQuery && userSuggestions.length > 0 && rect && createPortal(
+      {mentionQuery && userSuggestions.length > 0 && coords.left !== 0 && createPortal(
         <div 
           className="fixed bg-slate-950 border border-slate-800 rounded-xl overflow-y-auto z-[999999] shadow-2xl animate-in slide-in-from-bottom-2 w-64 max-h-48"
           style={{
-            top: showBelow ? rect.bottom + 10 : rect.top - 10,
-            left: rect.left,
+            top: showBelow ? coords.bottom + 10 : coords.top - 10,
+            left: coords.left,
             transform: showBelow ? 'none' : 'translateY(-100%)'
           }}
         >
