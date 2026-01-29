@@ -8,6 +8,10 @@ const mentionsPath = require.resolve('react-mentions').replace('.cjs.js', '.esm.
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    'process.env': {},
+    'global': 'globalThis',
+  },
   resolve: {
     alias: {
       'react-mentions': mentionsPath,

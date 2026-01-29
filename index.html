@@ -13,6 +13,14 @@
     <div id="root"></div>
     <script>
       window.global = window;
+      window.process = {
+        env: { DEBUG: undefined },
+        version: '',
+        nextTick: (cb) => setTimeout(cb, 0),
+        listeners: () => [],
+        on: () => {},
+        removeListener: () => {}
+      };
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
