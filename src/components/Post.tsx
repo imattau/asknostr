@@ -120,12 +120,17 @@ const PostComponent: React.FC<PostProps> = ({
     if (!options?.force && (e.target as HTMLElement).closest('button')) return
 
     const isRoot = !event.tags.some(t => t[0] === 'e')
+    const fromFeed = currentLayer?.type === 'feed'
 
     pushLayer({
       id: `thread-${event.id}-${Date.now()}`,
       type: 'thread',
-      title: isRoot ? 'Thread_Context' : 'Context_Drill_Down',
-      params: { eventId: event.id, rootEvent: event }
+      title: (isRoot || fromFeed) ? 'Thread_Context' : 'Context_Drill_Down',
+      params: { 
+        eventId: event.id, 
+        rootEvent: event,
+        forceFullThread: fromFeed && !isRoot
+      }
     })
   }
 

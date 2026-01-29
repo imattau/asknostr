@@ -4,6 +4,7 @@ import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { Post } from './Post'
 import { useStore } from '../store/useStore'
+import { useUiStore } from '../store/useUiStore'
 import { MessageSquare, RefreshCw } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
@@ -24,6 +25,10 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
   const { addEvent, user, events } = useStore()
+  const { stack } = useUiStore()
+
+  const currentLayer = stack[stack.length - 1]
+  const forceFullThread = (currentLayer?.params as any)?.forceFullThread
 
   const getETags = (source?: Event) => source?.tags.filter(t => t[0] === 'e') || []
 
@@ -213,8 +218,9 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       }
     })
 
-    // Find the node corresponding to our requested eventId
-    const targetNode = nodes[eventId]
+    // Find the node corresponding to our requested branch
+    const targetId = forceFullThread ? rootId : eventId
+    const targetNode = nodes[targetId]
     if (targetNode) return [targetNode]
 
     // Fallback: show roots if target not found yet
@@ -222,7 +228,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       const parentId = deriveParentId(node.event)
       return !parentId || !nodes[parentId]
     })
-  }, [allEvents, eventId])
+  }, [allEvents, eventId, rootId, forceFullThread])
 
   const renderNode = (node: ThreadNode, depth = 0) => {
     return (
