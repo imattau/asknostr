@@ -67,7 +67,7 @@ const HashtagTextarea = ({
   onUserSearch
 }: {
   value: string;
-  onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onChange: (event: { target: { value: string; }; }, newValue: string, newPlainTextValue: string, mentions: any[]) => void;
   placeholder?: string;
   disabled?: boolean;
   onUserSearch: (query: string, callback: (data: { id: string; display: string }[]) => void) => void;
@@ -340,13 +340,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         <VirtualFeed events={regularEvents} isLoadingMore={false} onLoadMore={() => {}} header={
           <div className="p-4 space-y-4">
             <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
-                        <HashtagTextarea 
-                          value={postContent} 
-                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPostContent(e.target.value)} 
-                          disabled={!user.pubkey || isPublishing} 
-                          placeholder={`Post to c/${communityId}...`} 
-                          onUserSearch={handleUserSearch}
-                        />              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                  <HashtagTextarea 
+                                    value={postContent} 
+                                    onChange={(_event, newValue) => setPostContent(newValue)} 
+                                    disabled={!user.pubkey || isPublishing} 
+                                    placeholder={`Post to c/${communityId}...`} 
+                                    onUserSearch={handleUserSearch}
+                                  />              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                 <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500"><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
                 <div className="flex items-center gap-2">
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />

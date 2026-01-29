@@ -64,7 +64,7 @@ const Row = ({
   )
 }
 
-export const VirtualFeed = React.forwardRef<List, VirtualFeedProps>(
+export const VirtualFeed = React.forwardRef<typeof List, VirtualFeedProps>(
   ({ events, isLoadingMore, onLoadMore, onScroll, header }, ref) => {
     const rowCount = events.length + 1 + (header ? 1 : 0)
     const rowHeight = useDynamicRowHeight({ defaultRowHeight: 260, key: `${events.length}-${!!header}` })

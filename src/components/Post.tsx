@@ -687,8 +687,8 @@ const PostComponent: React.FC<PostProps> = ({
             onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
             className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${hasUserReacted(emoji) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}`}
           >
-            <span>{emoji === '+' ? '❤️' : emoji}</span>
-            <span className="font-bold">{getReactionCount(emoji, data.count)}</span>
+            <span className="flex items-center leading-none">{emoji === '+' ? '❤️' : emoji}</span>
+            <span className="font-bold leading-none">{getReactionCount(emoji, data.count)}</span>
           </button>
         ))}
         {user.pubkey && (
@@ -712,7 +712,7 @@ const PostComponent: React.FC<PostProps> = ({
           className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn"
         >
           <MessageSquare size={12} className={`group-hover/btn:scale-110 transition-transform ${isReplyCountLoading ? 'animate-pulse' : ''}`} />
-          <span>{replyCount || 0} Replies</span>
+          <span className="leading-none">{replyCount || 0} Replies</span>
         </button>
         {user.pubkey && (
           <div className="relative overflow-visible">
@@ -770,14 +770,14 @@ const PostComponent: React.FC<PostProps> = ({
         )}
         <button className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn">
           <Repeat2 size={12} className="group-hover/btn:scale-110 transition-transform" />
-          <span>Repost</span>
+          <span className="leading-none">Repost</span>
         </button>
         <button 
           onClick={(e) => { e.stopPropagation(); handleLike(); }}
           className={`flex items-center gap-1.5 transition-colors group/btn ${hasUserReacted('+') ? 'text-red-500' : 'hover:text-red-500 text-slate-400'}`}
         >
           <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${hasUserReacted('+') ? 'fill-red-500/20' : ''}`} />
-          <span>{getReactionCount('+', eventReactions.filter(r => r.content === '+' || r.content === '').length)} Like</span>
+          <span className="leading-none">{getReactionCount('+', eventReactions.filter(r => r.content === '+' || r.content === '').length)} Like</span>
         </button>
         <div className="relative group/zap">
           <button 
@@ -785,7 +785,7 @@ const PostComponent: React.FC<PostProps> = ({
             className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors group/btn"
           >
             <Zap size={12} className={`group-hover/btn:scale-110 transition-transform ${isZapsLoading ? 'animate-pulse' : ''} ${zapData?.total ? 'text-yellow-500 fill-yellow-500/20' : ''}`} />
-            <span>{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
+            <span className="leading-none">{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
           </button>
           
           <div className="absolute bottom-full left-0 mb-2 hidden group-hover/zap:flex gap-1 bg-slate-900 border border-slate-800 p-1 rounded-lg shadow-2xl z-50">
@@ -805,7 +805,7 @@ const PostComponent: React.FC<PostProps> = ({
           className="flex items-center gap-1.5 hover:text-orange-500 transition-colors group/btn ml-auto opacity-30 hover:opacity-100"
         >
           <AlertTriangle size={12} />
-          <span>Report</span>
+          <span className="leading-none">Report</span>
         </button>
       </div>
     </div>

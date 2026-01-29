@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import type { Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'

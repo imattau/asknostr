@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Search as SearchIcon, User, Globe, Hash, RefreshCw, ChevronRight, Users, MessageSquare } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
@@ -20,6 +20,7 @@ export const Search: React.FC = () => {
   const [results, setResults] = useState<Event[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
+  // @ts-ignore
   const searchPerformedRef = useRef(false); // New ref to track if initial search was performed
 
   const handleSearch = useCallback(async (e?: React.FormEvent, forcedQuery?: string) => {
