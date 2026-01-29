@@ -90,6 +90,10 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
 
   const trendingTags = useTrendingTags(events);
 
+  const bgCol = theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]';
+  const headerClass = theme === 'light' ? 'bg-white/50 border-slate-200' : 'bg-slate-950/50 border-slate-800';
+  const sidebarClass = theme === 'light' ? 'bg-slate-100/50 border-slate-200' : 'bg-slate-950/20 border-slate-800';
+
   useEffect(() => {
     if (columnsContainerRef.current) {
       const container = columnsContainerRef.current;
@@ -120,7 +124,7 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
         pushLayer={pushLayer}
       />
       <div className="flex-1 flex overflow-hidden">
-        <aside className="w-64 border-r border-slate-800 shrink-0 bg-slate-950/20">
+        <aside className={`w-64 border-r shrink-0 ${sidebarClass}`}>
           <Sidebar />
         </aside>
         <div
@@ -139,10 +143,10 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
           {stack.map((layer, index) => (
             <div
               key={`${layer.id}-${index}`}
-              className="shrink-0 border-r border-slate-800 flex flex-col h-full bg-[#05070A] animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible"
+              className={`shrink-0 border-r border-slate-800 flex flex-col h-full ${bgCol} animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible`}
               style={{ width: `${columnWidths[index] || 500}px` }}
             >
-              <header className="h-14 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md flex items-center px-4 gap-4 shrink-0">
+              <header className={`h-14 border-b flex items-center px-4 gap-4 shrink-0 ${headerClass} backdrop-blur-md`}>
                 {index > 0 && (
                   <button
                     onClick={() => handleLayerClose(index)}
@@ -165,11 +169,11 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
           <div className="flex-grow min-w-[100px]" />
         </div>
         <aside
-          className={`border-l border-slate-800 hidden xl:flex flex-col overflow-hidden transition-all duration-300 bg-slate-950/20 ${
+          className={`border-l hidden xl:flex flex-col overflow-hidden transition-all duration-300 ${sidebarClass} ${
             rightSidebarVisible ? 'w-80 opacity-100' : 'w-0 opacity-0 border-l-0'
           }`}
         >
-          <div className="p-4 border-b border-slate-800 shrink-0 flex justify-between items-center">
+          <div className={`p-4 border-b shrink-0 flex justify-between items-center ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
             <span className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-widest">
               Metadata_Feed
             </span>

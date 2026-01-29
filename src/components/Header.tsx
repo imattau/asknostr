@@ -33,8 +33,10 @@ export const Header: React.FC<HeaderProps> = ({
   setRightSidebarVisible,
   pushLayer,
 }) => {
+  const bgClass = theme === 'light' ? 'bg-white/80 border-slate-200' : 'bg-slate-950 border-slate-800'
+
   return (
-    <header className={`border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl gap-2 overflow-hidden transition-all duration-300 ease-in-out ${isHeaderHidden ? 'h-0 opacity-0 border-b-0' : 'h-14 opacity-100'}`}>
+    <header className={`border-b ${bgClass} flex items-center justify-between px-4 shrink-0 z-[1001] backdrop-blur-xl gap-2 overflow-hidden transition-all duration-300 ease-in-out ${isHeaderHidden ? 'h-0 opacity-0 border-b-0' : 'h-14 opacity-100'}`}>
       <div className="flex items-center gap-3 min-w-0">
         <img src="/asknostr_logo.png" alt="" className="w-7 h-7 rounded-full border border-slate-800 shadow-[0_0_15px_rgba(168,85,247,0.3)] shrink-0" />
         <div className="flex flex-col min-w-0">

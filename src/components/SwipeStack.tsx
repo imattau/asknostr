@@ -10,7 +10,11 @@ interface SwipeStackProps {
 }
 
 export const SwipeStack: React.FC<SwipeStackProps> = ({ renderLayer }) => {
-  const { stack, popLayer } = useUiStore()
+  const { stack, popLayer, theme } = useUiStore()
+
+  const bgClass = theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]'
+  const headerClass = theme === 'light' ? 'bg-white/80 border-slate-200' : 'bg-slate-950/50 border-slate-800'
+  const containerBg = theme === 'light' ? 'bg-slate-100' : 'bg-black'
 
   // Full stack including the implicit Sidebar at index 0
   const fullStack = React.useMemo(() => [
@@ -32,7 +36,7 @@ export const SwipeStack: React.FC<SwipeStackProps> = ({ renderLayer }) => {
   }, [stack.length, popLayer])
   
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black">
+    <div className={`relative h-full w-full overflow-hidden ${containerBg}`}>
       <AnimatePresence mode="popLayout" initial={false}>
         {fullStack.map((layer, index) => {
           const isTop = index === fullStack.length - 1
@@ -59,9 +63,9 @@ export const SwipeStack: React.FC<SwipeStackProps> = ({ renderLayer }) => {
                   triggerHaptic(30)
                 }
               }}
-              className="absolute inset-0 bg-[#05070A] shadow-2xl overflow-hidden flex flex-col"
+              className={`absolute inset-0 ${bgClass} shadow-2xl overflow-hidden flex flex-col`}
             >
-              <header className="h-14 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md flex items-center px-4 gap-4 shrink-0">
+              <header className={`h-14 border-b flex items-center px-4 gap-4 shrink-0 ${headerClass} backdrop-blur-md`}>
                 {index > 0 && (
                   <button 
                     onClick={popLayer}
