@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import type { Event, Filter } from 'nostr-tools'
+import type { Event } from 'nostr-tools'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { Post } from './Post'
@@ -82,37 +82,47 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent }) => {
       console.log('[Thread] Fetching events for ID:', eventId, 'Root:', rootId)
       setIsLoading(true)
       
+      const gatheredIds = new Set<string>([rootId, eventId])
       const eTagIds = getETags(sourceEvent).map(t => t[1]).filter(Boolean)
-      const ids = Array.from(new Set([rootId, eventId, ...eTagIds]))
+      eTagIds.forEach(id => gatheredIds.add(id))
 
-      // Always subscribe to anything tagging the root OR the specific event to capture all branches
-      const filters: Filter[] = [
-        { ids },
-        { kinds: [1], '#e': [rootId] },
-        { kinds: [1], '#e': [eventId] }
-      ]
+      const subscribeToIds = async (ids: string[]) => {
+        return await nostrService.subscribe(
+          [
+            { ids },
+            { kinds: [1], '#e': ids }
+          ],
+          (event: Event) => {
+            setAllEvents(prev => {
+              if (prev.find(e => e.id === event.id)) return prev
+              
+              // New discovery: check if this event has parents we don't know about
+              const newParentIds = getETags(event)
+                .map(t => t[1])
+                .filter(id => id && !gatheredIds.has(id))
+              
+              if (newParentIds.length > 0) {
+                newParentIds.forEach(id => gatheredIds.add(id))
+                subscribeToIds(newParentIds) // Recursive discovery
+              }
 
-      sub = await nostrService.subscribe(
-        filters,
-        (event: Event) => {
-          console.log('[Thread] Event received:', event.id, 'kind:', event.kind)
-          setAllEvents(prev => {
-            if (prev.find(e => e.id === event.id)) return prev
-            const next = [...prev, event].sort((a, b) => a.created_at - b.created_at)
-            return next
-          })
-          addEvent(event)
-        },
-        undefined,
-        {
-          onEose: () => {
-            if (resolved) return
-            resolved = true
-            if (timeoutId) clearTimeout(timeoutId)
-            setIsLoading(false)
+              return [...prev, event].sort((a, b) => a.created_at - b.created_at)
+            })
+            addEvent(event)
+          },
+          undefined,
+          {
+            onEose: () => {
+              if (resolved) return
+              resolved = true
+              if (timeoutId) clearTimeout(timeoutId)
+              setIsLoading(false)
+            }
           }
-        }
-      )
+        )
+      }
+
+      sub = await subscribeToIds(Array.from(gatheredIds))
       
       timeoutId = setTimeout(() => {
         if (resolved) return
