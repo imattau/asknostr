@@ -28,6 +28,42 @@
   }
 }
 
+.terminal-theme {
+  --background: #000000;
+  --foreground: #22C55E;
+  --muted: #166534;
+  --accent-violet: #22C55E;
+  --accent-magenta: #15803d;
+  --accent-cyan: #4ade80;
+  --border-slate: #14532d;
+  
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.terminal-theme .glassmorphism {
+  background-color: rgba(0, 0, 0, 0.8);
+  border-color: #14532d;
+}
+
+.terminal-theme .terminal-input {
+  border-color: #14532d;
+  color: #4ade80;
+}
+
+.modern-theme {
+  --background: #05070A;
+  --foreground: #F8FAFC;
+  --muted: #94A3B8;
+  --accent-violet: #A855F7;
+  --accent-magenta: #D946EF;
+  --accent-cyan: #06B6D4;
+  --border-slate: #1E293B;
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
 @theme {
   --color-slate-950: #05070A;
   --color-slate-50: #F8FAFC;

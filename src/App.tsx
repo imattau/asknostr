@@ -508,7 +508,7 @@ const HashtagTextarea = ({
   }
 
   return (
-    <div className={`h-screen flex flex-col bg-[#05070A] ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'}`}>
+    <div className={`h-screen flex flex-col bg-[#05070A] ${theme === 'terminal' ? 'terminal-theme' : 'modern-theme'} transition-colors duration-500`}>
       <Header />
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-64 border-r border-slate-800 shrink-0 bg-slate-950/20"><Sidebar /></aside>
