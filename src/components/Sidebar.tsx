@@ -9,11 +9,13 @@ import type { Event } from 'nostr-tools'
 
 const CommunityItem: React.FC<{ aTag: string; onClick: () => void; events: Event[] }> = ({ aTag, onClick, events }) => {
   const { lastRead } = useStore()
+  const { theme } = useUiStore()
   const parts = aTag.split(':')
   const communityId = parts[2] || aTag
   const lastReadTime = lastRead[aTag] || 0
 
   const unreadCount = events.filter(e => 
+// ... (keep logic)
     e.kind === 1 && 
     e.created_at > lastReadTime &&
     e.tags.some(t => t[0] === 'a' && t[1] === aTag)
@@ -22,13 +24,13 @@ const CommunityItem: React.FC<{ aTag: string; onClick: () => void; events: Event
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 group transition-all"
+      className={`w-full flex items-center justify-between p-2.5 rounded-xl ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} group transition-all`}
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
           <Hash size={14} className="text-purple-400" />
         </div>
-        <span className="text-xs font-bold text-slate-400 group-hover:text-slate-100 transition-colors truncate uppercase tracking-tight">
+        <span className={`text-xs font-bold ${theme === 'light' ? 'text-slate-600 group-hover:text-slate-900' : 'text-slate-400 group-hover:text-slate-100'} transition-colors truncate uppercase tracking-tight`}>
           {communityId}
         </span>
       </div>
@@ -42,12 +44,18 @@ const CommunityItem: React.FC<{ aTag: string; onClick: () => void; events: Event
 }
 
 export const Sidebar: React.FC = () => {
-  const { pushLayer, resetStack, layout } = useUiStore()
+  const { pushLayer, resetStack, layout, theme } = useUiStore()
   const { user, logout, loginMethod } = useStore()
   const { subscribedCommunities } = useSubscriptions()
   const { data: events = [] } = useFeed({ filters: [{ kinds: [1], limit: 50 }] })
 
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const bgHover = theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'
+
   const menuItems = [
+    // ... (keep items)
     { 
       id: 'global-feed', 
       label: 'Global Feed', 
@@ -121,14 +129,14 @@ export const Sidebar: React.FC = () => {
   }
 
   return (
-    <div className={`h-full flex flex-col glassmorphism border-r border-slate-800 transition-all duration-300 ${layout === 'swipe' ? 'w-full' : 'w-64'}`}>
-      <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+    <div className={`h-full flex flex-col glassmorphism border-r ${borderClass} transition-all duration-300 ${layout === 'swipe' ? 'w-full' : 'w-64'} ${theme === 'light' ? 'bg-slate-50' : ''}`}>
+      <div className={`p-6 border-b ${borderClass} flex items-center gap-3`}>
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-magenta-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
           <Shield size={18} className="text-white" />
         </div>
         <div className="flex flex-col min-w-0">
-          <span className="text-xs font-black text-slate-50 uppercase tracking-tighter">System_Control</span>
-          <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest truncate">v0.1.0_ALPHA</span>
+          <span className={`text-xs font-black ${primaryText} uppercase tracking-tighter`}>System_Control</span>
+          <span className={`text-[8px] font-mono ${mutedText} uppercase tracking-widest truncate`}>v0.1.0_ALPHA</span>
         </div>
       </div>
 
@@ -165,15 +173,15 @@ export const Sidebar: React.FC = () => {
                     pushLayer({ id: item.id, type: item.type as any, title: item.title || '' })
                   }
                 }}
-                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 group transition-all"
+                className={`w-full flex items-center justify-between p-3 rounded-xl ${bgHover} group transition-all`}
               >
                 <div className="flex items-center gap-3">
                   <item.icon size={18} className={`${item.color} opacity-70 group-hover:opacity-100 transition-opacity`} />
-                  <span className="text-xs font-bold text-slate-400 group-hover:text-slate-100 transition-colors uppercase tracking-tight">
+                  <span className={`text-xs font-bold ${theme === 'light' ? 'text-slate-600 group-hover:text-slate-900' : 'text-slate-400 group-hover:text-slate-100'} transition-colors uppercase tracking-tight`}>
                     {item.label}
                   </span>
                 </div>
-                <ChevronRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-all group-hover:translate-x-0.5" />
+                <ChevronRight size={14} className={`${theme === 'light' ? 'text-slate-300 group-hover:text-slate-500' : 'text-slate-700 group-hover:text-slate-400'} transition-all group-hover:translate-x-0.5`} />
               </button>
             ))}
           </div>
@@ -211,7 +219,7 @@ export const Sidebar: React.FC = () => {
               <Circle size={8} className="fill-red-500 text-red-500" /> Session_Termination
             </h3>
             <div className="px-2 mb-3">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800">
+              <div className={`flex items-center gap-2 p-2 rounded-lg ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass}`}>
                 <Key size={12} className="text-slate-500" />
                 <div className="flex flex-col">
                   <span className="text-[8px] font-bold text-slate-500 uppercase leading-none mb-1">Method</span>
@@ -230,12 +238,12 @@ export const Sidebar: React.FC = () => {
         )}
       </div>
 
-      <div className="p-6 border-t border-slate-800">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
+      <div className={`p-6 border-t ${borderClass}`}>
+        <div className={`flex items-center gap-3 p-3 rounded-xl ${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} border ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
           <Settings size={16} className="text-slate-500" />
           <div className="flex flex-col min-w-0">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">UI_Engine</span>
-            <span className="text-[8px] font-mono text-slate-600 truncate">{layout === 'swipe' ? 'SWIPE_STACK_v2' : 'CLASSIC_GRID_v1'}</span>
+            <span className={`text-[10px] font-bold ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'} uppercase tracking-tight`}>UI_Engine</span>
+            <span className={`text-[8px] font-mono ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'} truncate`}>{layout === 'swipe' ? 'SWIPE_STACK_v2' : 'CLASSIC_GRID_v1'}</span>
           </div>
         </div>
       </div>

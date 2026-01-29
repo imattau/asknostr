@@ -24,8 +24,14 @@ export const ConnectBunker: React.FC = () => {
   const generatedRelaysRef = useRef<string[]>([])
   const generatedSecretRef = useRef<string>('')
   
-  const { popLayer } = useUiStore()
+  const { popLayer, theme } = useUiStore()
   const { setRemoteSigner, setLoginMethod, setUser } = useStore()
+
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const containerBg = theme === 'light' ? 'bg-slate-50' : ''
+
+  // ... (keep logic)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -232,7 +238,7 @@ export const ConnectBunker: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-8 pb-20">
+    <div className={`p-6 space-y-8 pb-20 ${containerBg}`}>
       <header className="terminal-border p-4 bg-purple-500/10 border-purple-500/30">
         <h2 className="text-xl font-bold text-purple-400 uppercase flex items-center gap-2 tracking-tighter">
           <Cpu size={24} /> Remote_Signer_Handshake
@@ -244,7 +250,7 @@ export const ConnectBunker: React.FC = () => {
 
       {/* Tab 1: Scan Client (Reverse Flow) - Popular for Mobile */}
       <section className="space-y-4">
-        <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+        <h3 className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest flex items-center gap-2`}>
           <Smartphone size={14} /> Connect_via_Mobile_App
         </h3>
         
@@ -253,7 +259,7 @@ export const ConnectBunker: React.FC = () => {
             <img src={qrCodeData} alt="Scan to connect" className="w-[180px] h-[180px]" />
           </div>
         ) : (
-          <div className="h-48 flex items-center justify-center border border-dashed border-slate-800 rounded-xl">
+          <div className={`h-48 flex items-center justify-center border border-dashed ${borderClass} rounded-xl`}>
             <RefreshCw className="animate-spin text-slate-600" />
           </div>
         )}
@@ -270,25 +276,25 @@ export const ConnectBunker: React.FC = () => {
           </button>
           <button 
             onClick={copyToClipboard}
-            className="flex items-center justify-center gap-2 bg-slate-800 text-slate-300 p-3 rounded-xl font-bold uppercase text-[10px] active:scale-95 transition-all border border-slate-700 hover:border-slate-600"
+            className={`flex items-center justify-center gap-2 ${theme === 'light' ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'} p-3 rounded-xl font-bold uppercase text-[10px] active:scale-95 transition-all border ${theme === 'light' ? 'border-slate-200' : 'border-slate-700 hover:border-slate-600'}`}
           >
             <Key size={16} /> Copy_URI
           </button>
         </div>
-        <p className="text-[9px] text-slate-500 text-center font-mono uppercase">
+        <p className={`text-[9px] ${mutedText} text-center font-mono uppercase`}>
           Scan with Amber, Amethyst, or NSigner to authorize AskNostr
         </p>
       </section>
 
       <div className="relative flex items-center justify-center">
-        <div className="absolute w-full h-px bg-slate-800"></div>
-        <span className="relative bg-[#05070A] px-2 text-[10px] font-bold text-slate-600 uppercase">OR_ENTER_BUNKER_URI</span>
+        <div className={`absolute w-full h-px ${borderClass}`}></div>
+        <span className={`relative ${theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]'} px-2 text-[10px] font-bold ${mutedText} uppercase`}>OR_ENTER_BUNKER_URI</span>
       </div>
 
       {/* Tab 2: Manual Entry (Standard Flow) */}
       <form onSubmit={handleConnect} className="space-y-6">
         <div className="space-y-2">
-          <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+          <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest flex items-center gap-1`}>
             <Key size={12} /> Manual_Connection_String
           </label>
           <textarea 
@@ -344,7 +350,7 @@ export const ConnectBunker: React.FC = () => {
           <button 
             type="button" 
             onClick={popLayer}
-            className="w-full py-2 text-[10px] font-mono font-bold text-slate-600 hover:text-slate-400 transition-colors uppercase"
+            className={`w-full py-2 text-[10px] font-mono font-bold ${mutedText} hover:text-slate-400 transition-colors uppercase`}
           >
             Cancel_Operation
           </button>

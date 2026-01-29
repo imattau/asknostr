@@ -12,7 +12,7 @@ interface SearchParams {
 }
 
 export const Search: React.FC = () => {
-  const { stack, pushLayer } = useUiStore()
+  const { stack, pushLayer, theme } = useUiStore()
   const currentLayer = stack[stack.length - 1]
   const initialQuery = (currentLayer?.params as SearchParams)?.initialQuery || ''
 
@@ -20,6 +20,11 @@ export const Search: React.FC = () => {
   const [results, setResults] = useState<Event[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+
   // @ts-expect-error - TS6133: 'searchPerformedRef' is declared but its value is never read. (false positive for ref.current usage)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const searchPerformedRef = useRef(false); // New ref to track if initial search was performed
@@ -43,7 +48,7 @@ export const Search: React.FC = () => {
     }
 
     // 2. Network-wide search (NIP-50) for notes, communities and profiles
-    await nostrService.subscribe(
+    const sub = await nostrService.subscribe(
       [{ kinds: [1, 0, 34550], search: targetQuery, limit: 60 }],
       (event: Event) => {
         setResults(prev => {
@@ -55,7 +60,10 @@ export const Search: React.FC = () => {
     )
 
     // Give it some time to gather results
-    setTimeout(() => setIsSearching(false), 4000)
+    setTimeout(() => {
+      setIsSearching(false)
+      sub.close()
+    }, 4000)
   }, [query, setIsSearching, setResults, setNip05Result])
 
   // Auto-search if initialQuery provided
@@ -86,7 +94,7 @@ export const Search: React.FC = () => {
             if (isMounted) { // Check isMounted before setting state
               setResults(prev => {
                 if (prev.find(e => e.id === event.id)) return prev
-                return [...prev, event].sort((a, b) => b.created_at - a.created_at)
+                return [...prev, event].sort((a, b) => a.created_at - b.created_at)
               })
             }
           },
@@ -119,7 +127,7 @@ export const Search: React.FC = () => {
   }, [results])
 
   return (
-    <div className="p-6 space-y-8">
+    <div className={`p-6 space-y-8 ${theme === 'light' ? 'bg-slate-50' : ''}`}>
       <header className="terminal-border p-4 bg-cyan-500/10 border-cyan-500/30">
         <h2 className="text-xl font-bold text-cyan-400 uppercase flex items-center gap-2">
           <SearchIcon size={24} /> Network_Query_Interface
@@ -161,12 +169,12 @@ export const Search: React.FC = () => {
             className="w-full terminal-border p-4 text-left glassmorphism border-green-500/30 bg-green-500/5 hover:bg-green-500/10 transition-all group flex items-center justify-between"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+              <div className={`w-12 h-12 rounded-full ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} flex items-center justify-center`}>
                 <User size={24} className="text-green-500" />
               </div>
               <div>
-                <p className="text-slate-50 font-bold">{nip05Result.identifier}</p>
-                <p className="text-[9px] text-slate-500 font-mono">{nip05Result.pubkey}</p>
+                <p className={`${primaryText} font-bold`}>{nip05Result.identifier}</p>
+                <p className={`text-[9px] ${mutedText} font-mono`}>{nip05Result.pubkey}</p>
               </div>
             </div>
             <ChevronRight size={20} className="text-green-500 opacity-30 group-hover:translate-x-1 transition-all" />
@@ -184,7 +192,7 @@ export const Search: React.FC = () => {
         )}
 
         {!isSearching && results.length === 0 && (
-          <div className="py-20 text-center opacity-20 italic font-mono text-xs">
+          <div className={`py-20 text-center opacity-20 italic font-mono text-xs ${primaryText}`}>
             [WAITING_FOR_QUERY_INPUT]
           </div>
         )}
@@ -209,14 +217,14 @@ export const Search: React.FC = () => {
                       title: `c/${dTag}`,
                       params: { communityId: dTag, creator: event.pubkey }
                     })}
-                    className="w-full terminal-border p-4 text-left glassmorphism border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 transition-all group flex items-center gap-4"
+                    className={`w-full terminal-border p-4 text-left glassmorphism border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 transition-all group flex items-center gap-4`}
                   >
-                    <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                    <div className={`w-12 h-12 rounded-full ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} flex-shrink-0 overflow-hidden flex items-center justify-center`}>
                       {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Hash size={20} className="text-purple-500" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-slate-50 font-bold uppercase tracking-tight truncate block">{name}</span>
-                      <p className="text-[9px] text-slate-500 font-mono mt-0.5 uppercase tracking-tighter opacity-50 italic">{dTag}</p>
+                      <span className={`${primaryText} font-bold uppercase tracking-tight truncate block`}>{name}</span>
+                      <p className={`text-[9px] ${mutedText} font-mono mt-0.5 uppercase tracking-tighter opacity-50 italic`}>{dTag}</p>
                     </div>
                     <ChevronRight size={20} className="text-purple-500 opacity-30 group-hover:translate-x-1 transition-all" />
                   </button>
@@ -246,14 +254,14 @@ export const Search: React.FC = () => {
                       title: 'Identity_Card',
                       params: { pubkey: event.pubkey }
                     })}
-                    className="w-full terminal-border p-4 text-left glassmorphism border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all group flex items-center gap-4"
+                    className={`w-full terminal-border p-4 text-left glassmorphism border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all group flex items-center gap-4`}
                   >
-                    <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                    <div className={`w-12 h-12 rounded-full ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} flex-shrink-0 overflow-hidden flex items-center justify-center`}>
                       {metadata.picture ? <img src={metadata.picture} alt="" className="w-full h-full object-cover" /> : <User size={24} className="text-emerald-500" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-slate-50 font-bold tracking-tight truncate block">{name}</span>
-                      <p className="text-[10px] text-slate-500 line-clamp-1 italic">{metadata.about || 'No biometric description found.'}</p>
+                      <span className={`${primaryText} font-bold tracking-tight truncate block`}>{name}</span>
+                      <p className={`text-[10px] ${mutedText} line-clamp-1 italic`}>{metadata.about || 'No biometric description found.'}</p>
                     </div>
                     <ChevronRight size={20} className="text-emerald-500 opacity-30 group-hover:translate-x-1 transition-all" />
                   </button>

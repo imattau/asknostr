@@ -543,7 +543,7 @@ const PostComponent: React.FC<PostProps> = ({
     )
   }
 
-  const bgColorClass = depth % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950';
+  const bgColorClass = theme === 'light' ? 'bg-white' : depth % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950';
 
   return (
     <div 
@@ -552,7 +552,7 @@ const PostComponent: React.FC<PostProps> = ({
       className={`glassmorphism p-4 group transition-all duration-300 relative ${bgColorClass} ${!isThreadView ? `${bgHover} cursor-pointer` : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : `border-l ${borderClass}`}`}
     >
       {effectiveApproved && !isThreadView && (
-        <div className="absolute -top-2 -left-2 bg-slate-950 text-green-500 border border-green-500/50 p-0.5 rounded-full z-10 shadow-[0_0_10px_rgba(34,197,94,0.4)]">
+        <div className={`${theme === 'light' ? 'bg-white' : 'bg-slate-950'} text-green-500 border border-green-500/50 p-0.5 rounded-full z-10 shadow-[0_0_10px_rgba(34,197,94,0.4)] absolute -top-2 -left-2`}>
           <CheckCircle size={14} />
         </div>
       )}
@@ -564,13 +564,13 @@ const PostComponent: React.FC<PostProps> = ({
             onClick={openProfile}
             className="flex items-center gap-2 focus-visible:outline focus-visible:ring focus-visible:ring-cyan-500 rounded-lg"
           >
-            <div className="w-6 h-6 rounded-full border border-slate-800 overflow-hidden bg-slate-900 flex items-center justify-center">
+            <div className={`w-6 h-6 rounded-full border ${borderClass} overflow-hidden ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} flex items-center justify-center`}>
               {isProfileLoading ? (
-                <div className="w-full h-full animate-pulse bg-slate-800" />
+                <div className={`w-full h-full animate-pulse ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'}`} />
               ) : profile?.picture ? (
                 <img src={profile.picture} alt="" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-[8px] text-slate-400">?</span>
+                <span className={`text-[8px] ${mutedText}`}>?</span>
               )}
             </div>
             <div className="flex flex-col min-w-0 text-left">
@@ -634,7 +634,7 @@ const PostComponent: React.FC<PostProps> = ({
                 <span className={`${accentCyan} font-mono text-[8px] uppercase tracking-wider bg-cyan-500/10 px-1 rounded border border-cyan-500/20`}>ROOT</span>
               )
             })()}
-            <span className="text-slate-500 font-mono text-[9px] uppercase tracking-widest bg-slate-900/50 px-1 rounded border border-slate-800">k:{event.kind}</span>
+            <span className={`${mutedText} font-mono text-[9px] uppercase tracking-widest ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900/50'} px-1 rounded border ${borderClass}`}>k:{event.kind}</span>
           </div>
         </div>
       </div>
@@ -642,7 +642,7 @@ const PostComponent: React.FC<PostProps> = ({
       <div className="relative mb-4">
         {renderContent()}
         {isHidden && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 border border-red-500/30 rounded-lg">
+          <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-white/90' : 'bg-slate-950/70'} border border-red-500/30 rounded-lg`}>
             <div className="flex flex-col items-center gap-2 text-center px-4">
               <span className="text-[10px] font-mono uppercase text-red-400 tracking-widest">{warningLabel}</span>
               <button
@@ -661,7 +661,7 @@ const PostComponent: React.FC<PostProps> = ({
           {mediaMatches.map((url, idx) => {
             const isVideo = url.match(/\.(mp4|webm|mov)$/i)
             return (
-              <div key={idx} className={`relative bg-slate-900 border border-slate-800 rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''}`}>
+              <div key={idx} className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''}`}>
                 {isVideo ? (
                   <video 
                     src={url} 
@@ -684,7 +684,7 @@ const PostComponent: React.FC<PostProps> = ({
             )
           })}
           {isHidden && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 border border-red-500/30 rounded-lg">
+            <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-white/90' : 'bg-slate-950/70'} border border-red-500/30 rounded-lg`}>
               <button
                 onClick={(e) => { e.stopPropagation(); setIsRevealed(true) }}
                 className="text-[10px] font-bold uppercase px-3 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/10"
@@ -747,17 +747,17 @@ const PostComponent: React.FC<PostProps> = ({
                   onClick={(e) => { e.stopPropagation(); setIsShareOpen(false); }} 
                 />
                 <div 
-                  className="fixed bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-[10001] w-48 animate-in fade-in zoom-in-95 duration-100"
+                  className={`fixed ${theme === 'light' ? 'bg-white' : 'bg-slate-950'} border ${borderClass} rounded-xl shadow-2xl z-[10001] w-48 animate-in fade-in zoom-in-95 duration-100`}
                   style={{
                     top: (shareBtnRef.current?.getBoundingClientRect().top || 0) - 10,
                     left: (shareBtnRef.current?.getBoundingClientRect().left || 0),
                     transform: 'translateY(-100%)'
                   }}
                 >
-                  <div className="p-2 border-b border-white/5 text-[8px] opacity-40 tracking-widest text-center uppercase">Target_Station</div>
+                  <div className={`p-2 border-b ${theme === 'light' ? 'border-slate-100' : 'border-white/5'} text-[8px] opacity-40 tracking-widest text-center uppercase`}>Target_Station</div>
                   <div className="max-h-60 overflow-y-auto custom-scrollbar">
                     {subscribedCommunities.length === 0 ? (
-                      <div className="p-3 text-[9px] font-mono uppercase text-slate-500 text-center italic">Join a community first</div>
+                      <div className={`p-3 text-[9px] font-mono uppercase ${mutedText} text-center italic`}>Join a community first</div>
                     ) : (
                       subscribedCommunities.map(aTag => {
                         const parts = aTag.split(':')
@@ -770,9 +770,9 @@ const PostComponent: React.FC<PostProps> = ({
                               await shareToCommunity(aTag)
                             }}
                             disabled={shareLoading}
-                            className="w-full text-left px-3 py-2 text-[10px] uppercase tracking-[0.2em] hover:bg-white/5 transition-colors disabled:opacity-40 border-b border-white/5 last:border-0"
+                            className={`w-full text-left px-3 py-2 text-[10px] uppercase tracking-[0.2em] ${bgHover} transition-colors disabled:opacity-40 border-b ${theme === 'light' ? 'border-slate-50' : 'border-white/5'} last:border-0`}
                           >
-                            {communityId}
+                            <span className={secondaryText}>{communityId}</span>
                           </button>
                         )
                       })
@@ -804,7 +804,7 @@ const PostComponent: React.FC<PostProps> = ({
             <span className="leading-none">{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
           </button>
           
-          <div className="absolute bottom-full left-0 mb-2 hidden group-hover/zap:flex gap-1 bg-slate-900 border border-slate-800 p-1 rounded-lg shadow-2xl z-50">
+          <div className={`absolute bottom-full left-0 mb-2 hidden group-hover/zap:flex gap-1 ${theme === 'light' ? 'bg-white' : 'bg-slate-900'} border ${borderClass} p-1 rounded-lg shadow-2xl z-50`}>
             {[21, 100, 1000].map(amt => (
               <button
                 key={amt}

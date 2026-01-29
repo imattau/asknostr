@@ -8,17 +8,23 @@ import { useRelays } from '../hooks/useRelays'
 import { useRelayConnection } from '../hooks/useRelayConnection'
 import { triggerHaptic } from '../utils/haptics'
 import { normalizeRelayUrl } from '../utils/nostr'
+import { useUiStore } from '../store/useUiStore'
 
 const RelayItem: React.FC<{ url: string, onRemove?: () => void }> = ({ url, onRemove }) => {
   const { data: info } = useRelayInfo(url)
   const { data: isConnected } = useRelayConnection(url)
+  const { theme } = useUiStore()
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
 
   return (
-    <div className="flex flex-col gap-2 p-4 glassmorphism border-slate-800 rounded-xl group hover:border-purple-500/30 transition-all">
+    <div className={`flex flex-col gap-2 p-4 glassmorphism ${borderClass} rounded-xl group hover:border-purple-500/30 transition-all`}>
       <div className="flex justify-between items-center">
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="font-mono text-sm text-slate-50 truncate">{url}</span>
-          <span className="text-[10px] text-slate-500 font-mono uppercase">
+          <span className={`font-mono text-sm ${primaryText} truncate`}>{url}</span>
+          <span className={`text-[10px] ${mutedText} font-mono uppercase`}>
             {info?.software || 'Unknown'} {info?.version}
           </span>
         </div>
@@ -32,7 +38,7 @@ const RelayItem: React.FC<{ url: string, onRemove?: () => void }> = ({ url, onRe
           {onRemove && (
             <button 
               onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              className="p-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+              className={`p-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors`}
             >
               <Trash2 size={14} />
             </button>
@@ -41,7 +47,7 @@ const RelayItem: React.FC<{ url: string, onRemove?: () => void }> = ({ url, onRe
       </div>
 
       {info?.description && (
-        <p className="text-[11px] text-slate-400 font-sans line-clamp-2 italic opacity-70 group-hover:opacity-100 transition-opacity">
+        <p className={`text-[11px] ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'} font-sans line-clamp-2 italic opacity-70 group-hover:opacity-100 transition-opacity`}>
           "{info.description}"
         </p>
       )}
@@ -52,11 +58,16 @@ const RelayItem: React.FC<{ url: string, onRemove?: () => void }> = ({ url, onRe
 export const RelayList: React.FC = () => {
   const { user, setRelays: setStoreRelays } = useStore()
   const { data: userRelays, isLoading } = useRelays()
+  const { theme } = useUiStore()
   
   const [localRelays, setLocalRelays] = useState<string[]>([])
   const [newRelay, setNewRelay] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
 
   useEffect(() => {
     if (userRelays && userRelays.length > 0) {
@@ -65,6 +76,8 @@ export const RelayList: React.FC = () => {
       setLocalRelays(DEFAULT_RELAYS)
     }
   }, [userRelays])
+
+  // ... (keep logic)
 
   const handleAdd = () => {
     const normalized = normalizeRelayUrl(newRelay)
@@ -126,13 +139,13 @@ export const RelayList: React.FC = () => {
   const isUsingDefault = !user.pubkey || !userRelays || userRelays.length === 0
 
   return (
-    <div className="p-6 space-y-6 pb-20">
-      <header className="flex items-center justify-between border-b border-slate-800 pb-4">
+    <div className={`p-6 space-y-6 pb-20 ${theme === 'light' ? 'bg-slate-50' : ''}`}>
+      <header className={`flex items-center justify-between border-b ${borderClass} pb-4`}>
         <div>
-          <h2 className="text-xl font-bold text-slate-50 uppercase flex items-center gap-2">
+          <h2 className={`text-xl font-bold ${primaryText} uppercase flex items-center gap-2`}>
             <Server size={24} className="text-cyan-500" /> Node_Network_Map
           </h2>
-          <p className="text-[10px] text-slate-500 font-mono mt-1 uppercase">
+          <p className={`text-[10px] ${mutedText} font-mono mt-1 uppercase`}>
             {isUsingDefault ? 'Public Discovery Infrastructure' : `Personalized Identity Nodes [${localRelays.length}]`}
           </p>
         </div>
@@ -180,7 +193,7 @@ export const RelayList: React.FC = () => {
         ))}
       </div>
 
-      <div className="mt-8 p-4 glassmorphism border-amber-500/20 rounded-xl text-[10px] uppercase font-mono text-slate-400 leading-relaxed">
+      <div className={`mt-8 p-4 glassmorphism border-amber-500/20 rounded-xl text-[10px] uppercase font-mono ${mutedText} leading-relaxed`}>
         <div className="flex items-center gap-2 text-amber-400 font-bold mb-2">
           <Info size={14} /> SYSTEM_PROTOCOL_ADVISORY
         </div>

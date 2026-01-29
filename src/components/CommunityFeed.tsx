@@ -129,11 +129,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
-  const { pushLayer } = useUiStore()
+  const { pushLayer, theme } = useUiStore()
   const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const headerBg = theme === 'light' ? 'bg-white/95' : 'bg-[#05070A]/95'
+  const containerBg = theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]'
 
   const { data: labels = [] } = useLabels(communityATag)
 
@@ -310,49 +317,49 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     setTimeout(() => sub.close(), 2000)
   }
 
-  if (isCommLoading) return <div className="flex items-center justify-center h-full text-slate-500 font-mono text-[10px] uppercase tracking-widest"><RefreshCw size={16} className="animate-spin mr-2" />Synchronizing_Node_Data...</div>
+  if (isCommLoading) return <div className={`flex items-center justify-center h-full ${mutedText} font-mono text-[10px] uppercase tracking-widest`}><RefreshCw size={16} className="animate-spin mr-2" />Synchronizing_Node_Data...</div>
 
   return (
-    <div className="flex flex-col h-full bg-[#05070A]">
-      <div className="shrink-0 z-10 bg-[#05070A]/95 backdrop-blur-xl border-b border-slate-800">
+    <div className={`flex flex-col h-full ${containerBg}`}>
+      <div className={`shrink-0 z-10 ${headerBg} backdrop-blur-xl border-b ${borderClass}`}>
         <div className="p-4 space-y-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 neon-bloom-violet shadow-lg shadow-purple-500/20">
+              <div className={`w-10 h-10 rounded-full ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} overflow-hidden flex-shrink-0 neon-bloom-violet shadow-lg shadow-purple-500/20`}>
                 {community?.image ? <img src={community.image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-purple-500 font-mono font-bold text-lg">{communityId[0].toUpperCase()}</div>}
               </div>
               <div className="min-w-0">
-                <h2 className="text-lg font-black text-slate-50 tracking-tighter uppercase leading-none mb-0.5 truncate">{community?.name || communityId}</h2>
-                <div className="flex items-center gap-2"><span className="text-[9px] text-slate-500 font-mono">c/{communityId}</span><div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20"><Shield size={8} /> {moderators.length}</div></div>
+                <h2 className={`text-lg font-black ${primaryText} tracking-tighter uppercase leading-none mb-0.5 truncate`}>{community?.name || communityId}</h2>
+                <div className="flex items-center gap-2"><span className={`text-[9px] ${mutedText} font-mono`}>c/{communityId}</span><div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20"><Shield size={8} /> {moderators.length}</div></div>
                 {labels.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{labels.slice(0, 6).map(label => <span key={label} className="text-[7px] font-mono uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">{label}</span>)}</div>}
               </div>
             </div>
-            {user.pubkey && <button onClick={handleToggle} disabled={isUpdating} className={`flex-shrink-0 text-[9px] font-bold uppercase px-3 py-1.5 rounded border transition-all ${isSubscribed ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-red-500/10 hover:text-red-500' : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20'}`}>{isUpdating ? '...' : isSubscribed ? 'Leave' : 'Join'}</button>}
+            {user.pubkey && <button onClick={handleToggle} disabled={isUpdating} className={`flex-shrink-0 text-[9px] font-bold uppercase px-3 py-1.5 rounded border transition-all ${isSubscribed ? `${theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'} border-slate-700 hover:bg-red-500/10 hover:text-red-500` : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20'}`}>{isUpdating ? '...' : isSubscribed ? 'Leave' : 'Join'}</button>}
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 -mx-4 px-4"><button onClick={() => setIsModeratedOnly(!isModeratedOnly)} className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-bold transition-all border ${isModeratedOnly ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' : 'bg-white/5 text-slate-500 border-white/5'}`}><Filter size={10} /> {isModeratedOnly ? 'MODERATED' : 'RAW'}</button><div className="flex-shrink-0 flex bg-white/5 rounded border border-white/5 p-0.5">{(['new', 'hot', 'top'] as const).map((s) => <button key={s} onClick={() => setSortBy(s)} className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all ${sortBy === s ? 'bg-purple-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}>{s}</button>)}</div><div className="w-px h-4 bg-slate-800 mx-1 flex-shrink-0" />{isUserModerator && <button onClick={() => pushLayer({ id: `mod-queue-${communityId}`, type: 'modqueue', title: 'Mod_Queue', params: { communityId, creator, moderators } })} className="flex-shrink-0 px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30 text-[9px] font-bold uppercase hover:bg-red-500/20">Queue</button>}<button onClick={() => pushLayer({ id: `mod-log-${communityId}`, type: 'modlog', title: 'Log', params: { communityId, creator } })} className="flex-shrink-0 px-2 py-1 rounded bg-white/5 text-slate-500 border border-white/5 text-[9px] font-bold uppercase hover:text-slate-300">Log</button>{isCreator && <button onClick={() => pushLayer({ id: `admin-${communityId}`, type: 'communityadmin', title: 'Admin', params: { communityId, creator } })} className="flex-shrink-0 px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[9px] font-bold uppercase hover:bg-cyan-500/20">Settings</button>}{isUnmoderated && community && <button onClick={() => pushLayer({ id: `claim-${communityId}`, type: 'claimstation', title: 'Authority_Claim', params: { community } })} className="flex-shrink-0 px-2 py-1 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30 text-[9px] font-bold uppercase hover:bg-orange-500/20">Claim</button>}</div>
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 -mx-4 px-4"><button onClick={() => setIsModeratedOnly(!isModeratedOnly)} className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-bold transition-all border ${isModeratedOnly ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' : `${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} ${mutedText} border-slate-800`}`}><Filter size={10} /> {isModeratedOnly ? 'MODERATED' : 'RAW'}</button><div className={`flex-shrink-0 flex ${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} rounded border ${borderClass} p-0.5`}>{(['new', 'hot', 'top'] as const).map((s) => <button key={s} onClick={() => setSortBy(s)} className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all ${sortBy === s ? 'bg-purple-500 text-white' : `${mutedText} hover:text-slate-300`}`}>{s}</button>)}</div><div className={`w-px h-4 ${borderClass} mx-1 flex-shrink-0`} />{isUserModerator && <button onClick={() => pushLayer({ id: `mod-queue-${communityId}`, type: 'modqueue', title: 'Mod_Queue', params: { communityId, creator, moderators } })} className="flex-shrink-0 px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30 text-[9px] font-bold uppercase hover:bg-red-500/20">Queue</button>}<button onClick={() => pushLayer({ id: `mod-log-${communityId}`, type: 'modlog', title: 'Log', params: { communityId, creator } })} className={`flex-shrink-0 px-2 py-1 rounded ${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} ${mutedText} border ${borderClass} text-[9px] font-bold uppercase hover:text-slate-300`}>Log</button>{isCreator && <button onClick={() => pushLayer({ id: `admin-${communityId}`, type: 'communityadmin', title: 'Admin', params: { communityId, creator } })} className="flex-shrink-0 px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[9px] font-bold uppercase hover:bg-cyan-500/20">Settings</button>}{isUnmoderated && community && <button onClick={() => pushLayer({ id: `claim-${communityId}`, type: 'claimstation', title: 'Authority_Claim', params: { community } })} className="flex-shrink-0 px-2 py-1 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30 text-[9px] font-bold uppercase hover:bg-orange-500/20">Claim</button>}</div>
         </div>
       </div>
       <div className="flex-1 overflow-hidden relative">
         <VirtualFeed events={regularEvents} isLoadingMore={false} onLoadMore={() => {}} header={
           <div className="p-4 space-y-4">
-            <div className="glassmorphism p-3 rounded-xl border-slate-800/50">
+            <div className={`glassmorphism p-3 rounded-xl ${theme === 'light' ? 'border-slate-300' : 'border-slate-800/50'}`}>
                                   <HashtagTextarea 
                                     value={postContent} 
                                     onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
                                     disabled={!user.pubkey || isPublishing} 
                                     placeholder={`Post to c/${communityId}...`} 
                                     onUserSearch={handleUserSearch}
-                                  />              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                <label className="flex items-center gap-2 text-[8px] font-mono uppercase text-slate-500"><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
+                                  />              <div className={`flex items-center justify-between mt-2 pt-2 border-t ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
+                <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
                 <div className="flex items-center gap-2">
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
-                  <button type="button" disabled={isUploadingMedia || !user.pubkey} onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50" title="Attach Media">{isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}</button>
+                  <button type="button" disabled={isUploadingMedia || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">{isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}</button>
                   <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
                 </div>
               </div>
             </div>
-            {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className="text-[10px] text-slate-400 font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer">{community.rules}</div></div>}
-            {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className="h-px bg-slate-800 mx-4" /></div>}
+            {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}
+            {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className={`h-px ${borderClass} mx-4`} /></div>}
           </div>
         } />
       </div>

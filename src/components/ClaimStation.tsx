@@ -13,13 +13,20 @@ interface ClaimStationProps {
 
 export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
   const { user } = useStore()
-  const { popLayer } = useUiStore()
+  const { popLayer, theme } = useUiStore()
   const [step, setStep] = useState<'info' | 'verifying' | 'success'>('info')
   const [logs, setLogs] = useState<string[]>([])
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const containerBg = theme === 'light' ? 'bg-slate-50' : ''
 
   const addLog = (msg: string) => setLogs(prev => [...prev, `> ${msg}`])
 
   const handleClaim = async () => {
+    // ... (keep logic)
     if (!user.pubkey) {
       alert('Identity signature required for station takeover.')
       return
@@ -94,7 +101,7 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
   }
 
   return (
-    <div className="p-6 space-y-8">
+    <div className={`p-6 space-y-8 ${containerBg}`}>
       <header className="terminal-border p-4 bg-orange-500/10 border-orange-500/30">
         <h2 className="text-xl font-bold text-orange-500 uppercase flex items-center gap-2">
           <Hammer size={24} /> Authority_Claim_Protocol
@@ -106,12 +113,12 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
 
       {step === 'info' && (
         <div className="space-y-6">
-          <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-4">
+          <div className={`p-4 ${theme === 'light' ? 'bg-orange-50' : 'bg-white/5'} border ${theme === 'light' ? 'border-orange-200' : 'border-white/10'} rounded-xl space-y-4`}>
             <div className="flex gap-3 text-orange-400">
               <AlertTriangle size={20} className="shrink-0" />
               <div className="space-y-1">
                 <p className="text-xs font-bold uppercase">Vacancy Detected</p>
-                <p className="text-[10px] opacity-70 leading-relaxed font-sans">
+                <p className={`text-[10px] ${theme === 'light' ? 'text-slate-600' : 'opacity-70'} leading-relaxed font-sans`}>
                   This station currently lists zero authorized moderators. Under the AskNostr decentralized recovery protocol, any verified entity may claim management authority to prevent station decay.
                 </p>
               </div>
@@ -119,8 +126,8 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest px-2">Action_Consequences</h3>
-            <ul className="text-[9px] font-mono text-slate-400 space-y-1 list-disc list-inside px-2">
+            <h3 className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest px-2`}>Action_Consequences</h3>
+            <ul className={`text-[9px] font-mono ${secondaryText} space-y-1 list-disc list-inside px-2`}>
               <li>Creates a FORK of the community definition under your pubkey</li>
               <li>Sets you as the primary moderator of this new instance</li>
               <li>Original station remains on the network but may be hidden by filters</li>
@@ -143,7 +150,7 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
             <RefreshCw size={48} className="animate-spin text-orange-500" />
             <span className="font-mono text-xs uppercase animate-pulse">Processing_Authorization...</span>
           </div>
-          <div className="bg-black border border-slate-800 rounded-lg p-4 font-mono text-[9px] text-orange-500/70 h-32 overflow-y-auto">
+          <div className={`bg-black border ${borderClass} rounded-lg p-4 font-mono text-[9px] text-orange-500/70 h-32 overflow-y-auto`}>
             {logs.map((log, i) => (
               <p key={i}>{log}</p>
             ))}
@@ -156,8 +163,8 @@ export const ClaimStation: React.FC<ClaimStationProps> = ({ community }) => {
           <div className="flex flex-col items-center justify-center py-10 space-y-4">
             <CheckCircle size={64} className="text-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)] rounded-full" />
             <div className="space-y-1">
-              <h3 className="text-xl font-black text-slate-50 uppercase tracking-tighter">Authority_Secured</h3>
-              <p className="text-[10px] text-slate-500 font-mono uppercase">STATION_IDENTITY_SYNCHRONIZED</p>
+              <h3 className={`text-xl font-black ${primaryText} uppercase tracking-tighter`}>Authority_Secured</h3>
+              <p className={`text-[10px] ${mutedText} font-mono uppercase`}>STATION_IDENTITY_SYNCHRONIZED</p>
             </div>
           </div>
           

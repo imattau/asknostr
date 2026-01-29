@@ -3,8 +3,10 @@ import { List, useDynamicRowHeight } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
 import { Post } from './Post'
+import { useUiStore } from '../store/useUiStore'
 
 interface VirtualFeedProps {
+// ... (keep props)
   events: Event[]
   isLoadingMore: boolean
   onLoadMore: () => void
@@ -36,6 +38,7 @@ const Row = ({
   index: number
   style: React.CSSProperties
 } & RowProps): React.ReactElement | null => {
+  const { theme } = useUiStore()
   if (header && index === 0) {
     return (
       <div style={style} {...ariaAttributes}>
@@ -52,7 +55,7 @@ const Row = ({
       {isLoadMoreRow ? (
         <button
           onClick={onLoadMore}
-          className="w-full glassmorphism p-3 rounded-lg text-[10px] opacity-50 uppercase font-bold"
+          className={`w-full glassmorphism p-3 rounded-lg text-[10px] ${theme === 'light' ? 'text-slate-600' : 'opacity-50'} uppercase font-bold`}
           disabled={isLoadingMore}
         >
           {isLoadingMore ? 'Loading...' : 'Load More'}

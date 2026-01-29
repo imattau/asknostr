@@ -3,6 +3,7 @@ import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useFeed } from '../hooks/useFeed'
 import { Post } from './Post'
+import { useUiStore } from '../store/useUiStore'
 import { Shield, AlertCircle, AlertTriangle } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
@@ -17,6 +18,7 @@ export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
   const communityATag = `34550:${creator}:${communityId}`
   const { data: events = [] } = useFeed({ filters: [{ '#a': [communityATag] }] })
   const [reports, setReports] = useState<Event[]>([])
+  const { theme } = useUiStore()
   
   // Get all events for this community
   const communityEvents = events.filter(e => 
@@ -65,9 +67,12 @@ export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
     return () => sub?.close()
   }, [eventIds]) // Use eventIds to refetch when posts change
 
+  const headerClass = theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-red-500/10 border-red-500/30';
+  const reasonText = theme === 'light' ? 'text-slate-600' : 'text-slate-400';
+
   return (
     <div className="p-4 space-y-6">
-      <header className="terminal-border p-4 bg-red-500/10 border-red-500/30">
+      <header className={`terminal-border p-4 ${headerClass}`}>
         <h2 className="text-xl font-bold text-red-500 uppercase flex items-center gap-2">
           <Shield size={24} /> Mod_Queue: c/{communityId}
         </h2>
@@ -100,7 +105,7 @@ export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
                   <div className="ml-4 p-2 border-l border-orange-500/30 bg-orange-500/5 space-y-1">
                     <p className="text-[8px] opacity-50 uppercase font-mono tracking-widest mb-1">Report_Reasons:</p>
                     {postReports.map(r => (
-                      <p key={r.id} className="text-[9px] text-slate-400 italic font-sans">
+                      <p key={r.id} className={`text-[9px] ${reasonText} italic font-sans`}>
                         - "{r.content}"
                       </p>
                     ))}

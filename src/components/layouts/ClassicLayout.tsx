@@ -93,6 +93,9 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
   const bgCol = theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]';
   const headerClass = theme === 'light' ? 'bg-white/50 border-slate-200' : 'bg-slate-950/50 border-slate-800';
   const sidebarClass = theme === 'light' ? 'bg-slate-100/50 border-slate-200' : 'bg-slate-950/20 border-slate-800';
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400';
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800';
+  const bgMuted = theme === 'light' ? 'bg-slate-100' : 'bg-slate-900';
 
   useEffect(() => {
     if (columnsContainerRef.current) {
@@ -129,12 +132,12 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
         </aside>
         <div
           ref={columnsContainerRef}
-          className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative"
+          className={`flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar ${theme === 'light' ? 'bg-slate-100/30' : 'bg-slate-950/40'} scroll-smooth relative`}
         >
           {!rightSidebarVisible && (
             <button
               onClick={() => setRightSidebarVisible(true)}
-              className="absolute right-4 top-4 z-[1002] p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-cyan-400 transition-all hidden xl:flex"
+              className={`absolute right-4 top-4 z-[1002] p-2 ${bgMuted} border ${borderClass} rounded-lg ${mutedText} hover:text-cyan-400 transition-all hidden xl:flex`}
               title="Expand Sidebar"
             >
               <PanelLeftOpen size={18} /> <span className="text-[10px] uppercase font-bold tracking-tight">Expand_Metadata</span>
@@ -143,24 +146,24 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
           {stack.map((layer, index) => (
             <div
               key={`${layer.id}-${index}`}
-              className={`shrink-0 border-r border-slate-800 flex flex-col h-full ${bgCol} animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible`}
+              className={`shrink-0 border-r ${borderClass} flex flex-col h-full ${bgCol} animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible`}
               style={{ width: `${columnWidths[index] || 500}px` }}
             >
               <header className={`h-14 border-b flex items-center px-4 gap-4 shrink-0 ${headerClass} backdrop-blur-md`}>
                 {index > 0 && (
                   <button
                     onClick={() => handleLayerClose(index)}
-                    className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-tighter transition-colors"
+                    className={`text-[10px] font-bold ${mutedText} hover:text-slate-300 uppercase tracking-tighter transition-colors`}
                   >
                     [CLOSE]
                   </button>
                 )}
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] truncate text-slate-400">
+                  <h2 className={`text-[10px] font-black uppercase tracking-[0.2em] truncate ${mutedText}`}>
                     {layer.title}
                   </h2>
                 </div>
-                <div className="text-[8px] font-mono opacity-20 uppercase">L:{index + 1}</div>
+                <div className={`text-[8px] font-mono ${theme === 'light' ? 'opacity-40' : 'opacity-20'} uppercase`}>L:{index + 1}</div>
               </header>
               <div className="flex-1 overflow-y-auto custom-scrollbar">{renderLayerContent(layer)}</div>
               <ResizeHandle index={index} columnWidths={columnWidths} onResize={handleResize} />
@@ -173,20 +176,20 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
             rightSidebarVisible ? 'w-80 opacity-100' : 'w-0 opacity-0 border-l-0'
           }`}
         >
-          <div className={`p-4 border-b shrink-0 flex justify-between items-center ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
-            <span className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-widest">
+          <div className={`p-4 border-b shrink-0 flex justify-between items-center ${borderClass}`}>
+            <span className={`text-[9px] font-mono font-bold ${theme === 'light' ? 'text-slate-500' : 'text-slate-600'} uppercase tracking-widest`}>
               Metadata_Feed
             </span>
             <button
               onClick={() => setRightSidebarVisible(false)}
-              className="p-1.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-colors"
+              className={`p-1.5 ${theme === 'light' ? 'hover:bg-slate-200' : 'hover:bg-white/5'} rounded ${mutedText} hover:text-slate-300 transition-colors`}
             >
               <PanelLeftClose size={14} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
-            <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
-              <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">
+            <div className={`terminal-border glassmorphism p-5 rounded-2xl ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/50'} shadow-xl`}>
+              <h2 className={`text-[10px] font-mono font-bold uppercase ${mutedText} mb-4 border-b ${borderClass} pb-2 tracking-widest`}>
                 Network_Status
               </h2>
               <div className="space-y-3 text-[10px] font-mono">
@@ -204,12 +207,12 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="opacity-50 uppercase">Buffer:</span>
-                  <span className="text-slate-300 font-bold">{events.length}</span>
+                  <span className={`${theme === 'light' ? 'text-slate-700' : 'text-slate-300'} font-bold`}>{events.length}</span>
                 </div>
               </div>
             </div>
-            <div className="terminal-border glassmorphism p-5 rounded-2xl border-slate-800/50 shadow-xl">
-              <h2 className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-4 border-b border-slate-800 pb-2 tracking-widest">
+            <div className={`terminal-border glassmorphism p-5 rounded-2xl ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/50'} shadow-xl`}>
+              <h2 className={`text-[10px] font-mono font-bold uppercase ${mutedText} mb-4 border-b ${borderClass} pb-2 tracking-widest`}>
                 Signal_Trends
               </h2>
               <ul className="space-y-3">
@@ -225,10 +228,10 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
                       title: `Tag_${name.toUpperCase()}`,
                       params: { filter: { '#t': [name] } }
                     })} className="flex justify-between items-center group cursor-pointer">
-                      <span className="text-[10px] text-slate-400 group-hover:text-purple-400 transition-colors uppercase font-mono">
+                      <span className={`text-[10px] ${mutedText} group-hover:text-purple-400 transition-colors uppercase font-mono`}>
                         #{name}
                       </span>
-                      <span className="text-[8px] font-mono text-slate-600 bg-white/5 px-1.5 rounded">
+                      <span className={`text-[8px] font-mono ${theme === 'light' ? 'text-slate-500 bg-slate-100' : 'text-slate-600 bg-white/5'} px-1.5 rounded`}>
                         {count}x
                       </span>
                     </li>

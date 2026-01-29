@@ -3,8 +3,10 @@ import { Server, Plus, Trash2, ShieldAlert } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { MediaServerType } from '../store/useStore'
 import { triggerHaptic } from '../utils/haptics'
+import { useUiStore } from '../store/useUiStore'
 
 const typeLabels: Record<MediaServerType, string> = {
+// ... (keep logic)
   blossom: 'BLOSSOM',
   generic: 'GENERIC'
 }
@@ -22,9 +24,15 @@ const normalizeUrl = (value: string) => {
 
 export const MediaServers: React.FC = () => {
   const { mediaServers, addMediaServer, removeMediaServer } = useStore()
+  const { theme } = useUiStore()
   const [url, setUrl] = useState('')
   const [type, setType] = useState<MediaServerType>('blossom')
   const [error, setError] = useState<string | null>(null)
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const containerBg = theme === 'light' ? 'bg-slate-50' : ''
 
   const hasServers = mediaServers.length > 0
   const normalizedUrl = useMemo(() => normalizeUrl(url), [url])
@@ -47,13 +55,13 @@ export const MediaServers: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 pb-20">
-      <header className="flex items-center justify-between border-b border-slate-800 pb-4">
+    <div className={`p-6 space-y-6 pb-20 ${containerBg}`}>
+      <header className={`flex items-center justify-between border-b ${borderClass} pb-4`}>
         <div>
-          <h2 className="text-xl font-bold text-slate-50 uppercase flex items-center gap-2">
+          <h2 className={`text-xl font-bold ${primaryText} uppercase flex items-center gap-2`}>
             <Server size={24} className="text-emerald-500" /> Media_Servers
           </h2>
-          <p className="text-[10px] text-slate-500 font-mono mt-1 uppercase">
+          <p className={`text-[10px] ${mutedText} font-mono mt-1 uppercase`}>
             {hasServers ? `Configured Endpoints [${mediaServers.length}]` : 'No Servers Configured'}
           </p>
         </div>
@@ -94,10 +102,10 @@ export const MediaServers: React.FC = () => {
 
       <div className="grid gap-4">
         {mediaServers.map((server) => (
-          <div key={server.id} className="p-4 glassmorphism border-slate-800 rounded-xl flex items-center justify-between gap-4">
+          <div key={server.id} className={`p-4 glassmorphism border ${borderClass} rounded-xl flex items-center justify-between gap-4`}>
             <div className="min-w-0">
-              <div className="text-xs font-mono text-slate-100 truncate">{server.url}</div>
-              <div className="text-[9px] text-slate-500 font-mono uppercase">{typeLabels[server.type]}</div>
+              <div className={`text-xs font-mono ${theme === 'light' ? 'text-slate-700' : 'text-slate-100'} truncate`}>{server.url}</div>
+              <div className={`text-[9px] ${mutedText} font-mono uppercase`}>{typeLabels[server.type]}</div>
             </div>
             <button
               onClick={() => removeMediaServer(server.id)}

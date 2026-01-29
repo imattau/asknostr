@@ -17,7 +17,7 @@ const SUGGESTED_COMMUNITIES = [
 ]
 
 export const Communities: React.FC = () => {
-  const { pushLayer } = useUiStore()
+  const { pushLayer, theme } = useUiStore()
   const { subscribedCommunities } = useSubscriptions()
   const { data: suggestions = [], isLoading: isSuggestionsLoading } = useFollowerSuggestions()
   const { data: trending = [] } = useTrendingCommunities()
@@ -26,6 +26,13 @@ export const Communities: React.FC = () => {
   const discoveryFallback = data?.usedFallback || false
   const { data: myNodes = [] } = useMyCommunities()
   const { data: handlers = [], isLoading: isHandlersLoading } = useHandlers([1, 34550])
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const bgMuted = theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'
+  const bgHover = theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'
 
   console.log('[CommunitiesUI] myNodes:', myNodes.length, 'globalNodes:', globalNodes.length)
 
@@ -39,7 +46,7 @@ export const Communities: React.FC = () => {
   }
 
   return (
-    <div className="p-4 space-y-6 min-w-0">
+    <div className={`p-4 space-y-6 min-w-0 ${theme === 'light' ? 'bg-slate-50' : ''}`}>
       {/* 1. Admin Section */}
       {myNodes.length > 0 && (
         <section className="min-w-0">
@@ -51,13 +58,13 @@ export const Communities: React.FC = () => {
               <button
                 key={`${s.creator}:${s.id}`}
                 onClick={() => selectCommunity(s.id, s.creator)}
-                className="terminal-border p-3 text-left glassmorphism border-cyan-500/20 hover:bg-cyan-500/10 transition-colors group flex justify-between items-center min-w-0"
+                className={`terminal-border p-3 text-left glassmorphism border-cyan-500/20 hover:bg-cyan-500/10 transition-colors group flex justify-between items-center min-w-0`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Hash size={14} className="text-cyan-400 shrink-0" />
-                  <span className="text-slate-50 font-bold truncate">{s.name || s.id}</span>
+                  <span className={`font-bold truncate ${primaryText}`}>{s.name || s.id}</span>
                 </div>
-                <span className="text-[8px] text-slate-500 font-mono uppercase shrink-0 ml-2">Role: OWNER</span>
+                <span className={`text-[8px] ${mutedText} font-mono uppercase shrink-0 ml-2`}>Role: OWNER</span>
               </button>
             ))}
           </div>
@@ -79,15 +86,15 @@ export const Communities: React.FC = () => {
                 <button
                   key={a}
                   onClick={() => selectCommunity(id, pubkey)}
-                  className="terminal-border p-3 text-left glassmorphism border-yellow-500/20 hover:bg-yellow-500/10 transition-colors group flex justify-between items-center min-w-0"
+                  className={`terminal-border p-3 text-left glassmorphism border-yellow-500/20 hover:bg-yellow-500/10 transition-colors group flex justify-between items-center min-w-0`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0">
+                    <div className={`w-8 h-8 rounded-full ${bgMuted} border ${borderClass} flex items-center justify-center shrink-0`}>
                       <Hash size={14} className="text-yellow-500" />
                     </div>
-                    <span className="text-slate-50 font-bold truncate">{id}</span>
+                    <span className={`font-bold truncate ${primaryText}`}>{id}</span>
                   </div>
-                  <span className="text-[9px] text-slate-500 font-mono shrink-0 ml-2">REF://{kind}</span>
+                  <span className={`text-[9px] ${mutedText} font-mono shrink-0 ml-2`}>REF://{kind}</span>
                 </button>
               )
             })}
@@ -106,14 +113,14 @@ export const Communities: React.FC = () => {
               <button
                 key={t.aTag}
                 onClick={() => selectCommunity(t.id, t.pubkey)}
-                className="terminal-border p-3 text-left glassmorphism border-cyan-500/20 hover:bg-cyan-500/10 transition-colors group flex justify-between items-center min-w-0"
+                className={`terminal-border p-3 text-left glassmorphism border-cyan-500/20 hover:bg-cyan-500/10 transition-colors group flex justify-between items-center min-w-0`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Hash size={14} className="text-cyan-500 shrink-0" />
-                  <span className="text-slate-50 font-bold truncate">{t.id}</span>
+                  <Hash size={14} className="text-cyan-400 shrink-0" />
+                  <span className={`font-bold truncate ${primaryText}`}>{t.id}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 ml-2">
-                  <span className="text-[8px] text-slate-500 font-mono">ACTIVITY:{t.count}</span>
+                  <span className={`text-[8px] ${mutedText} font-mono`}>ACTIVITY:{t.count}</span>
                   <Zap size={12} className="text-yellow-500 opacity-50" />
                 </div>
               </button>
@@ -132,7 +139,7 @@ export const Communities: React.FC = () => {
             {isHandlersLoading && handlers.length === 0 ? (
               <div className="flex gap-4">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="flex-shrink-0 w-40 sm:w-48 h-32 terminal-border glassmorphism animate-pulse bg-white/5" />
+                  <div key={i} className={`flex-shrink-0 w-40 sm:w-48 h-32 terminal-border glassmorphism animate-pulse ${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'}`} />
                 ))}
               </div>
             ) : (
@@ -142,17 +149,17 @@ export const Communities: React.FC = () => {
                   href={h.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-shrink-0 w-40 sm:w-48 terminal-border p-4 glassmorphism border-slate-800 hover:border-cyan-500/30 transition-all flex flex-col items-center text-center min-w-0"
+                  className={`flex-shrink-0 w-40 sm:w-48 terminal-border p-4 glassmorphism ${borderClass} hover:border-cyan-500/30 transition-all flex flex-col items-center text-center min-w-0`}
                 >
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-900 border border-slate-800 overflow-hidden mb-3 flex items-center justify-center shrink-0">
+                  <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full ${bgMuted} border ${borderClass} overflow-hidden mb-3 flex items-center justify-center shrink-0`}>
                     {h.image ? (
                       <img src={h.image} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <Globe size={24} className="text-cyan-500/50" />
                     )}
                   </div>
-                  <span className="text-[10px] font-bold text-slate-50 uppercase tracking-tighter mb-1 line-clamp-1 w-full">{h.name || h.id}</span>
-                  <p className="text-[8px] text-slate-500 line-clamp-2 italic h-6 w-full">{h.about || 'No app description.'}</p>
+                  <span className={`text-[10px] font-bold ${primaryText} uppercase tracking-tighter mb-1 line-clamp-1 w-full`}>{h.name || h.id}</span>
+                  <p className={`text-[8px] ${mutedText} line-clamp-2 italic h-6 w-full`}>{h.about || 'No app description.'}</p>
                   <div className="mt-3 flex gap-1 flex-wrap justify-center">
                     {h.kTags.slice(0, 2).map(k => (
                       <span key={k} className="text-[7px] bg-cyan-500/10 text-cyan-500 px-1 rounded border border-cyan-500/20">K:{k}</span>
@@ -175,7 +182,7 @@ export const Communities: React.FC = () => {
             {isSuggestionsLoading && suggestions.length === 0 ? (
               <div className="space-y-2">
                 {[1, 2].map(i => (
-                  <div key={i} className="h-14 terminal-border glassmorphism animate-pulse bg-white/5" />
+                  <div key={i} className={`h-14 terminal-border glassmorphism animate-pulse ${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'}`} />
                 ))}
               </div>
             ) : (
@@ -183,7 +190,7 @@ export const Communities: React.FC = () => {
                 <button
                   key={`${s.creator}:${s.id}`}
                   onClick={() => selectCommunity(s.id, s.creator)}
-                  className="terminal-border p-4 text-left glassmorphism border-purple-500/20 hover:bg-purple-500/10 transition-colors group min-w-0"
+                  className={`terminal-border p-4 text-left glassmorphism border-purple-500/20 hover:bg-purple-500/10 transition-colors group min-w-0`}
                 >
                   <div className="flex justify-between items-start mb-1 gap-2">
                     <span className="text-purple-400 font-bold flex items-center gap-1 truncate">
@@ -191,7 +198,7 @@ export const Communities: React.FC = () => {
                     </span>
                     <Users size={14} className="opacity-30 group-hover:opacity-100 transition-opacity shrink-0" />
                   </div>
-                  <p className="text-[10px] text-slate-500 font-mono truncate">By: {shortenPubkey(formatPubkey(s.creator))}</p>
+                  <p className={`text-[10px] ${mutedText} font-mono truncate`}>By: {shortenPubkey(formatPubkey(s.creator))}</p>
                 </button>
               ))
             )}
@@ -232,7 +239,7 @@ export const Communities: React.FC = () => {
           </button>
 
           {isGlobalLoading && globalNodes.length === 0 && (
-            <div className="p-8 text-center animate-pulse opacity-30 font-mono text-[10px] uppercase">
+            <div className={`p-8 text-center animate-pulse opacity-30 ${mutedText} font-mono text-[10px] uppercase`}>
               Scanning_Relay_Network_For_Nodes...
             </div>
           )}
@@ -241,9 +248,9 @@ export const Communities: React.FC = () => {
             <button
               key={`${s.creator}:${s.id}`}
               onClick={() => selectCommunity(s.id, s.creator)}
-              className="terminal-border p-4 text-left glassmorphism border-slate-800 hover:border-purple-500/30 transition-all group flex items-center gap-4 min-w-0"
+              className={`terminal-border p-4 text-left glassmorphism ${borderClass} hover:border-purple-500/30 transition-all group flex items-center gap-4 min-w-0`}
             >
-              <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-lg shadow-purple-500/10 shrink-0">
+              <div className={`w-10 h-10 rounded-full ${bgMuted} border ${borderClass} flex-shrink-0 overflow-hidden flex items-center justify-center shadow-lg shadow-purple-500/10 shrink-0`}>
                 {s.image ? (
                   <img src={s.image} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -252,10 +259,10 @@ export const Communities: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1 gap-2">
-                  <span className="text-slate-50 font-bold uppercase tracking-tight truncate">{s.name || s.id}</span>
-                  <span className="text-[8px] text-slate-600 font-mono bg-white/5 px-1 rounded shrink-0">ID:{s.id.slice(0, 8)}</span>
+                  <span className={`font-bold uppercase tracking-tight truncate ${primaryText}`}>{s.name || s.id}</span>
+                  <span className={`text-[8px] ${mutedText} font-mono ${theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} px-1 rounded shrink-0`}>ID:{s.id.slice(0, 8)}</span>
                 </div>
-                <p className="text-[10px] text-slate-500 line-clamp-1 italic">{s.description || 'No manifest provided.'}</p>
+                <p className={`text-[10px] ${mutedText} line-clamp-1 italic`}>{s.description || 'No manifest provided.'}</p>
               </div>
             </button>
           ))}
@@ -270,15 +277,15 @@ export const Communities: React.FC = () => {
             <button
               key={c.id}
               onClick={() => selectCommunity(c.id, c.creator)}
-              className="terminal-border p-4 text-left hover:bg-white/5 transition-colors group min-w-0"
+              className={`terminal-border p-4 text-left ${bgHover} transition-colors group min-w-0`}
             >
               <div className="flex justify-between items-start mb-1 gap-2">
-                <span className="text-slate-200 font-bold flex items-center gap-1 truncate">
+                <span className={`font-bold flex items-center gap-1 truncate ${secondaryText}`}>
                   <Hash size={16} className="shrink-0" /> {c.id}
                 </span>
                 <Users size={14} className="opacity-30 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
-              <p className="text-[10px] text-slate-500 truncate">{c.description}</p>
+              <p className={`text-[10px] ${mutedText} truncate`}>{c.description}</p>
             </button>
           ))}
         </div>

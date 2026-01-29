@@ -23,9 +23,15 @@ type CommunityFormData = z.infer<typeof communitySchema>
 
 export const CommunityCreate: React.FC = () => {
   const { user } = useStore()
-  const { popLayer } = useUiStore()
+  const { popLayer, theme } = useUiStore()
   const [logs, setLogs] = useState<string[]>([])
   const queryClient = useQueryClient()
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const containerBg = theme === 'light' ? 'bg-slate-50' : ''
+  const bgMuted = theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'
   
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<CommunityFormData>({
     resolver: zodResolver(communitySchema),
@@ -38,6 +44,7 @@ export const CommunityCreate: React.FC = () => {
   const addLog = (msg: string) => setLogs(prev => [...prev, `> ${msg}`])
 
   const onSubmit = async (data: CommunityFormData) => {
+    // ... (keep logic)
     if (!user.pubkey) {
       alert('Login required to initialize community node.')
       return
@@ -92,7 +99,7 @@ export const CommunityCreate: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-8">
+    <div className={`p-6 space-y-8 ${containerBg}`}>
       <header className="terminal-border p-4 bg-purple-500/10 border-purple-500/30">
         <h2 className="text-xl font-bold text-purple-400 uppercase flex items-center gap-2">
           <Shield size={24} /> New_Station_Initialization
@@ -103,14 +110,14 @@ export const CommunityCreate: React.FC = () => {
       </header>
 
       {logs.length > 0 && (
-        <div className="bg-black border border-slate-800 rounded-lg p-3 font-mono text-[9px] text-purple-400/70 space-y-1">
+        <div className={`bg-black border ${borderClass} rounded-lg p-3 font-mono text-[9px] text-purple-400/70 space-y-1`}>
           {logs.map((l, i) => <p key={i}>{l}</p>)}
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="flex items-center gap-6 p-4 glassmorphism rounded-xl border-slate-800">
-          <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-dashed border-slate-700 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-lg shadow-purple-500/10">
+        <div className={`flex items-center gap-6 p-4 glassmorphism rounded-xl border ${borderClass}`}>
+          <div className={`w-20 h-20 rounded-full ${bgMuted} border-2 border-dashed border-slate-700 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-lg shadow-purple-500/10`}>
             {watchImage ? (
               <img src={watchImage} alt="Preview" className="w-full h-full object-cover" />
             ) : (
@@ -118,14 +125,14 @@ export const CommunityCreate: React.FC = () => {
             )}
           </div>
           <div className="flex-1 space-y-1">
-            <h3 className="text-sm font-bold text-slate-50 uppercase tracking-tight">Image_Preview</h3>
-            <p className="text-[10px] text-slate-500 font-mono">STATION_IDENTITY_BRANDING_MOCKUP</p>
+            <h3 className={`text-sm font-bold ${primaryText} uppercase tracking-tight`}>Image_Preview</h3>
+            <p className={`text-[10px] ${mutedText} font-mono`}>STATION_IDENTITY_BRANDING_MOCKUP</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+            <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest flex items-center gap-1`}>
               <Globe size={12} /> Community_Name
             </label>
             <input 
@@ -137,7 +144,7 @@ export const CommunityCreate: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+            <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest flex items-center gap-1`}>
               <Info size={12} /> Unique_Identifier (d-tag)
             </label>
             <input 
@@ -150,7 +157,7 @@ export const CommunityCreate: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+          <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest flex items-center gap-1`}>
             <ImageIcon size={12} /> Banner_Image_URL
           </label>
           <input 
@@ -162,7 +169,7 @@ export const CommunityCreate: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">
+          <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest`}>
             Station_Description
           </label>
           <textarea 
@@ -174,7 +181,7 @@ export const CommunityCreate: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">
+          <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest`}>
             Community_Directives (Rules)
           </label>
           <textarea 
@@ -185,7 +192,7 @@ export const CommunityCreate: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+          <label className={`text-[10px] font-mono font-bold ${mutedText} uppercase tracking-widest flex items-center gap-1`}>
             <Globe size={12} /> Home_Relays (Comma separated)
           </label>
           <input 
@@ -193,14 +200,14 @@ export const CommunityCreate: React.FC = () => {
             placeholder="wss://relay.damus.io, wss://nos.lol"
             className="w-full terminal-input rounded-lg"
           />
-          <p className="text-[8px] text-slate-600 font-mono uppercase">Nodes where community content will be indexed</p>
+          <p className={`text-[8px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-600'} font-mono uppercase`}>Nodes where community content will be indexed</p>
         </div>
 
-        <div className="pt-4 border-t border-slate-800 flex justify-end gap-4">
+        <div className={`pt-4 border-t ${borderClass} flex justify-end gap-4`}>
           <button 
             type="button" 
             onClick={popLayer}
-            className="px-6 py-2 text-slate-500 hover:text-slate-300 font-bold uppercase text-xs transition-colors"
+            className={`px-6 py-2 ${mutedText} hover:text-slate-300 font-bold uppercase text-xs transition-colors`}
           >
             Cancel
           </button>

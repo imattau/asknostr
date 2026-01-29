@@ -1,6 +1,7 @@
 import React from 'react'
 import type { Event } from 'nostr-tools'
 import { useFeed } from '../hooks/useFeed'
+import { useUiStore } from '../store/useUiStore'
 import { Shield, Clock, AlertTriangle, CheckCircle, Trash2, User } from 'lucide-react'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
 
@@ -14,6 +15,12 @@ export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creat
   const { data: events = [], isLoading } = useFeed({
     filters: [{ kinds: [4550, 1984], '#a': [communityATag], limit: 100 }]
   })
+  const { theme } = useUiStore()
+
+  const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+  const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
+  const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+  const headerBg = theme === 'light' ? 'bg-white/80' : 'bg-slate-900/50'
 
   // Sort events
   const allModEvents = React.useMemo(() => {
@@ -47,7 +54,7 @@ export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creat
             <p className="pl-4 border-l border-white/5">TARGET_ID: {targetId || 'UNKNOWN'}</p>
             {targetAuthor && <p className="pl-4 border-l border-white/5">AUTHOR: {shortenPubkey(formatPubkey(targetAuthor))}</p>}
           </div>
-          {log.content && <p className="mt-3 p-2 bg-black/20 rounded italic text-slate-400">"{log.content}"</p>}
+          {log.content && <p className={`mt-3 p-2 ${theme === 'light' ? 'bg-slate-100' : 'bg-black/20'} rounded italic ${secondaryText}`}>"{log.content}"</p>}
         </div>
       )
     }
@@ -66,7 +73,7 @@ export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creat
             <span>REPORTER: {shortenPubkey(formatPubkey(log.pubkey))}</span>
             <p className="pl-4 border-l border-white/5">TARGET_ID: {targetId || 'UNKNOWN'}</p>
           </div>
-          {log.content && <p className="mt-3 p-2 bg-black/20 rounded italic text-orange-400/70">REASON: "{log.content}"</p>}
+          {log.content && <p className={`mt-3 p-2 ${theme === 'light' ? 'bg-slate-100' : 'bg-black/20'} rounded italic ${theme === 'light' ? 'text-orange-700' : 'text-orange-400/70'}`}>REASON: "{log.content}"</p>}
         </div>
       )
     }
@@ -76,8 +83,8 @@ export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creat
 
   return (
     <div className="p-6 space-y-6">
-      <header className="terminal-border p-4 bg-slate-900/50 border-slate-800">
-        <h3 className="text-sm font-black uppercase text-slate-50 flex items-center gap-3">
+      <header className={`terminal-border p-4 ${headerBg} ${borderClass}`}>
+        <h3 className={`text-sm font-black uppercase ${primaryText} flex items-center gap-3`}>
           <Shield size={20} className="text-cyan-500" /> Audit_Trail: {communityId}
         </h3>
         <p className="text-[10px] opacity-50 uppercase mt-1 font-mono tracking-widest">
@@ -86,7 +93,7 @@ export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creat
       </header>
 
       {allModEvents.length === 0 && !isLoading ? (
-        <div className="py-20 text-center opacity-20 italic font-mono text-xs border border-dashed border-slate-800 rounded-xl">
+        <div className={`py-20 text-center opacity-20 italic font-mono text-xs border border-dashed ${borderClass} rounded-xl`}>
           [STATION_RECORDS_EMPTY_NO_ADMIN_ACTIONS_DETECTED]
         </div>
       ) : (
