@@ -119,9 +119,9 @@ const PostComponent: React.FC<PostProps> = ({
     if (!options?.force && (e.target as HTMLElement).closest('button')) return
 
     pushLayer({
-      id: `thread-${event.id}`,
+      id: `thread-${event.id}-${Date.now()}`,
       type: 'thread',
-      title: 'Thread_Context',
+      title: 'Context_Drill_Down',
       params: { eventId: event.id, rootEvent: event }
     })
   }
