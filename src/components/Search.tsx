@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { Search as SearchIcon, User, Globe, Hash, Zap, RefreshCw, ChevronRight } from 'lucide-react'
-import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
 import { resolveNip05 } from '../utils/nip05'
@@ -14,7 +13,6 @@ export const Search: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
   
-  const { addEvent } = useStore()
   const { pushLayer } = useUiStore()
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -42,7 +40,6 @@ export const Search: React.FC = () => {
           if (prev.find(e => e.id === event.id)) return prev
           return [...prev, event].sort((a, b) => b.created_at - a.created_at)
         })
-        addEvent(event)
       },
       nostrService.getSearchRelays()
     )
