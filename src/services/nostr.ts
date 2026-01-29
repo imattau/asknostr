@@ -163,7 +163,7 @@ class NostrService {
         let eosed = false
         const subscription = this.pool.subscribe(
           urls,
-          [filter],
+          filter,
           {
             onevent: wrappedCallback,
             oneose: () => {
