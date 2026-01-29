@@ -34,14 +34,22 @@ export const useReactions = (eventId: string) => {
           (event: Event) => {
             if (seen.has(event.id)) return
             seen.add(event.id)
+            
+            const emoji = event.content || '+'
+            
+            // Deduplicate: only count the first reaction from this author for this emoji
+            const isDuplicate = reactions.some(r => r.pubkey === event.pubkey && (r.content || '+') === emoji)
+            
             reactions.push(event)
-            const emoji = event.content || '+' // Default to + if empty
-            if (!aggregated[emoji]) {
-              aggregated[emoji] = { count: 0, pubkeys: [] }
-            }
-            aggregated[emoji].count++
-            if (!aggregated[emoji].pubkeys.includes(event.pubkey)) {
-              aggregated[emoji].pubkeys.push(event.pubkey)
+            
+            if (!isDuplicate) {
+              if (!aggregated[emoji]) {
+                aggregated[emoji] = { count: 0, pubkeys: [] }
+              }
+              aggregated[emoji].count++
+              if (!aggregated[emoji].pubkeys.includes(event.pubkey)) {
+                aggregated[emoji].pubkeys.push(event.pubkey)
+              }
             }
           },
           undefined,

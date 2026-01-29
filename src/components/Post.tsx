@@ -112,22 +112,26 @@ const PostComponent: React.FC<PostProps> = ({
       r => r.pubkey === user.pubkey && r.content === emoji && !optimisticDeletions.includes(r.id)
     )
 
+    const isOptimistic = postOptimistic[emoji]?.includes(user.pubkey)
+
     triggerHaptic(15)
 
-    if (existingReaction) {
-      // Toggle off: Send deletion request
-      addOptimisticDeletion(existingReaction.id)
-      try {
-        const deleteEvent = {
-          kind: 5,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [['e', existingReaction.id]],
-          content: 'Removing reaction.',
+    if (existingReaction || isOptimistic) {
+      // Toggle off: Send deletion request if we have a real event ID
+      if (existingReaction) {
+        addOptimisticDeletion(existingReaction.id)
+        try {
+          const deleteEvent = {
+            kind: 5,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [['e', existingReaction.id]],
+            content: 'Removing reaction.',
+          }
+          const signedEvent = await signerService.signEvent(deleteEvent)
+          await nostrService.publish(signedEvent)
+        } catch (e) {
+          console.error('Failed to remove reaction', e)
         }
-        const signedEvent = await signerService.signEvent(deleteEvent)
-        await nostrService.publish(signedEvent)
-      } catch (e) {
-        console.error('Failed to remove reaction', e)
       }
       return
     }
