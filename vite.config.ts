@@ -61,6 +61,9 @@ export default defineConfig({
       }
     })
   ],
+  optimizeDeps: {
+    include: ['react-mentions'],
+  },
   build: {
     rollupOptions: {
       output: {
