@@ -35,7 +35,7 @@ class NostrService {
   private relays: string[]
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
-  private maxActiveRelays: number = 8
+  private maxActiveRelays: number = 20
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
@@ -60,7 +60,8 @@ class NostrService {
   }
 
   getDiscoveryRelays() {
-    return [...new Set([...this.relays, ...DISCOVERY_RELAYS])].slice(0, this.maxActiveRelays)
+    // Prioritize global discovery relays for finding metadata/subscriptions
+    return [...new Set([...DISCOVERY_RELAYS, ...this.relays])].slice(0, this.maxActiveRelays)
   }
 
   getSearchRelays() {

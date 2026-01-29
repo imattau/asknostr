@@ -52,7 +52,7 @@ export const useSubscriptions = () => {
           }
           timeoutId = setTimeout(() => {
             finish(found ? latest : cached || null)
-          }, 3000)
+          }, 6000)
         })
       })
     },
