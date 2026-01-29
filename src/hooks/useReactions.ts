@@ -64,7 +64,8 @@ export const useReactions = (eventId: string) => {
         })
       })
     },
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 60 * 1, // 1 minute
+    gcTime: 1000 * 60 * 5,    // 5 minutes
     enabled: !!eventId,
   })
 }

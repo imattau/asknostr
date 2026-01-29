@@ -63,8 +63,9 @@ export const useProfile = (pubkey: string) => {
         ).then(s => sub = s)
       })
     },
-    // Reduce staleTime so it actually tries to fetch more often
+    // Purge from memory if unused for 5 minutes
     staleTime: 1000 * 60 * 5, 
+    gcTime: 1000 * 60 * 5,
     enabled: !!pubkey,
   })
 }

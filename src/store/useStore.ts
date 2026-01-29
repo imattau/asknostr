@@ -28,7 +28,7 @@ const DEFAULT_MEDIA_SERVERS: MediaServer[] = [
   { id: 'media-nostr-build', url: 'https://nostr.build', type: 'generic' },
 ]
 
-const MAX_EVENTS = 2000
+const MAX_EVENTS = 500
 
 interface NostrState {
   events: Event[]
