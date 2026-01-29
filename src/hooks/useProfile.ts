@@ -63,9 +63,9 @@ export const useProfile = (pubkey: string) => {
         ).then(s => sub = s)
       })
     },
-    // Purge from memory if unused for 5 minutes
-    staleTime: 1000 * 60 * 5, 
-    gcTime: 1000 * 60 * 5,
+    // Keep profiles fresh for 30 mins, purge if unused for 1 hour
+    staleTime: 1000 * 60 * 30, 
+    gcTime: 1000 * 60 * 60,
     enabled: !!pubkey,
   })
 }

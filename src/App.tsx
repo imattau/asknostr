@@ -247,6 +247,12 @@ const HashtagTextarea = ({
     }
     eventRateCountRef.current += 1
     pendingEventsRef.current.push(event)
+    
+    // Cap the pending buffer to 500 items to prevent memory bloat
+    if (pendingEventsRef.current.length > 500) {
+      pendingEventsRef.current = pendingEventsRef.current.slice(-500)
+    }
+    
     setPendingCount(pendingEventsRef.current.length)
   }, [isBackpressured])
 

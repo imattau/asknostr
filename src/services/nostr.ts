@@ -38,7 +38,7 @@ class NostrService {
   private relays: string[]
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
-  private maxActiveRelays: number = 12
+  private maxActiveRelays: number = 8
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
