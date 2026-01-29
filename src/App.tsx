@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LogIn, LogOut, Layout, Terminal as TerminalIcon, Paperclip, Loader2, PanelLeftClose, PanelLeftOpen, User } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
 import type { Layer } from './store/useUiStore'
 import { nostrService } from './services/nostr'
 import { mediaService } from './services/mediaService'
-import type { Event, Filter } from 'nostr-tools'
+import { nip19, type Event, type Filter } from 'nostr-tools'
 import { VirtualFeed } from './components/VirtualFeed'
 import { useTrendingTags } from './hooks/useTrendingTags'
 import { RelayList } from './components/RelayList'
@@ -29,6 +29,8 @@ import { useDeletions } from './hooks/useDeletions'
 import { useSubscriptions } from './hooks/useSubscriptions'
 import { useRelays } from './hooks/useRelays'
 import { useSocialGraph } from './hooks/useSocialGraph'
+import { useUserSearch } from './hooks/useUserSearch'
+import { formatPubkey, shortenPubkey } from './utils/nostr'
 import type { CommunityDefinition } from './hooks/useCommunity'
 
 function App() {
@@ -45,6 +47,7 @@ function App() {
       resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
     }
   }, [user.pubkey, layout]) // Run on login or layout switch to swipe
+
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -53,6 +56,9 @@ function App() {
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [rightSidebarVisible, setRightSidebarVisible] = useState(true)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const { data: userSuggestions = [] } = useUserSearch(mentionQuery)
+  
   const fileInputRef = useRef<HTMLInputElement>(null)
   const feedRef = useRef<any>(null)
   const lastScrollTop = useRef(0)
@@ -265,6 +271,25 @@ function App() {
         })
       }
 
+      // Extract Mentions
+      const mentionRegex = /nostr:(npub1[a-z0-9]+|nprofile1[a-z0-9]+)/gi
+      const mentions = postContent.match(mentionRegex)
+      if (mentions) {
+        mentions.forEach(m => {
+          try {
+            const entity = m.replace('nostr:', '')
+            const decoded = nip19.decode(entity)
+            if (decoded.type === 'npub') {
+              tags.push(['p', decoded.data as string])
+            } else if (decoded.type === 'nprofile') {
+              tags.push(['p', (decoded.data as any).pubkey])
+            }
+          } catch (e) {
+            // Ignore
+          }
+        })
+      }
+
       await nostrService.createAndPublishPost(postContent, tags)
       setPostContent('')
       setIsNsfw(false)
@@ -278,16 +303,70 @@ function App() {
 
   const HashtagTextarea = ({ value, onChange, placeholder, disabled }: any) => {
     const renderHighlighted = (text: string) => {
-      const parts = text.split(/(#\w+)/g)
-      return parts.map((part, i) => 
-        part.startsWith('#') 
-          ? <span key={i} className="text-purple-400 font-bold">{part}</span> 
-          : part
-      )
+      // Highlight hashtags and nostr: entities
+      const parts = text.split(/(#\w+|nostr:(?:npub|nprofile)1[a-z0-9]+)/gi)
+      return parts.map((part, i) => {
+        if (part.startsWith('#')) {
+          return <span key={i} className="text-purple-400 font-bold">{part}</span>
+        }
+        if (part.startsWith('nostr:')) {
+          return <span key={i} className="text-cyan-400 font-bold">{part.slice(0, 15)}...</span>
+        }
+        return part
+      })
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const val = e.target.value
+      const cursor = e.target.selectionStart
+      onChange(e)
+
+      // Detect @ mention trigger
+      const textBeforeCursor = val.slice(0, cursor)
+      const lastAt = textBeforeCursor.lastIndexOf('@')
+      if (lastAt !== -1 && !textBeforeCursor.slice(lastAt).includes(' ')) {
+        const query = textBeforeCursor.slice(lastAt + 1)
+        if (query.length >= 2) {
+          setMentionQuery(query)
+        } else {
+          setMentionQuery('')
+        }
+      } else {
+        setMentionQuery('')
+      }
+    }
+
+    const insertMention = (pubkey: string) => {
+      const npub = nip19.npubEncode(pubkey)
+      const lastAt = value.slice(0, postContent.length).lastIndexOf('@')
+      const before = value.slice(0, lastAt)
+      const after = value.slice(lastAt + 1 + mentionQuery.length)
+      const newVal = `${before}nostr:${npub}${after}`
+      setPostContent(newVal)
+      setMentionQuery('')
     }
 
     return (
       <div className="relative w-full min-h-[4rem] mt-3">
+        {mentionQuery && userSuggestions.length > 0 && (
+          <div className="absolute bottom-full left-0 mb-2 w-full max-h-48 bg-slate-900 border border-slate-800 rounded-xl overflow-y-auto z-[1005] shadow-2xl animate-in slide-in-from-bottom-2">
+            {userSuggestions.map((res) => (
+              <button
+                key={res.pubkey}
+                onClick={() => insertMention(res.pubkey)}
+                className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0">
+                  {res.profile?.picture ? <img src={res.profile.picture} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-slate-600" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-100 truncate">{res.profile?.display_name || res.profile?.name || shortenPubkey(formatPubkey(res.pubkey))}</p>
+                  <p className="text-[9px] text-slate-500 font-mono truncate">{res.pubkey}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
         <div 
           className="absolute inset-0 pointer-events-none text-sm font-sans whitespace-pre-wrap break-words text-transparent p-0 leading-normal"
           aria-hidden="true"
@@ -296,7 +375,7 @@ function App() {
         </div>
         <textarea
           value={value}
-          onChange={onChange}
+          onChange={handleChange}
           disabled={disabled}
           className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-sm resize-none h-16 min-h-[3.5rem] font-sans placeholder:text-slate-600 relative z-10 leading-normal"
           placeholder={placeholder}
@@ -323,7 +402,7 @@ function App() {
           <div className="h-full flex flex-col">
             <div className={`mx-4 mb-2 transition-all duration-300 ease-in-out overflow-hidden ${isHeaderHidden ? 'max-h-0 opacity-0 mb-0' : 'max-h-96 opacity-100'}`}>
               <div
-                className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${
+                className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${ 
                   composerCollapsed ? 'max-h-0 opacity-0 pointer-events-none hidden' : 'max-h-72 opacity-100 block'
                 }`}
               >
@@ -380,7 +459,7 @@ function App() {
                 </div>
               </div>
               <div
-                className={`glassmorphism rounded-full shadow-inner px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300/60 text-center cursor-pointer transition-all duration-300 hover:text-cyan-200 hover:bg-white/10 ${
+                className={`glassmorphism rounded-full shadow-inner px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300/60 text-center cursor-pointer transition-all duration-300 hover:text-cyan-200 hover:bg-white/10 ${ 
                   composerCollapsed
                     ? 'opacity-100 visible pointer-events-auto'
                     : 'opacity-0 invisible pointer-events-none h-0 py-0 overflow-hidden'
@@ -545,6 +624,15 @@ function App() {
 
         {/* Miller Columns for Content Stack */}
         <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-950/40 scroll-smooth relative">
+          {!rightSidebarVisible && (
+            <button 
+              onClick={() => setRightSidebarVisible(true)}
+              className="absolute right-4 top-4 z-[1002] p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-cyan-400 transition-all hidden xl:flex"
+              title="Expand Sidebar"
+            >
+              <PanelLeftOpen size={18} />
+            </button>
+          )}
           {stack.map((layer, index) => {
             return (
               <div 

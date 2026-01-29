@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useCommunity } from '../hooks/useCommunity'
 import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
 import { VirtualFeed } from './VirtualFeed'
-import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2 } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2, User } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { mediaService } from '../services/mediaService'
@@ -14,7 +14,9 @@ import { useDeletions } from '../hooks/useDeletions'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useLabels } from '../hooks/useLabels'
 import { useSocialGraph } from '../hooks/useSocialGraph'
-import type { Event } from 'nostr-tools'
+import { useUserSearch } from '../hooks/useUserSearch'
+import { formatPubkey, shortenPubkey } from '../utils/nostr'
+import { nip19, type Event } from 'nostr-tools'
 
 interface CommunityFeedProps {
   communityId: string
@@ -34,8 +36,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
+  const [mentionQuery, setMentionQuery] = useState('')
+  const { data: userSuggestions = [] } = useUserSearch(mentionQuery)
+
   const communityATag = `34550:${creator}:${communityId}`
   const { data: labels = [] } = useLabels(communityATag)
 
@@ -201,35 +206,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     }
   }
 
-  const HashtagTextarea = ({ value, onChange, placeholder, disabled }: any) => {
-    const renderHighlighted = (text: string) => {
-      const parts = text.split(/(#\w+)/g)
-      return parts.map((part, i) => 
-        part.startsWith('#') 
-          ? <span key={i} className="text-purple-400 font-bold">{part}</span> 
-          : part
-      )
-    }
-
-    return (
-      <div className="relative w-full min-h-[2.5rem] mt-1">
-        <div 
-          className="absolute inset-0 pointer-events-none text-xs font-sans whitespace-pre-wrap break-words text-transparent p-0 leading-normal"
-          aria-hidden="true"
-        >
-          {renderHighlighted(value)}
-        </div>
-        <textarea
-          value={value}
-          onChange={onChange}
-          disabled={disabled}
-          className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 min-h-[2.5rem] font-sans placeholder:text-slate-600 relative z-10 leading-normal"
-          placeholder={placeholder}
-        />
-      </div>
-    )
-  }
-
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
@@ -248,6 +224,23 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
           if (!tags.some(t => t[0] === 't' && t[1] === cleanTag)) {
             tags.push(['t', cleanTag])
           }
+        })
+      }
+
+      // Extract Mentions
+      const mentionRegex = /nostr:(npub1[a-z0-9]+|nprofile1[a-z0-9]+)/gi
+      const mentions = postContent.match(mentionRegex)
+      if (mentions) {
+        mentions.forEach(m => {
+          try {
+            const entity = m.replace('nostr:', '')
+            const decoded = nip19.decode(entity)
+            if (decoded.type === 'npub') {
+              tags.push(['p', decoded.data as string])
+            } else if (decoded.type === 'nprofile') {
+              tags.push(['p', (decoded.data as any).pubkey])
+            }
+          } catch (e) {}
         })
       }
       
@@ -275,6 +268,88 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     } finally {
       setIsPublishing(false)
     }
+  }
+
+  const HashtagTextarea = ({ value, onChange, placeholder, disabled }: any) => {
+    const renderHighlighted = (text: string) => {
+      const parts = text.split(/(#\w+|nostr:(?:npub|nprofile)1[a-z0-9]+)/gi)
+      return parts.map((part, i) => {
+        if (part.startsWith('#')) {
+          return <span key={i} className="text-purple-400 font-bold">{part}</span> 
+        }
+        if (part.startsWith('nostr:')) {
+          return <span key={i} className="text-cyan-400 font-bold">{part.slice(0, 15)}...</span>
+        }
+        return part
+      })
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const val = e.target.value
+      const cursor = e.target.selectionStart
+      onChange(e)
+
+      // Detect @ mention trigger
+      const textBeforeCursor = val.slice(0, cursor)
+      const lastAt = textBeforeCursor.lastIndexOf('@')
+      if (lastAt !== -1 && !textBeforeCursor.slice(lastAt).includes(' ')) {
+        const query = textBeforeCursor.slice(lastAt + 1)
+        if (query.length >= 2) {
+          setMentionQuery(query)
+        } else {
+          setMentionQuery('')
+        }
+      } else {
+        setMentionQuery('')
+      }
+    }
+
+    const insertMention = (pubkey: string) => {
+      const npub = nip19.npubEncode(pubkey)
+      const lastAt = value.slice(0, postContent.length).lastIndexOf('@')
+      const before = value.slice(0, lastAt)
+      const after = value.slice(lastAt + 1 + mentionQuery.length)
+      const newVal = `${before}nostr:${npub}${after}`
+      setPostContent(newVal)
+      setMentionQuery('')
+    }
+
+    return (
+      <div className="relative w-full min-h-[2.5rem] mt-1">
+        {mentionQuery && userSuggestions.length > 0 && (
+          <div className="absolute bottom-full left-0 mb-2 w-full max-h-48 bg-slate-900 border border-slate-800 rounded-xl overflow-y-auto z-[1005] shadow-2xl animate-in slide-in-from-bottom-2">
+            {userSuggestions.map((res) => (
+              <button
+                key={res.pubkey}
+                onClick={() => insertMention(res.pubkey)}
+                className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 flex-shrink-0">
+                  {res.profile?.picture ? <img src={res.profile.picture} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-slate-600" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-100 truncate">{res.profile?.display_name || res.profile?.name || shortenPubkey(formatPubkey(res.pubkey))}</p>
+                  <p className="text-[9px] text-slate-500 font-mono truncate">{res.pubkey}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        <div 
+          className="absolute inset-0 pointer-events-none text-xs font-sans whitespace-pre-wrap break-words text-transparent p-0 leading-normal"
+          aria-hidden="true"
+        >
+          {renderHighlighted(value)}
+        </div>
+        <textarea
+          value={value}
+          onChange={handleChange}
+          disabled={disabled}
+          className="w-full bg-transparent text-slate-200 border-none focus:ring-0 p-0 text-xs resize-none h-10 min-h-[2.5rem] font-sans placeholder:text-slate-600 relative z-10 leading-normal"
+          placeholder={placeholder}
+        />
+      </div>
+    )
   }
 
   if (isCommLoading) {
@@ -361,8 +436,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
             {isUserModerator && (
               <button 
-                onClick={() => pushLayer({ 
-                  id: `mod-queue-${communityId}`, 
+                onClick={() => pushLayer({
+                  id: `mod-queue-${communityId}`,
                   type: 'modqueue',
                   title: 'Mod_Queue',
                   params: { communityId, creator, moderators }
@@ -373,8 +448,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               </button>
             )}
             <button 
-              onClick={() => pushLayer({ 
-                id: `mod-log-${communityId}`, 
+              onClick={() => pushLayer({
+                id: `mod-log-${communityId}`,
                 type: 'modlog',
                 title: 'Log',
                 params: { communityId, creator }
@@ -385,8 +460,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             </button>
             {isCreator && (
               <button 
-                onClick={() => pushLayer({ 
-                  id: `admin-${communityId}`, 
+                onClick={() => pushLayer({
+                  id: `admin-${communityId}`,
                   type: 'communityadmin',
                   title: 'Admin',
                   params: { communityId, creator }
@@ -398,8 +473,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
             )}
             {isUnmoderated && community && (
               <button 
-                onClick={() => pushLayer({ 
-                  id: `claim-${communityId}`, 
+                onClick={() => pushLayer({
+                  id: `claim-${communityId}`,
                   type: 'claimstation',
                   title: 'Authority_Claim',
                   params: { community }
