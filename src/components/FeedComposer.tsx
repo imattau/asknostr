@@ -142,7 +142,14 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
       if (pendingFallbackUrl) tags.push(['url', pendingFallbackUrl])
       
-      // ... (keep hashtag/mention extraction)
+      // Extract Magnet and InfoHash for NIP-94 style tags
+      const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i
+      const magnetMatch = postContent.match(magnetRegex)
+      if (magnetMatch) {
+        tags.push(['magnet', magnetMatch[0]])
+        tags.push(['i', magnetMatch[1].toLowerCase()])
+      }
+
       // Extract hashtags from #[tag] markup
       const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {

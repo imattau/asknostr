@@ -282,6 +282,14 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
       if (pendingFallbackUrl) tags.push(['url', pendingFallbackUrl])
 
+      // Extract Magnet and InfoHash for NIP-94 style tags
+      const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i
+      const magnetMatch = postContent.match(magnetRegex)
+      if (magnetMatch) {
+        tags.push(['magnet', magnetMatch[0]])
+        tags.push(['i', magnetMatch[1].toLowerCase()])
+      }
+
       const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {
         hashtags.forEach(match => {

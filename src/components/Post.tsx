@@ -732,11 +732,15 @@ const PostComponent: React.FC<PostProps> = ({
 
       {magnetMatches && magnetMatches.length > 0 && (
         <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
-          {magnetMatches.map((uri, idx) => (
-            <div key={idx} className={isHidden ? 'blur-md' : ''} onClick={(e) => e.stopPropagation()}>
-              <TorrentMedia magnetUri={uri} />
-            </div>
-          ))}
+          {magnetMatches.map((uri, idx) => {
+            // Try to find a corresponding fallback URL tag
+            const fallbackUrl = event.tags.find(t => t[0] === 'url')?.[1]
+            return (
+              <div key={idx} className={isHidden ? 'blur-md' : ''} onClick={(e) => e.stopPropagation()}>
+                <TorrentMedia magnetUri={uri} fallbackUrl={fallbackUrl} />
+              </div>
+            )
+          })}
         </div>
       )}
       

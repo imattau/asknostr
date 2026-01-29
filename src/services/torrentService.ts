@@ -2,9 +2,12 @@ import { swarmOrchestrator } from './torrent/orchestrator'
 import { persistenceManager } from './torrent/persistence'
 import { bridgeService } from './torrent/bridge'
 import { TorrentClient } from './torrent/client'
+import { mediaService } from './mediaService'
 import type { Event } from 'nostr-tools'
 
 class TorrentService {
+  private static BRIDGE_URL = 'https://bridge.asknostr.com'
+
   /**
    * Initialize and restore previously seeded files
    */
@@ -38,20 +41,47 @@ class TorrentService {
   }
 
   /**
-   * Dual-Action Upload: Seed locally + Safety Net Bridge
+   * Dual-Action Upload: Hybrid Hierarchy
+   * 1. Preferred Media Server (Blossom/Generic)
+   * 2. Fallback to AskNostr Bridge
    */
   async dualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, fallbackUrl?: string }> {
-    console.log('[TorrentService] Starting dual-action broadcast...')
+    console.log('[TorrentService] Starting hybrid dual-action broadcast...')
     
-    // 1. Start local seeding
-    const magnetPromise = swarmOrchestrator.seedFile(file, creatorPubkey)
+    // Step A: Local Seed
+    const magnet = await swarmOrchestrator.seedFile(file, creatorPubkey)
     
-    // 2. Safety Net upload to Bridge
-    const bridgePromise = bridgeService.uploadToBridge(file).catch(() => undefined)
+    // Step B: Hierarchy Upload
+    let fallbackUrl: string | undefined
 
-    const [magnet, fallbackUrl] = await Promise.all([magnetPromise, bridgePromise])
+    try {
+      // 1. Try configured media servers (Blossom etc)
+      fallbackUrl = await mediaService.uploadFile(file)
+    } catch (err) {
+      console.warn('[TorrentService] Preferred media servers failed, falling back to bridge...', err)
+      // 2. Fallback to Bridge
+      fallbackUrl = await bridgeService.uploadToBridge(file).catch(() => undefined)
+    }
+
+    // Step C: Bootstrap Ping
+    if (fallbackUrl) {
+      this.bootstrapPing(magnet, fallbackUrl)
+    }
     
     return { magnet, fallbackUrl }
+  }
+
+  /**
+   * Pings the Bridge so it can join the swarm from the HTTP source immediately
+   */
+  private async bootstrapPing(magnet: string, url: string) {
+    try {
+      fetch(`${TorrentService.BRIDGE_URL}/api/v1/bootstrap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ magnet, url, timestamp: Date.now() })
+      }).catch(() => {})
+    } catch (e) {}
   }
 
   // Wrapper methods for UI components
