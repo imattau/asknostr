@@ -107,6 +107,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     if (deletedIds.includes(e.id)) return false
     if (eventStatusMap[e.id] === 'spam') return false
 
+    // Filter out replies: If an event has an 'e' tag, it's usually a reply in this context
+    // (excluding the community 'a' tag which is handled separately)
+    const isReply = e.tags.some(t => t[0] === 'e')
+    if (isReply) return false
+
     const mode = community?.moderationMode || 'open'
     
     if (mode === 'restricted') {
