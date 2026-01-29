@@ -24,7 +24,7 @@ export interface MediaServer {
 
 const DEFAULT_MEDIA_SERVERS: MediaServer[] = [
   { id: 'blossom-nostr-wine', url: 'https://blossom.nostr.wine', type: 'blossom' },
-  { id: 'blossom-primal', url: 'https://blossom.primal.net', type: 'blossom' },
+  { id: 'blossom-void-cat', url: 'https://void.cat', type: 'blossom' },
   { id: 'media-nostr-build', url: 'https://nostr.build', type: 'generic' },
 ]
 

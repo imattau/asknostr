@@ -8,6 +8,12 @@ async function computeSha256(file: File): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+function utf8ToBase64(str: string): string {
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => {
+    return String.fromCharCode(parseInt(p1, 16))
+  }))
+}
+
 class MediaService {
   async uploadFile(file: File): Promise<string> {
     const state = useStore.getState()
@@ -23,13 +29,14 @@ class MediaService {
     // Try all configured servers in order
     for (const server of mediaServers) {
       try {
+        console.log(`[MediaService] Attempting upload to ${server.url} (${server.type})...`)
         if (server.type === 'blossom') {
           return await this.uploadToBlossom(server.url, file, sha256)
         } else {
           return await this.uploadToGeneric(server.url, file)
         }
       } catch (err) {
-        console.error(`[MediaService] Failed to upload to ${server.url} (${server.type})`, err)
+        console.warn(`[MediaService] Failed to upload to ${server.url} (${server.type}):`, err)
         lastError = err as Error
       }
     }
@@ -40,56 +47,76 @@ class MediaService {
   private async uploadToBlossom(baseUrl: string, file: File, sha256: string): Promise<string> {
     const uploadUrl = `${baseUrl.replace(/\/$/, '')}/${sha256}`
     const authEvent = await signerService.signAuthEvent(uploadUrl, 'PUT', sha256)
-    const authHeader = `Nostr ${btoa(JSON.stringify(authEvent))}`
-
-    const response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': file.type
-      },
-      body: file
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Blossom upload failed: ${response.status} ${errorText}`)
-    }
+    const authHeader = `Nostr ${utf8ToBase64(JSON.stringify(authEvent))}`
 
     try {
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': file.type
+        },
+        body: file
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Blossom upload failed (${response.status}): ${errorText}`)
+      }
+
       const result = await response.json()
       return result.url || uploadUrl
-    } catch {
-      // Some servers might return empty body on success if file exists
-      return uploadUrl
+    } catch (err) {
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        throw new Error(`Network error or CORS block on ${baseUrl}. Ensure the server supports Blossom PUT and Authorization headers.`)
+      }
+      throw err
     }
   }
 
   private async uploadToGeneric(baseUrl: string, file: File): Promise<string> {
-    // Standard Nostr generic upload (like nostr.build) usually expects POST multipart/form-data
+    // Specialized handling for common generic servers
+    let uploadUrl = baseUrl
+    if (baseUrl.includes('nostr.build')) {
+      uploadUrl = 'https://nostr.build/api/v2/upload/files'
+    }
+
     const formData = new FormData()
     formData.append('file', file)
 
-    // Some generic servers require NIP-98 for POST too
-    const authEvent = await signerService.signAuthEvent(baseUrl, 'POST')
-    const authHeader = `Nostr ${btoa(JSON.stringify(authEvent))}`
+    // NIP-98 Auth for POST
+    const authEvent = await signerService.signAuthEvent(uploadUrl, 'POST')
+    const authHeader = `Nostr ${utf8ToBase64(JSON.stringify(authEvent))}`
 
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-      },
-      body: formData
-    })
+    try {
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+        },
+        body: formData
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Generic upload failed: ${response.status} ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Generic upload failed (${response.status}): ${errorText}`)
+      }
+
+      const result = await response.json()
+      // Generic responses vary wildly
+      const url = result.url || 
+                  (result.data && result.data.url) || 
+                  (Array.isArray(result) && result[0].url) ||
+                  (result.data && Array.isArray(result.data) && result.data[0].url)
+      
+      if (!url) throw new Error('Upload succeeded but server did not return a URL')
+      return url
+    } catch (err) {
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        throw new Error(`Network error or CORS block on ${uploadUrl}.`)
+      }
+      throw err
     }
-
-    const result = await response.json()
-    // Generic responses vary wildly, usually it's .url or .data.url or [0].url
-    return result.url || (result.data && result.data.url) || (Array.isArray(result) && result[0].url) || baseUrl
   }
 }
 
