@@ -4,6 +4,7 @@ import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { Post } from './Post'
 import { useStore } from '../store/useStore'
+import { useUiStore } from '../store/useUiStore'
 import { MessageSquare, RefreshCw } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
