@@ -42,7 +42,7 @@ export const useSubscriptions = () => {
               set(cacheKey, event)
             }
           },
-          undefined,
+          nostrService.getDiscoveryRelays(),
           { onEose: () => finish(found ? latest : cached || null) }
         ).then(sub => {
           subRef = sub
