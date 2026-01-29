@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Search as SearchIcon, User, Globe, Hash, Zap, RefreshCw, ChevronRight } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { Search as SearchIcon, User, Globe, Hash, RefreshCw, ChevronRight, Users, MessageSquare } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
 import { resolveNip05 } from '../utils/nip05'
@@ -32,9 +32,9 @@ export const Search: React.FC = () => {
       }
     }
 
-    // 2. Network-wide search (NIP-50) for notes and communities
+    // 2. Network-wide search (NIP-50) for notes, communities and profiles
     await nostrService.subscribe(
-      [{ kinds: [1, 34550], search: query, limit: 40 }],
+      [{ kinds: [1, 0, 34550], search: query, limit: 60 }],
       (event: Event) => {
         setResults(prev => {
           if (prev.find(e => e.id === event.id)) return prev
@@ -45,8 +45,16 @@ export const Search: React.FC = () => {
     )
 
     // Give it some time to gather results
-    setTimeout(() => setIsSearching(false), 3000)
+    setTimeout(() => setIsSearching(false), 4000)
   }
+
+  const categorizedResults = useMemo(() => {
+    return {
+      communities: results.filter(e => e.kind === 34550),
+      profiles: results.filter(e => e.kind === 0),
+      posts: results.filter(e => e.kind === 1)
+    }
+  }, [results])
 
   return (
     <div className="p-6 space-y-8">
@@ -84,7 +92,7 @@ export const Search: React.FC = () => {
           <button 
             onClick={() => pushLayer({ 
               id: `profile-${nip05Result.pubkey}`, 
-              type: 'profile' as const, 
+              type: 'profile-view' as const, 
               title: 'Identity_Card',
               params: { pubkey: nip05Result.pubkey }
             })}
@@ -104,27 +112,29 @@ export const Search: React.FC = () => {
         </section>
       )}
 
-      {/* Results */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <Hash size={14} /> Propagation_Results ({results.length})
-          </h3>
-          {isSearching && (
-            <div className="flex items-center gap-2 text-cyan-500 text-[9px] font-bold animate-pulse">
-              <Zap size={10} className="fill-cyan-500" /> CAPTURING_DATA_STREAM
-            </div>
-          )}
-        </div>
+      {/* Categorized Results */}
+      <div className="space-y-10">
+        {isSearching && results.length === 0 && (
+          <div className="flex items-center justify-center py-20 gap-3 text-cyan-500 animate-pulse">
+            <RefreshCw className="animate-spin" size={20} />
+            <span className="text-xs font-mono uppercase tracking-[0.3em]">Querying_Relay_Network...</span>
+          </div>
+        )}
 
-        {results.length === 0 && !isSearching ? (
+        {!isSearching && results.length === 0 && (
           <div className="py-20 text-center opacity-20 italic font-mono text-xs">
             [WAITING_FOR_QUERY_INPUT]
           </div>
-        ) : (
-          <div className="space-y-4">
-            {results.map(event => {
-              if (event.kind === 34550) {
+        )}
+
+        {/* 1. Communities */}
+        {categorizedResults.communities.length > 0 && (
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-purple-500/20 pb-2">
+              <Hash size={14} /> Discovered_Stations ({categorizedResults.communities.length})
+            </h3>
+            <div className="grid gap-3">
+              {categorizedResults.communities.map(event => {
                 const dTag = event.tags.find(t => t[0] === 'd')?.[1] || ''
                 const name = event.tags.find(t => t[0] === 'name')?.[1] || dTag
                 const image = event.tags.find(t => t[0] === 'image')?.[1]
@@ -143,21 +153,68 @@ export const Search: React.FC = () => {
                       {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : <Hash size={20} className="text-purple-500" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-50 font-bold uppercase tracking-tight truncate">{name}</span>
-                        <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 rounded font-mono">NODE</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {dTag}</p>
+                      <span className="text-slate-50 font-bold uppercase tracking-tight truncate block">{name}</span>
+                      <p className="text-[9px] text-slate-500 font-mono mt-0.5 uppercase tracking-tighter opacity-50 italic">{dTag}</p>
                     </div>
                     <ChevronRight size={20} className="text-purple-500 opacity-30 group-hover:translate-x-1 transition-all" />
                   </button>
                 )
-              }
-              return <Post key={event.id} event={event} />
-            })}
-          </div>
+              })}
+            </div>
+          </section>
         )}
-      </section>
+
+        {/* 2. Profiles */}
+        {categorizedResults.profiles.length > 0 && (
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-emerald-500/20 pb-2">
+              <Users size={14} /> Identity_Nodes ({categorizedResults.profiles.length})
+            </h3>
+            <div className="grid gap-3">
+              {categorizedResults.profiles.map(event => {
+                let metadata = { name: '', picture: '', about: '', display_name: '' }
+                try { metadata = JSON.parse(event.content) } catch (e) {}
+                const name = metadata.display_name || metadata.name || event.pubkey.slice(0, 8)
+                return (
+                  <button
+                    key={event.id}
+                    onClick={() => pushLayer({ 
+                      id: `profile-${event.pubkey}`, 
+                      type: 'profile-view', 
+                      title: 'Identity_Card',
+                      params: { pubkey: event.pubkey }
+                    })}
+                    className="w-full terminal-border p-4 text-left glassmorphism border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all group flex items-center gap-4"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                      {metadata.picture ? <img src={metadata.picture} alt="" className="w-full h-full object-cover" /> : <User size={24} className="text-emerald-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-slate-50 font-bold tracking-tight truncate block">{name}</span>
+                      <p className="text-[10px] text-slate-500 line-clamp-1 italic">{metadata.about || 'No biometric description found.'}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-emerald-500 opacity-30 group-hover:translate-x-1 transition-all" />
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 3. Posts */}
+        {categorizedResults.posts.length > 0 && (
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-cyan-500/20 pb-2">
+              <MessageSquare size={14} /> Logic_Streams ({categorizedResults.posts.length})
+            </h3>
+            <div className="space-y-4">
+              {categorizedResults.posts.map(event => (
+                <Post key={event.id} event={event} />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   )
 }
