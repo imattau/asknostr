@@ -102,6 +102,7 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
   const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
   const [pendingMagnet, setPendingMagnet] = useState<string | undefined>()
   const [pendingFile, setPendingFile] = useState<File | undefined>()
+  const [seedingStatus, setSeedingStatus] = useState<{ name: string; status: 'in-progress' | 'ready' | 'failed'; magnet?: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
@@ -125,15 +126,18 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
     const file = e.target.files?.[0]
     if (!file) return
     setIsSeeding(true)
+    setSeedingStatus({ name: file.name, status: 'in-progress' })
     try {
       const { magnet, fallbackUrl } = await torrentService.prepareDualUpload(file, user.pubkey || '')
       setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
       setPendingFile(file)
       setPendingMagnet(magnet)
       if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
+      setSeedingStatus({ name: file.name, status: 'ready', magnet })
     } catch (err) {
       console.error('Seeding preparation failed', err)
       alert(err instanceof Error ? err.message : 'Failed to seed file')
+      setSeedingStatus({ name: file.name, status: 'failed' })
     } finally {
       setIsSeeding(false)
       if (torrentInputRef.current) torrentInputRef.current.value = ''
@@ -202,6 +206,7 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
         setPendingFallbackUrl(undefined)
         setPendingFile(undefined)
         setPendingMagnet(undefined)
+        setSeedingStatus(null)
       } else {
         alert('Publication failed.')
       }
@@ -262,20 +267,28 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
           <label className="flex items-center gap-2 uppercase font-mono text-slate-500">
             <input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1 items-end">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
             <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
-            
-            <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50" title="Attach Media">
-              {isUploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 transition-colors disabled:opacity-50" title="Attach Media">
+                {isUploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+              </button>
 
-            <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-purple-400 transition-colors disabled:opacity-50" title="Seed via BitTorrent">
-              {isSeeding ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
-            </button>
+              <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className="p-1.5 rounded-lg hover:bg-white/5 text-purple-400 transition-colors disabled:opacity-50" title="Seed via BitTorrent">
+                {isSeeding ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+              </button>
+            </div>
 
             <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded-lg text-[10px] py-1 px-3">Transmit</button>
           </div>
+          {seedingStatus && (
+            <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300">
+              {seedingStatus.status === 'in-progress' && <>Seeding {seedingStatus.name}…</>}
+              {seedingStatus.status === 'ready' && seedingStatus.magnet && <>Magnet added: {seedingStatus.magnet.slice(0, 32)}…</>}
+              {seedingStatus.status === 'failed' && <>Failed to seed {seedingStatus.name}</>}
+            </p>
+          )}
         </div>
       </div>
       <div className={`glassmorphism rounded-full shadow-inner px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300/60 text-center cursor-pointer transition-all duration-300 hover:text-cyan-200 hover:bg-white/10 ${collapsed ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none h-0 py-0 overflow-hidden'}`} onClick={() => setCollapsed(false)}>Open composer</div>

@@ -2,7 +2,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { nostrService, SubscriptionPriority } from '../services/nostr';
 import type { Filter, Event } from 'nostr-tools';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
 interface UseFeedOptions {
   filters: Filter[];
@@ -22,7 +22,12 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   
   const filtersKey = JSON.stringify(filters || []);
   const relaysKey = JSON.stringify(customRelays || null);
-  
+  const parsedFilters = useMemo(() => (JSON.parse(filtersKey || '[]') as Filter[]), [filtersKey]);
+  const parsedRelays = useMemo(() => (JSON.parse(relaysKey || 'null') as string[] | null), [relaysKey]);
+  const normalizedRelayList = parsedRelays && parsedRelays.length ? parsedRelays : undefined;
+  const snapshotLimit = Math.max(limit, MAX_FEED_SIZE);
+  const feedKey = useMemo(() => nostrService.getFeedKey(parsedFilters, normalizedRelayList, snapshotLimit), [parsedFilters, normalizedRelayList, snapshotLimit]);
+
   const queryKey = ['feed-events', filtersKey, relaysKey];
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -31,40 +36,16 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
 
   const query = useQuery<Event[], Error>({
     queryKey,
-    queryFn: async ({ queryKey, signal }) => {
-      const currentFilters = JSON.parse(queryKey[1] as string || '[]').map((f: any) => ({ ...f, limit }));
-      const currentCustomRelays = JSON.parse(queryKey[2] as string || 'null') as string[] | undefined;
-
-      return new Promise<Event[]>((resolve, reject) => {
-        const events: Event[] = [];
-        
-        const sub = nostrService.subscribe(
-          currentFilters,
-          (event) => {
-            if (!events.some(e => e.id === event.id)) events.push(event);
-          },
-          currentCustomRelays,
-          {
-            priority: SubscriptionPriority.HIGH,
-            onEose: () => {
-              sub.close();
-              resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
-            }
-          }
-        );
-
-        signal.onabort = () => {
-          sub.close();
-        };
-
-        setTimeout(() => {
-          sub.close();
-          resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
-        }, 4000);
-      });
+    queryFn: async () => {
+      const snapshotFilters = parsedFilters.map(f => ({ ...f, limit }));
+      const events = await nostrService.requestFeedSnapshot(feedKey, snapshotFilters, normalizedRelayList, snapshotLimit);
+      return events;
     },
     enabled,
-    staleTime: 1000 * 60 * 5,
+    staleTime: Infinity, // Keep data fresh indefinitely to prevent auto-refetch
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 
   const flushBuffer = useCallback((maxItems: number = PENDING_FLUSH_CHUNK) => {
@@ -135,50 +116,32 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   useEffect(() => {
     if (!enabled || !live) return;
 
-    let activeSub: { close: () => void } | null = null;
-    let isEffectMounted = true;
+    let isMounted = true;
+    let unregister: (() => void) | null = null;
     let flushInterval: ReturnType<typeof setInterval> | null = null;
 
-    const startLiveSubscription = () => {
-      const liveFilters = JSON.parse(filtersKey).map((f: any) => ({
-        ...f,
-        since: Math.floor(Date.now() / 1000),
-        limit: undefined
-      }));
-
-      if (!manualFlush) {
-        flushInterval = setInterval(() => flushBuffer(PENDING_FLUSH_CHUNK), FLUSH_INTERVAL_MS);
+    const handleEvent = (event: Event) => {
+      if (!isMounted) return;
+      const currentData = queryClient.getQueryData<Event[]>(queryKey) || [];
+      if (currentData.some(e => e.id === event.id) || eventBufferRef.current.some(e => e.id === event.id)) {
+        return;
       }
-
-      activeSub = nostrService.subscribe(
-        liveFilters,
-        (event) => {
-          if (isEffectMounted) {
-            // Check for duplicates before adding to buffer
-            const currentData = queryClient.getQueryData<Event[]>(queryKey) || [];
-            if (!currentData.some(e => e.id === event.id) && !eventBufferRef.current.some(e => e.id === event.id)) {
-              eventBufferRef.current.push(event);
-              setPendingCount(eventBufferRef.current.length);
-            }
-          }
-        },
-        JSON.parse(relaysKey),
-        { priority: SubscriptionPriority.MEDIUM }
-      );
-
-      if (!isEffectMounted) {
-        activeSub.close();
-      }
+      eventBufferRef.current.push(event);
+      setPendingCount(eventBufferRef.current.length);
     };
 
-    startLiveSubscription();
+    unregister = nostrService.registerFeed(feedKey, parsedFilters, normalizedRelayList, snapshotLimit, handleEvent);
+
+    if (!manualFlush) {
+      flushInterval = setInterval(() => flushBuffer(PENDING_FLUSH_CHUNK), FLUSH_INTERVAL_MS);
+    }
 
     return () => {
-      isEffectMounted = false;
+      isMounted = false;
       if (flushInterval) clearInterval(flushInterval);
-      if (activeSub) (activeSub as any).close();
+      unregister?.();
     };
-  }, [enabled, live, filtersKey, relaysKey, queryClient, queryKey, manualFlush, flushBuffer]);
+  }, [enabled, live, feedKey, parsedFilters, normalizedRelayList, snapshotLimit, manualFlush, flushBuffer, queryClient, queryKey]);
 
   return { ...query, fetchMore, isFetchingMore, pendingCount, flushBuffer };
 };

@@ -26,6 +26,32 @@ interface PostProps {
   depth?: number
 }
 
+const ImageTile: React.FC<{
+  url: string
+  alt?: string
+  onClick?: () => void
+}> = ({ url, alt, onClick }) => {
+  const [loaded, setLoaded] = useState(false)
+
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <div className={`absolute inset-0 transition-opacity duration-300 ${loaded ? 'opacity-0' : 'opacity-100'} bg-slate-900/70`} />
+      <img
+        src={url}
+        alt={alt || 'Media content'}
+        loading="lazy"
+        decoding="async"
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setLoaded(true)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick?.()
+        }}
+      />
+    </div>
+  )
+}
+
 const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = ({ link, onClick }) => {
   const { theme } = useUiStore()
   const entity = link.replace('nostr:', '')
@@ -78,9 +104,22 @@ const PostComponent: React.FC<PostProps> = ({
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
   const { data: zapData, isLoading: isZapsLoading } = useZaps(event.id)
   const { data: replyCount = 0, isLoading: isReplyCountLoading } = useReplyCount(event.id)
-  const { user, addOptimisticReaction, optimisticReactions, addOptimisticApproval, optimisticApprovals, optimisticDeletions, addOptimisticDeletion } = useStore()
+  
+  const user = useStore(state => state.user)
+  const addOptimisticReaction = useStore(state => state.addOptimisticReaction)
+  const addOptimisticDeletion = useStore(state => state.addOptimisticDeletion)
+  const addOptimisticApproval = useStore(state => state.addOptimisticApproval)
+  const optimisticDeletions = useStore(state => state.optimisticDeletions)
+  
+  const postOptimistic = useStore(state => state.optimisticReactions[event.id])
+  const isOptimisticallyApproved = useStore(state => state.optimisticApprovals.includes(event.id))
+  
   const { subscribedCommunities } = useSubscriptions()
-  const { layout, stack, pushLayer, theme } = useUiStore()
+  
+  const layout = useUiStore(state => state.layout)
+  const stack = useUiStore(state => state.stack)
+  const pushLayer = useUiStore(state => state.pushLayer)
+  const theme = useUiStore(state => state.theme)
   
   const [isSeedingLocally, setIsSeedingLocally] = useState(false)
 
@@ -121,34 +160,33 @@ const PostComponent: React.FC<PostProps> = ({
   const [isRevealed, setIsRevealed] = useState(false)
   const isHidden = isNsfw && !isRevealed
 
-  const isOptimisticallyApproved = optimisticApprovals.includes(event.id)
   const effectiveApproved = isApproved || isOptimisticallyApproved
 
   const eventReactions = (reactionData?.reactions || []).filter(r => !optimisticDeletions.includes(r.id))
   const aggregatedReactions = reactionData?.aggregated || {}
 
-  const postOptimistic = optimisticReactions[event.id] || {}
-  
-  const hasUserReacted = (emoji: string) => {
-    if (!user.pubkey) return false
-    const real = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
-    const optimistic = postOptimistic[emoji]?.includes(user.pubkey)
-    return (real || optimistic)
-  }
-
   const getReactionCount = (emoji: string, baseCount: number) => {
     if (!user.pubkey) return baseCount
-    
+
     // Count real reactions that aren't deleted
     const realCount = (reactionData?.reactions || [])
       .filter(r => r.content === emoji && !optimisticDeletions.includes(r.id))
       .length
-    
-    const optimistic = postOptimistic[emoji]?.includes(user.pubkey)
+
+    const optimistic = postOptimistic?.[emoji]?.includes(user.pubkey)
     const alreadyHasReal = (reactionData?.reactions || [])
       .some(r => r.pubkey === user.pubkey && r.content === emoji && !optimisticDeletions.includes(r.id))
 
-    return realCount + (optimistic && !alreadyHasReal ? 1 : 0)
+    return realCount + (optimistic && !alreadyHasReal ? 1 : 0) + baseCount
+  }
+  const likeCount = getReactionCount('+', aggregatedReactions['+']?.count || 0)
+
+  
+  const hasUserReacted = (emoji: string) => {
+    if (!user.pubkey) return false
+    const real = eventReactions.some(r => r.pubkey === user.pubkey && r.content === emoji)
+    const optimistic = postOptimistic?.[emoji]?.includes(user.pubkey)
+    return (real || optimistic)
   }
 
   const mediaRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov))/gi
@@ -696,45 +734,42 @@ const PostComponent: React.FC<PostProps> = ({
 
       {mediaMatches && mediaMatches.length > 0 && (
         <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
-          {mediaMatches.map((url, idx) => (
-            <div key={idx} className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''} min-h-[100px] flex items-center justify-center`}>
-              {url.match(/\.(mp4|webm|mov)$/i) ? (
-                <video 
-                  src={url} 
-                  preload="metadata"
-                  controls 
-                  className="max-h-[500px] w-full"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <img 
-                  src={url} 
-                  alt="Media content" 
-                  loading="lazy"
-                  decoding="async"
-                  className="max-h-[500px] w-full object-contain cursor-zoom-in transition-opacity duration-300 opacity-0"
-                  onLoad={(e) => {
-                    (e.target as HTMLImageElement).classList.remove('opacity-0');
-                    (e.target as HTMLImageElement).classList.add('opacity-100');
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    window.open(url, '_blank')
-                  }}
-                />
-              )}
-            </div>
-          ))}
-          {isHidden && (
-            <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-white/90' : 'bg-slate-950/70'} border border-red-500/30 rounded-lg`}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setIsRevealed(true) }}
-                className="text-[10px] font-bold uppercase px-3 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/10"
+          {mediaMatches.map((url, idx) => {
+            const isVideo = url.match(/\.(mp4|webm|mov)$/i)
+            return (
+              <div
+                key={idx}
+                className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''} min-h-[260px] sm:min-h-[300px]`}
               >
-                View NSFW Media
-              </button>
-            </div>
-          )}
+                {isVideo ? (
+                  <div className="relative w-full h-full min-h-[260px] sm:min-h-[300px]">
+                    <video
+                      src={url}
+                      preload="metadata"
+                      controls
+                      className="absolute inset-0 w-full h-full object-contain"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                ) : (
+                  <ImageTile
+                    url={url}
+                    onClick={() => window.open(url, '_blank')}
+                  />
+                )}
+                {isHidden && (
+                  <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-white/90' : 'bg-slate-950/70'} border border-red-500/30 rounded-lg`}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setIsRevealed(true) }}
+                      className="text-[10px] font-bold uppercase px-3 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/10"
+                    >
+                      View NSFW Media
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -752,32 +787,6 @@ const PostComponent: React.FC<PostProps> = ({
         </div>
       )}
       
-      <div className="flex flex-wrap gap-2 mb-4">
-        {Object.entries(aggregatedReactions).map(([emoji, data]) => (
-          <button
-            key={emoji}
-            onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] transition-all ${hasUserReacted(emoji) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : reactionBtnClass}`}
-          >
-            <span className="flex items-center leading-none">{emoji === '+' ? '❤️' : emoji}</span>
-            <span className="font-bold leading-none">{getReactionCount(emoji, data.count)}</span>
-          </button>
-        ))}
-        {user.pubkey && (
-          <div className="flex gap-1">
-            {['🔥', '🤙', '🫡', '⚡'].map(emoji => (
-              <button
-                key={emoji}
-                onClick={(e) => { e.stopPropagation(); handleLike(emoji); }}
-                className={`opacity-0 group-hover:opacity-100 transition-opacity hover:scale-125 p-0.5 ${hasUserReacted(emoji) ? '' : 'grayscale hover:grayscale-0'}`}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className={`flex gap-8 text-[10px] uppercase font-bold ${mutedText}`}>
         <button 
           onClick={openThread}
@@ -849,7 +858,7 @@ const PostComponent: React.FC<PostProps> = ({
           className={`flex items-center gap-1.5 transition-colors group/btn ${hasUserReacted('+') ? 'text-red-500' : `hover:text-red-500 ${mutedText}`}`}
         >
           <Heart size={12} className={`group-hover/btn:scale-110 transition-transform ${isReactionsLoading ? 'animate-pulse' : ''} ${hasUserReacted('+') ? 'fill-red-500/20' : ''}`} />
-          <span className="leading-none">{getReactionCount('+', eventReactions.filter(r => r.content === '+' || r.content === '').length)} Like</span>
+          <span className="leading-none">{likeCount || 0} Like{likeCount === 1 ? '' : 's'}</span>
         </button>
         <div className="relative group/zap">
           <button 

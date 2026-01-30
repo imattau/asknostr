@@ -155,7 +155,7 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
           {stack.map((layer, index) => (
             <div
               key={`${layer.id}-${index}`}
-              className={`shrink-0 border-r ${borderClass} flex flex-col h-full ${bgCol} animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible`}
+              className={`shrink-0 border-r ${borderClass} flex flex-col h-full min-h-0 ${bgCol} animate-in fade-in slide-in-from-right-4 duration-300 relative shadow-2xl overflow-visible`}
               style={{ width: `${columnWidths[index] || 500}px` }}
             >
               <header className={`h-14 border-b flex items-center px-4 gap-4 shrink-0 ${headerClass} backdrop-blur-md`}>
@@ -174,7 +174,7 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
                 </div>
                 <div className={`text-[8px] font-mono ${theme === 'light' ? 'opacity-40' : 'opacity-20'} uppercase`}>L:{index + 1}</div>
               </header>
-              <div className="flex-1 overflow-hidden">{renderLayerContent(layer)}</div>
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">{renderLayerContent(layer)}</div>
               <ResizeHandle index={index} columnWidths={columnWidths} onResize={handleResize} />
             </div>
           ))}

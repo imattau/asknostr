@@ -31,7 +31,6 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
     // The 5-Second Rule: Fallback to HTTP if swarm is cold
     const fallbackTimer = setTimeout(() => {
       if (mounted && (!torrentState || torrentState.numPeers === 0) && !isReady && fallbackUrl) {
-        console.log('[TorrentMedia] Swarm cold after 5s, falling back to HTTP...')
         setUseFallback(true)
       }
     }, 5000)

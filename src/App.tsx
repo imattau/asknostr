@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import type { VirtuosoHandle } from 'react-virtuoso'
 import { useStore } from './store/useStore'
 import { useUiStore } from './store/useUiStore'
 import type { Layer } from './store/useUiStore'
@@ -54,6 +55,12 @@ function App() {
       }
     }, [following])
 
+    useEffect(() => {
+      if (user.pubkey) {
+        torrentService.refreshRemoteSeedList().catch(() => {})
+      }
+    }, [user.pubkey])
+
     // Set default view for logged-in users on mobile
     useEffect(() => {
       if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
@@ -64,7 +71,7 @@ function App() {
   const [composerCollapsed, setComposerCollapsed] = useState(false)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
 
-  const feedRef = useRef<any>(null)
+  const feedRef = useRef<VirtuosoHandle | null>(null)
   const lastScrollTop = useRef(0)
 
   const handleFeedScroll = useCallback(
@@ -224,9 +231,7 @@ function MainFeed({
           <button
             onClick={() => {
               flushBuffer(50)
-              // Scroll to top
-              const scroller = document.querySelector('.virtuoso-scroller');
-              if (scroller) scroller.scrollTo({ top: 0, behavior: 'smooth' });
+              feedRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })
             }}
             className="bg-cyan-500 text-black text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400 hover:bg-cyan-400 transition-all flex items-center gap-2"
           >

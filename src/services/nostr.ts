@@ -1,4 +1,4 @@
-import { SimplePool } from 'nostr-tools'
+import { SimplePool, verifyEvent } from 'nostr-tools'
 import type { Filter, Event } from 'nostr-tools'
 import { signerService } from './signer'
 import { sanitizeRelayUrls } from '../utils/relays'
@@ -40,30 +40,66 @@ export enum SubscriptionPriority {
 }
 
 interface SubscriptionRequest {
+  subId: string
   filters: Filter[]
   onEvent: (event: Event) => void
   relays: string[]
   priority: SubscriptionPriority
   options?: { onEose?: () => void }
-  resolve: (closer: { close: () => void }) => void
+  sharedKey?: string
+}
+
+interface SharedSubscription {
+  key: string
+  filters: Filter[]
+  relays: string[]
+  listeners: Set<(event: Event) => void>
+  eoseCallbacks: Set<() => void>
+  refCount: number
+  priority: SubscriptionPriority
+  request: SubscriptionRequest
+  closeFn?: () => void
+  isTerminated: boolean
+}
+
+type FeedEventMessage = { type: 'feed-event'; key: string; event: Event }
+type FeedSnapshotMessage = { type: 'feed-snapshot'; key: string; events: Event[] }
+
+interface FeedRegistryEntry {
+  filters: Filter[]
+  relays: string[]
+  limit: number
+  eventListeners: Set<(event: Event) => void>
+  snapshotResolvers: Set<(events: Event[]) => void>
+}
+
+type WorkerToMainMessage =
+  | { type: 'event'; subId: string; event: Event }
+  | { type: 'eose'; subId: string }
+  | { type: 'closed'; subId: string }
+  | { type: 'error'; subId?: string; message: string }
+  | FeedEventMessage
+  | FeedSnapshotMessage
+
+interface WorkerSubscriptionEntry {
+  request: SubscriptionRequest
+  seenIds: Set<string>
 }
 
 class NostrService {
   private pool: SimplePool
   private relays: string[]
   private worker: Worker | null = null
-  private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
-  private validationCache = new Map<string, boolean>()
   private maxActiveRelays: number = 4
-  private activeWorkerRequests: number = 0
-  private readonly MAX_CONCURRENT_VERIFICATIONS = 50
-  private readonly MAX_CACHE_SIZE = 10000
+  private workerSubscriptions = new Map<string, WorkerSubscriptionEntry>()
+  private feedRegistry = new Map<string, FeedRegistryEntry>()
 
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
   private readonly MAX_CONCURRENT_SUBS = 10
   private readonly SUB_BURST_INTERVAL_MS = 250
+  private sharedSubscriptions = new Map<string, SharedSubscription>()
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -78,26 +114,125 @@ class NostrService {
     this.relays = sanitizeRelayUrls(relays).slice(0, this.maxActiveRelays)
     
     if (typeof window !== 'undefined') {
-      this.worker = new Worker('/event-worker.js', { type: 'module' })
-      this.worker.addEventListener('message', (e: MessageEvent) => {
-        const processResult = () => {
-          this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
-          const { id, isValid } = e.data || {}
-          if (!id) return
-          const pending = this.pendingValidations.get(id)
-          if (!pending) return
-          clearTimeout(pending.timeoutId)
-          this.pendingValidations.delete(id)
-          pending.resolve(!!isValid)
-        }
-
-        if ('requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(processResult)
-        } else {
-          processResult()
-        }
+      this.worker = new Worker(new URL('../workers/nostrWorker.ts', import.meta.url), { type: 'module' })
+      this.worker.addEventListener('message', (event) => this.handleWorkerMessage(event))
+      this.worker.addEventListener('error', () => {
+        // worker errors handled silently to avoid console noise
       })
     }
+  }
+
+  getFeedKey(filters: Filter[], relays: string[] | undefined, limit: number) {
+    const normalizedFilters = filters.map(filter => this.normalizeFilterForKey(filter))
+    const resolvedRelays = relays && relays.length ? this.normalizeRelays(relays) : this.relays
+    const sortedRelays = [...new Set(resolvedRelays)].sort()
+    return `feed:${JSON.stringify(normalizedFilters)}|${JSON.stringify(sortedRelays)}|${limit}`
+  }
+
+  registerFeed(
+    key: string,
+    filters: Filter[],
+    relays: string[] | undefined,
+    limit: number,
+    onEvent: (event: Event) => void
+  ) {
+    if (!this.worker) {
+      return () => undefined
+    }
+
+    const resolvedRelays = relays && relays.length ? this.normalizeRelays(relays) : this.relays
+    const entry = this.ensureFeedEntry(key, filters, resolvedRelays, limit)
+    entry.eventListeners.add(onEvent)
+
+    return () => {
+      entry.eventListeners.delete(onEvent)
+      this.maybeCleanupFeedEntry(key, entry)
+    }
+  }
+
+  async requestFeedSnapshot(
+    key: string,
+    filters: Filter[],
+    relays: string[] | undefined,
+    limit: number
+  ): Promise<Event[]> {
+    if (!this.worker) {
+      return this.legacyFetchFeedSnapshot(filters, relays, limit)
+    }
+
+    const resolvedRelays = relays && relays.length ? this.normalizeRelays(relays) : this.relays
+    const entry = this.ensureFeedEntry(key, filters, resolvedRelays, limit)
+
+    return new Promise<Event[]>((resolve) => {
+      const resolver = (events: Event[]) => {
+        entry.snapshotResolvers.delete(resolver)
+        resolve(events)
+        this.maybeCleanupFeedEntry(key, entry)
+      }
+      entry.snapshotResolvers.add(resolver)
+      this.worker?.postMessage({ type: 'snapshot_request', key })
+    })
+  }
+
+  private ensureFeedEntry(key: string, filters: Filter[], relays: string[], limit: number): FeedRegistryEntry {
+    const normalizedFilters = filters.map(filter => ({ ...filter }))
+    const normalizedRelays = [...new Set(relays)]
+    let entry = this.feedRegistry.get(key)
+    if (!entry) {
+      entry = {
+        filters: normalizedFilters,
+        relays: normalizedRelays,
+        limit,
+        eventListeners: new Set(),
+        snapshotResolvers: new Set()
+      }
+      this.feedRegistry.set(key, entry)
+    } else {
+      entry.filters = normalizedFilters
+      entry.relays = normalizedRelays
+      entry.limit = limit
+    }
+    this.worker?.postMessage({
+      type: 'register_feed',
+      key,
+      filters: normalizedFilters,
+      relays: normalizedRelays,
+      limit
+    })
+    return entry
+  }
+
+  private async legacyFetchFeedSnapshot(filters: Filter[], relays: string[] | undefined, limit: number): Promise<Event[]> {
+    return new Promise<Event[]>((resolve) => {
+      const events: Event[] = []
+      const relaysToUse = relays && relays.length ? relays : this.relays
+      const filtersWithLimit = filters.map(filter => ({ ...filter, limit }))
+      let settled = false
+      let timeout: ReturnType<typeof setTimeout>
+      const finalize = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        sub.close()
+        const sorted = [...events].sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+        resolve(sorted.slice(0, limit))
+      }
+
+      const sub = this.subscribe(
+        filtersWithLimit,
+        (event: Event) => {
+          if (!events.some(e => e.id === event.id)) {
+            events.push(event)
+          }
+        },
+        relaysToUse,
+        {
+          priority: SubscriptionPriority.HIGH,
+          onEose: finalize
+        }
+      )
+      timeout = setTimeout(finalize, 4000)
+    })
   }
 
   getRelays() {
@@ -125,50 +260,138 @@ class NostrService {
     return sanitizeRelayUrls(relays).slice(0, this.maxActiveRelays)
   }
 
-  private async verifyInWorker(event: Event): Promise<boolean> {
-    if (this.validationCache.has(event.id)) {
-      return this.validationCache.get(event.id)!
-    }
+  private getSubscriptionKey(filters: Filter[], relays: string[]) {
+    const normalizedFilters = filters.map(filter => this.normalizeFilterForKey(filter))
+    const sortedRelays = [...new Set(relays)].sort()
+    return `${JSON.stringify(normalizedFilters)}|${JSON.stringify(sortedRelays)}`
+  }
 
-    if (!this.worker) return true
-    
-    if (this.pendingValidations.has(event.id)) {
-      return new Promise((resolve) => {
-        const existing = this.pendingValidations.get(event.id)
-        if (!existing) return resolve(true)
-        const originalResolve = existing.resolve
-        existing.resolve = (ok: boolean) => {
-          originalResolve(ok)
-          resolve(ok)
-        }
-      })
-    }
-
-    if (this.activeWorkerRequests > this.MAX_CONCURRENT_VERIFICATIONS) {
-      await new Promise(r => setTimeout(r, 100))
-    }
-
-    return new Promise((resolve) => {
-      const timeoutId = setTimeout(() => {
-        this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
-        this.pendingValidations.delete(event.id)
-        resolve(true)
-      }, 3000)
-
-      this.pendingValidations.set(event.id, { 
-        resolve: (isValid: boolean) => {
-          if (this.validationCache.size >= this.MAX_CACHE_SIZE) {
-            const firstKey = this.validationCache.keys().next().value
-            if (firstKey) this.validationCache.delete(firstKey)
-          }
-          this.validationCache.set(event.id, isValid)
-          resolve(isValid)
-        }, 
-        timeoutId 
-      })
-      this.activeWorkerRequests++
-      this.worker?.postMessage({ event })
+  private normalizeFilterForKey(filter: Filter): Filter {
+    const normalized: Record<string, unknown> = {}
+    const source = filter as Record<string, unknown>
+    Object.keys(source).sort().forEach(key => {
+      const value = source[key]
+      if (Array.isArray(value)) {
+        normalized[key] = [...value]
+      } else if (value && typeof value === 'object') {
+        normalized[key] = this.normalizeFilterForKey(value as Filter)
+      } else {
+        normalized[key] = value
+      }
     })
+    return normalized as Filter
+  }
+
+  private handleWorkerMessage = (event: MessageEvent) => {
+    const data = event.data as WorkerToMainMessage
+    if (!data || !data.type) return
+
+    const subscriptionEntry = data.subId ? this.workerSubscriptions.get(data.subId) : undefined
+
+    switch (data.type) {
+      case 'event':
+        if (!subscriptionEntry) return
+        if (subscriptionEntry.seenIds.has(data.event.id)) return
+        subscriptionEntry.seenIds.add(data.event.id)
+        subscriptionEntry.request.onEvent(data.event)
+        break
+      case 'eose':
+        subscriptionEntry?.request.options?.onEose?.()
+        break
+      case 'closed':
+        this.workerSubscriptions.delete(data.subId)
+        this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
+        this.processQueue()
+        break
+      case 'error':
+        // optionally log to a monitoring service if needed
+        if (data.subId) {
+          this.workerSubscriptions.delete(data.subId)
+          this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
+          this.processQueue()
+        }
+        break
+      case 'feed-event': {
+        const entry = this.feedRegistry.get(data.key)
+        if (!entry) return
+        entry.eventListeners.forEach(listener => listener(data.event))
+        break
+      }
+      case 'feed-snapshot': {
+        const entry = this.feedRegistry.get(data.key)
+        if (!entry) return
+        const sorted = [...data.events].sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+        entry.snapshotResolvers.forEach(resolver => resolver(sorted))
+        entry.snapshotResolvers.clear()
+        this.maybeCleanupFeedEntry(data.key, entry)
+        break
+      }
+    }
+  }
+
+  private createSharedSubscription(key: string, filters: Filter[], relays: string[], priority: SubscriptionPriority): SharedSubscription {
+    const subId = Math.random().toString(36).slice(2, 9)
+    const shared: SharedSubscription = {
+      key,
+      filters,
+      relays,
+      listeners: new Set(),
+      eoseCallbacks: new Set(),
+      refCount: 0,
+      priority,
+      request: {} as SubscriptionRequest,
+      isTerminated: false
+    }
+    const request: SubscriptionRequest = {
+      subId,
+      sharedKey: key,
+      filters,
+      onEvent: (event) => {
+        shared.listeners.forEach(listener => {
+          try {
+            listener(event)
+      } catch {
+        // swallow shared listener errors
+      }
+        })
+      },
+      relays,
+      priority,
+      options: {
+        onEose: () => {
+          shared.eoseCallbacks.forEach(cb => {
+            try {
+              cb()
+            } catch {
+              // swallow shared onEose errors
+            }
+          })
+        }
+      },
+    }
+    shared.request = request
+    return shared
+  }
+
+  private closeSharedSubscription(shared: SharedSubscription) {
+    if (shared.isTerminated) return
+    shared.isTerminated = true
+
+    shared.closeFn?.()
+    this.subscriptionQueue = this.subscriptionQueue.filter(req => req !== shared.request)
+
+    if (this.sharedSubscriptions.get(shared.key) === shared) {
+      this.sharedSubscriptions.delete(shared.key)
+    }
+
+    this.processQueue()
+  }
+
+  private maybeCleanupFeedEntry(key: string, entry: FeedRegistryEntry) {
+    if (entry.eventListeners.size === 0 && entry.snapshotResolvers.size === 0) {
+      this.feedRegistry.delete(key)
+      this.worker?.postMessage({ type: 'unregister_feed', key })
+    }
   }
 
   // --- Metadata Batching System ---
@@ -235,59 +458,57 @@ class NostrService {
     customRelays?: string[],
     options?: { onEose?: () => void, priority?: SubscriptionPriority }
   ) {
-    const subId = Math.random().toString(36).slice(2, 9)
-    console.log(`[Nostr] [${subId}] New sub request. Priority: ${options?.priority ?? 1}. Filters:`, filters.length)
-
-    let underlyingSub: { close: () => void } | null = null
-    let isClosed = false
-
-    const resolveRequest = (sub: { close: () => void }) => {
-      if (isClosed) {
-        console.log(`[Nostr] [${subId}] Sub resolved but already closed. Closing underlying.`)
-        sub.close()
-        this.activeSubscriptionsCount--
-        this.processQueue()
-      } else {
-        console.log(`[Nostr] [${subId}] Sub active and linked.`)
-        underlyingSub = sub
-      }
+    const relays = customRelays || this.relays
+    const normalizedRelays = this.normalizeRelays(relays)
+    if (normalizedRelays.length === 0) {
+      // no relays available; skip subscription quietly
+      return { close: () => undefined }
     }
 
+    const priority = options?.priority ?? SubscriptionPriority.MEDIUM
+    const key = this.getSubscriptionKey(filters, normalizedRelays)
+    let shared = this.sharedSubscriptions.get(key)
+
+    if (!shared) {
+      shared = this.createSharedSubscription(key, filters, normalizedRelays, priority)
+      this.sharedSubscriptions.set(key, shared)
+      this.subscriptionQueue.push(shared.request)
+      this.subscriptionQueue.sort((a, b) => a.priority - b.priority)
+      this.processQueue()
+      // new shared subscription queued
+    } else if (priority < shared.priority) {
+      shared.priority = priority
+      shared.request.priority = priority
+      this.subscriptionQueue.sort((a, b) => a.priority - b.priority)
+      // shared subscription upgraded
+    } else {
+      // reusing shared subscription
+    }
+
+    shared.listeners.add(onEvent)
+    if (options?.onEose) shared.eoseCallbacks.add(options.onEose)
+    shared.refCount++
+
+    let isClosed = false
     const closer = {
       close: () => {
         if (isClosed) return
         isClosed = true
-        console.log(`[Nostr] [${subId}] Closing sub.`)
-        if (underlyingSub) {
-          underlyingSub.close()
-          this.activeSubscriptionsCount--
-          this.processQueue()
-        } else {
-          console.log(`[Nostr] [${subId}] Sub was still in queue. Removing.`)
-          this.subscriptionQueue = this.subscriptionQueue.filter(req => req.resolve !== resolveRequest)
+        shared!.listeners.delete(onEvent)
+        if (options?.onEose) shared!.eoseCallbacks.delete(options.onEose)
+        shared!.refCount--
+        if (shared!.refCount <= 0) {
+          this.closeSharedSubscription(shared!)
         }
       }
     }
-
-    const request: SubscriptionRequest = {
-      filters,
-      onEvent,
-      relays: customRelays || this.relays,
-      priority: options?.priority ?? SubscriptionPriority.MEDIUM,
-      options,
-      resolve: resolveRequest
-    }
-
-    this.subscriptionQueue.push(request)
-    this.subscriptionQueue.sort((a, b) => a.priority - b.priority)
-    this.processQueue()
 
     return closer
   }
 
   private processQueue() {
     if (this.subscriptionQueue.length > 0) {
-      console.log(`[Nostr] Queue status: ${this.activeSubscriptionsCount}/${this.MAX_CONCURRENT_SUBS} active. ${this.subscriptionQueue.length} pending.`)
+      // queue status updated
     }
 
     if (this.activeSubscriptionsCount >= this.MAX_CONCURRENT_SUBS || this.subscriptionQueue.length === 0) {
@@ -295,7 +516,7 @@ class NostrService {
     }
 
     const slotsAvailable = this.MAX_CONCURRENT_SUBS - this.activeSubscriptionsCount
-    const toProcess = Math.min(slotsAvailable, 2)
+    const toProcess = slotsAvailable
 
     for (let i = 0; i < toProcess; i++) {
       if (this.subscriptionQueue.length === 0) break
@@ -306,53 +527,82 @@ class NostrService {
     }
   }
 
+  private executeSubscription(request: SubscriptionRequest) {
+    const { filters, relays, subId } = request
     const urls = this.normalizeRelays(relays.slice(0, this.maxActiveRelays))
     const cleanFilters = filters.filter(f => f && typeof f === 'object' && Object.keys(f).length > 0)
 
-    console.log(`[Nostr] [${subId}] Executing sub. Raw Filters:`, filters, 'Cleaned Filters:', cleanFilters); // Log raw and cleaned filters
-
     if (urls.length === 0 || cleanFilters.length === 0) {
-      console.warn(`[Nostr] [${subId}] Execution skipped: No relays (${urls.length}) or empty filters (${cleanFilters.length}).`)
+      // skip empty subscription silently
       this.activeSubscriptionsCount--
-      resolve({ close: () => {} })
       this.processQueue()
       return
     }
 
+    const shared = request.sharedKey ? this.sharedSubscriptions.get(request.sharedKey) : null
+
+    if (this.worker) {
+      this.workerSubscriptions.set(subId, { request, seenIds: new Set() })
+      if (shared) {
+        shared.closeFn = () => this.worker?.postMessage({ type: 'close', subId })
+      }
+      this.worker.postMessage({
+        type: 'subscribe',
+        subId,
+        filters: cleanFilters,
+        relays: urls
+      })
+      setTimeout(() => this.processQueue(), this.SUB_BURST_INTERVAL_MS)
+      return
+    }
+
+    this.executeSubscriptionLegacy(request, urls, cleanFilters, shared)
+  }
+
+  private executeSubscriptionLegacy(
+    request: SubscriptionRequest,
+    urls: string[],
+    cleanFilters: Filter[],
+    shared: SharedSubscription | undefined | null
+  ) {
+    const { onEvent, options, subId } = request
     const subscriptionSeenIds = new Set<string>()
-    const wrappedCallback = async (event: Event) => {
+    const wrappedCallback = (event: Event) => {
       if (subscriptionSeenIds.has(event.id)) return
       subscriptionSeenIds.add(event.id)
-      const isValid = await this.verifyInWorker(event)
-      if (isValid) onEvent(event)
+      try {
+        if (verifyEvent(event)) {
+          onEvent(event)
+        }
+    } catch {
+      // optionally log verification errors
+    }
     }
 
     try {
-      console.log(`[Nostr] [${subId}] Calling pool.subscribeMap with relays: ${urls.length}, filters: ${cleanFilters.length}. Sample filter:`, cleanFilters.length > 0 ? cleanFilters[0] : 'N/A');
       const subscription = this.pool.subscribeMap(
         urls.flatMap(url => cleanFilters.map(f => ({ url, filter: f }))),
         {
           onevent: wrappedCallback,
           oneose: () => {
-            console.log(`[Nostr] [${subId}] EOSE received`)
+            // eose received
             options?.onEose?.()
           },
           onclose: () => {
-            console.log(`[Nostr] [${subId}] Relay connection closed for sub`)
+            // relay connection closed
+            this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
+            this.processQueue()
           }
         }
       )
-      console.log(`[Nostr] [${subId}] Subscription object returned:`, subscription);
-
-      resolve({
-        close: () => subscription.close()
-      })
-
+      // subscription established
+      if (shared) {
+        shared.closeFn = () => subscription.close()
+      }
       setTimeout(() => this.processQueue(), this.SUB_BURST_INTERVAL_MS)
     } catch (e) {
       console.error(`[Nostr] [${subId}] Subscription failed execution:`, e)
-      this.activeSubscriptionsCount--
-      resolve({ close: () => {} })
+      this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
       this.processQueue()
     }
   }
@@ -420,7 +670,7 @@ class NostrService {
     try {
       await Promise.any(promises)
       return true
-    } catch (e) {
+    } catch {
       return false
     }
   }
@@ -448,7 +698,6 @@ class NostrService {
   close() {
     this.pool.close(this.relays)
     this.worker?.terminate()
-    this.pendingValidations.clear()
   }
 }
 

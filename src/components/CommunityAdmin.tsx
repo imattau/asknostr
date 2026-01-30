@@ -45,7 +45,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
 
   React.useEffect(() => {
     if (community) {
-      console.log('[Admin] Hydrating state from community data')
       setName(community.name || '')
       setDescription(community.description || '')
       setRules(community.rules || '')
@@ -55,7 +54,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
       setRelays(community.relays.join(', '))
       setMode(community.moderationMode || 'open')
     } else if (!isLoading) {
-      console.log('[Admin] No data found, initializing with creator as mod')
       setMods([creator])
     }
   }, [community, isLoading, creator])

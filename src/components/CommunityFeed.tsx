@@ -125,8 +125,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     return [...new Set([...commRelays, ...userRelays])]
   }, [community?.relays, userRelays])
 
-  console.log(`[CommunityFeed] Rendering c/${communityId}. a-tag: ${communityATag}. Relays:`, combinedRelays.length)
-
   const communityFilters = useMemo(() => [
     { kinds: [1, 4550], '#a': [communityATag] },
     { kinds: [1], '#t': [communityId.toLowerCase()] }
@@ -183,11 +181,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     return hasATag || hasTTag;
   });
 
-  console.log(`[CommunityFeed] Total events from useFeed: ${events.length}`);
-  console.log(`[CommunityFeed] Community events after local filter: ${communityEvents.length}`);
-  if (events.length > 0 && communityEvents.length === 0) {
-    console.log('[CommunityFeed] Sample event tags:', JSON.stringify(events[0].tags));
-  }
 
   const eventIds = communityEvents.map(e => e.id)
   const moderators = useMemo(() => community?.moderators || [], [community?.moderators])
@@ -299,7 +292,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
-    console.log('[CommunityFeed] Initiating publication...')
     try {
       const tags = [['a', communityATag, '', 'root'], ['t', communityId]]
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
@@ -344,17 +336,14 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         .replace(/nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi, 'nostr:$1')
 
       const eventTemplate = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags, content: cleanContent }
-      console.log('[CommunityFeed] Signing and publishing...')
       const signedEvent = await signerService.signEvent(eventTemplate)
       const success = await nostrService.publish(signedEvent)
       if (success) {
-        console.log('[CommunityFeed] Publication success! Finalizing torrent...')
         if (pendingFile && pendingMagnet) {
           await torrentService.finalizePublication(pendingFile, pendingMagnet, pendingFallbackUrl, user.pubkey)
         }
         setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); setPendingFile(undefined); setPendingMagnet(undefined); triggerHaptic(20)
       } else { 
-        console.warn('[CommunityFeed] Publication failed on all relays.')
         alert('Broadcast failed') 
       }
     } catch (e) {

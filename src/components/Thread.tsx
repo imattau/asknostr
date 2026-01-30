@@ -92,7 +92,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
     setIsNsfw(false)
 
     const fetchThread = () => {
-      console.log('[Thread] Fetching events for ID:', eventId, 'Root:', rootId)
       setIsLoading(true)
       
       const gatheredIds = new Set<string>([rootId, eventId])
@@ -141,7 +140,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
       timeoutId = setTimeout(() => {
         if (resolved) return
         resolved = true
-        console.log('[Thread] Fetch timeout reached.')
         setIsLoading(false)
       }, 3500)
     }
@@ -149,7 +147,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
     fetchThread()
 
     return () => {
-      console.log('[Thread] Closing all subscriptions:', activeSubs.size)
       if (timeoutId) clearTimeout(timeoutId)
       activeSubs.forEach(s => s.close())
       activeSubs.clear()
@@ -157,13 +154,10 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
   }, [eventId, rootId, sourceEvent, rootEvent])
 
   const handleReply = async () => {
-    console.log('[Thread] handleReply initiated')
     if (!replyContent.trim()) {
-      console.warn('[Thread] Empty content, aborting')
       return
     }
     if (!user.pubkey) {
-      console.warn('[Thread] No user pubkey, aborting')
       alert('Login required to reply.')
       return
     }
@@ -189,7 +183,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
       // Inherit community context if present
       const communityTag = rootEventResolved?.tags.find(t => t[0] === 'a' && t[1].startsWith('34550:'))
       if (communityTag) {
-        console.log('[Thread] Inheriting community tag:', communityTag[1])
         tags.push(communityTag)
       }
 
@@ -200,14 +193,11 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
         content: replyContent,
       }
 
-      console.log('[Thread] Requesting signature for template:', eventTemplate)
       const signedEvent = await signerService.signEvent(eventTemplate)
-      console.log('[Thread] Event signed successfully:', signedEvent.id)
       
       const success = await nostrService.publish(signedEvent)
       
       if (success) {
-        console.log('[Thread] Broadcast success')
         setReplyContent('')
         setIsNsfw(false)
         // Optimistically update UI
@@ -217,7 +207,6 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
         })
         triggerHaptic(50)
       } else {
-        console.warn('[Thread] Broadcast failed on all relays')
         alert('Reply signed but failed to broadcast to any relays. It may not be visible to others.')
         // Still add locally so user doesn't lose data?
         setAllEvents(prev => [...prev, signedEvent])

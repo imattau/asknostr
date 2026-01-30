@@ -8,11 +8,9 @@ export const useGlobalDiscovery = () => {
   return useQuery({
     queryKey: ['global-community-discovery'],
     queryFn: async () => {
-      console.log('[Discovery] Initiating network scan for Kind 34550...')
       const discovered: CommunityDefinition[] = []
 
       const runSubscription = async (relays: string[]) => {
-        console.log(`[Discovery] Scanning ${relays.length} relays for communities...`)
         let count = 0
         return new Promise<void>((resolve) => {
           nostrService.subscribe(
@@ -31,7 +29,6 @@ export const useGlobalDiscovery = () => {
           ).then(sub => {
             setTimeout(() => {
               sub.close()
-              console.log(`[Discovery] Scan complete. Found ${count} new items on this set.`)
               resolve()
             }, 6000)
           })
