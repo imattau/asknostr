@@ -33,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
 )
 
 const registerServiceWorker = () => {
+  if (import.meta.env.DEV) return
   if ('serviceWorker' in navigator) {
     const wb = new Workbox('/sw.js')
     wb.register()
