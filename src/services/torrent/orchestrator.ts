@@ -59,7 +59,7 @@ export class SwarmOrchestrator {
     })
   }
 
-  async seedFile(file: File, creatorPubkey?: string, shouldSave = true): Promise<string> {
+  async seedFile(file: File, _creatorPubkey?: string, shouldSave = true): Promise<string> {
     return new Promise((resolve, reject) => {
       const client = TorrentClient.get()
       
@@ -69,24 +69,33 @@ export class SwarmOrchestrator {
       }
 
       client.seed(file, options, async (torrent: any) => {
+        console.log('[Orchestrator] Local seeding initialized:', torrent.infoHash)
+        
+        // Only save to IndexedDB if explicitly requested (e.g. during restoration)
+        // For new uploads, we wait for finalizePersistence to be called after publication
         if (shouldSave) {
-          const record: SeededFileRecord = {
-            name: file.name,
-            type: file.type,
-            data: file,
-            magnetUri: torrent.magnetURI,
-            infoHash: torrent.infoHash,
-            addedAt: Date.now(),
-            creatorPubkey
-          }
-          
-          await persistenceManager.saveSeed(record)
+          await this.persistSeed(file, torrent.magnetURI, torrent.infoHash, _creatorPubkey)
         }
+        
         resolve(torrent.magnetURI)
       })
 
       client.on('error', (err: any) => reject(err))
     })
+  }
+
+  async persistSeed(file: File, magnetUri: string, infoHash: string, creatorPubkey?: string) {
+    const record: SeededFileRecord = {
+      name: file.name,
+      type: file.type,
+      data: file,
+      magnetUri: magnetUri,
+      infoHash: infoHash,
+      addedAt: Date.now(),
+      creatorPubkey
+    }
+    console.log('[Orchestrator] Committing seed to persistent storage:', file.name)
+    await persistenceManager.saveSeed(record)
   }
 
   private startHealthReporting() {

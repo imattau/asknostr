@@ -98,6 +98,8 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [isSeeding, setIsSeeding] = useState(false)
   const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
+  const [pendingMagnet, setPendingMagnet] = useState<string | undefined>()
+  const [pendingFile, setPendingFile] = useState<File | undefined>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
@@ -122,11 +124,13 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
     if (!file) return
     setIsSeeding(true)
     try {
-      const { magnet, fallbackUrl } = await torrentService.dualUpload(file, user.pubkey || '')
+      const { magnet, fallbackUrl } = await torrentService.prepareDualUpload(file, user.pubkey || '')
       setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
+      setPendingFile(file)
+      setPendingMagnet(magnet)
       if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
     } catch (err) {
-      console.error('Seeding failed', err)
+      console.error('Seeding preparation failed', err)
       alert(err instanceof Error ? err.message : 'Failed to seed file')
     } finally {
       setIsSeeding(false)
@@ -142,17 +146,16 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
       const tags: string[][] = []
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
       if (pendingFallbackUrl) {
-        console.log('[FeedComposer] Including fallback URL:', pendingFallbackUrl)
         tags.push(['url', pendingFallbackUrl])
       }
       
-      // Extract Magnet and InfoHash for NIP-94 style tags
-      const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i
-      const magnetMatch = postContent.match(magnetRegex)
-      if (magnetMatch) {
-        console.log('[FeedComposer] Found magnet link, adding NIP-94 tags...')
-        tags.push(['magnet', magnetMatch[0]])
-        tags.push(['i', magnetMatch[1].toLowerCase()])
+      const magnetToCommit = pendingMagnet || postContent.match(/magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i)?.[0]
+      if (magnetToCommit) {
+        const infoHashMatch = magnetToCommit.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
+        if (infoHashMatch) {
+          tags.push(['magnet', magnetToCommit])
+          tags.push(['i', infoHashMatch[1].toLowerCase()])
+        }
       }
 
       // Extract hashtags from #[tag] markup
@@ -185,23 +188,24 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
         })
       }
 
-      // Clean the content for publishing: convert nostr:[npub...] back to nostr:npub...
       const cleanContent = postContent
         .replace(/#\[(\w+)\]/g, '#$1')
         .replace(/nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi, 'nostr:$1')
 
-      console.log('[FeedComposer] Final tags:', tags)
-      console.log('[FeedComposer] Broadcasting to relays...')
       const success = await nostrService.createAndPublishPost(cleanContent, tags)
       
       if (success) {
-        console.log('[FeedComposer] Publication success!')
+        console.log('[FeedComposer] Publication success! Finalizing torrent transaction...')
+        if (pendingFile && pendingMagnet) {
+          await torrentService.finalizePublication(pendingFile, pendingMagnet, pendingFallbackUrl, user.pubkey)
+        }
         setPostContent('')
         setIsNsfw(false)
         setPendingFallbackUrl(undefined)
+        setPendingFile(undefined)
+        setPendingMagnet(undefined)
       } else {
-        console.warn('[FeedComposer] Publication failed on all relays.')
-        alert('Publication failed. Relays may be unreachable.')
+        alert('Publication failed. Relays might be unreachable.')
       }
     } catch (e) {
       console.error('[FeedComposer] Publication error:', e)

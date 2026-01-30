@@ -41,25 +41,22 @@ class TorrentService {
   }
 
   /**
-   * Dual-Action Upload: Hybrid Hierarchy
-   * 1. Preferred Media Server (Blossom/Generic)
-   * 2. Fallback to AskNostr Bridge
+   * Dual-Action Preparation: Generate magnet and upload to HTTP
+   * This is called when the user selects a file. It does NOT persist to DB.
    */
-  async dualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, fallbackUrl?: string }> {
-    console.log('[TorrentService] Starting hybrid dual-action broadcast for:', file.name)
+  async prepareDualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, fallbackUrl?: string }> {
+    console.log('[TorrentService] Preparing hybrid dual-action upload for:', file.name)
     
-    // Step A: Local Seed
-    // Start seeding in parallel with the upload
-    const magnetPromise = swarmOrchestrator.seedFile(file, creatorPubkey)
+    // Step A: Local Seed (In-memory, no DB save yet)
+    const magnetPromise = swarmOrchestrator.seedFile(file, creatorPubkey, false)
     
-    // Step B: Hierarchy Upload
+    // Step B: Hierarchy Upload (Immediate, as we need the URL for the post)
     const uploadPromise = (async () => {
       try {
         console.log('[TorrentService] Attempting primary upload...')
         return await mediaService.uploadFile(file)
       } catch (err) {
         console.warn('[TorrentService] Preferred media servers failed, falling back to bridge...', err)
-        // 2. Fallback to Bridge
         return await bridgeService.uploadToBridge(file).catch((bridgeErr) => {
           console.error('[TorrentService] Bridge fallback also failed:', bridgeErr)
           return undefined
@@ -69,15 +66,27 @@ class TorrentService {
 
     const [magnet, fallbackUrl] = await Promise.all([magnetPromise, uploadPromise])
     
-    console.log('[TorrentService] Dual-action complete:', { magnet, fallbackUrl })
+    return { magnet, fallbackUrl }
+  }
 
-    // Step C: Bootstrap Ping
+  /**
+   * Commits the transaction: Saves to DB and notifies Bridge
+   * Call this only AFTER the Nostr event is successfully published.
+   */
+  async finalizePublication(file: File, magnet: string, fallbackUrl?: string, creatorPubkey?: string) {
+    console.log('[TorrentService] Finalizing publication for:', file.name)
+    
+    // 1. Commit to local persistent storage (restore on restart)
+    const infoHashMatch = magnet.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
+    if (infoHashMatch) {
+      await swarmOrchestrator.persistSeed(file, magnet, infoHashMatch[1].toLowerCase(), creatorPubkey)
+    }
+
+    // 2. Notify Bridge to bootstrap the swarm
     if (fallbackUrl) {
-      console.log('[TorrentService] Sending bootstrap ping to bridge...')
+      console.log('[TorrentService] Notifying bridge to join swarm...')
       this.bootstrapPing(magnet, fallbackUrl)
     }
-    
-    return { magnet, fallbackUrl }
   }
 
   /**

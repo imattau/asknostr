@@ -136,10 +136,11 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [isSeeding, setIsSeeding] = useState(false)
   const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
+  const [pendingMagnet, setPendingMagnet] = useState<string | undefined>()
+  const [pendingFile, setPendingFile] = useState<File | undefined>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
-  // ... (keep primaryText, secondaryText, etc.)
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
@@ -148,8 +149,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const containerBg = theme === 'light' ? 'bg-slate-50' : 'bg-[#05070A]'
 
   const { data: labels = [] } = useLabels(communityATag)
-
-  // ... (keep handleToggle, effects, sortedEvents logic)
 
   useEffect(() => {
     if (user.pubkey) markAsRead(communityATag)
@@ -262,11 +261,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     if (!file) return
     setIsSeeding(true)
     try {
-      const { magnet, fallbackUrl } = await torrentService.dualUpload(file, user.pubkey || '')
+      const { magnet, fallbackUrl } = await torrentService.prepareDualUpload(file, user.pubkey || '')
       setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
+      setPendingFile(file)
+      setPendingMagnet(magnet)
       if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
     } catch (err) {
-      console.error('Seeding failed', err)
+      console.error('Seeding preparation failed', err)
       alert(err instanceof Error ? err.message : 'Failed to seed file')
     } finally {
       setIsSeeding(false)
@@ -282,17 +283,16 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       const tags = [['a', communityATag, '', 'root'], ['t', communityId]]
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
       if (pendingFallbackUrl) {
-        console.log('[CommunityFeed] Including fallback URL:', pendingFallbackUrl)
         tags.push(['url', pendingFallbackUrl])
       }
 
-      // Extract Magnet and InfoHash for NIP-94 style tags
-      const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i
-      const magnetMatch = postContent.match(magnetRegex)
-      if (magnetMatch) {
-        console.log('[CommunityFeed] Found magnet link, adding NIP-94 tags...')
-        tags.push(['magnet', magnetMatch[0]])
-        tags.push(['i', magnetMatch[1].toLowerCase()])
+      const magnetToCommit = pendingMagnet || postContent.match(/magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i)?.[0]
+      if (magnetToCommit) {
+        const infoHashMatch = magnetToCommit.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
+        if (infoHashMatch) {
+          tags.push(['magnet', magnetToCommit])
+          tags.push(['i', infoHashMatch[1].toLowerCase()])
+        }
       }
 
       const hashtags = postContent.match(/#\[(\w+)\]/g)
@@ -322,14 +322,16 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         .replace(/#\[(\w+)\]/g, '#$1')
         .replace(/nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi, 'nostr:$1')
 
-      console.log('[CommunityFeed] Final tags:', tags)
       const eventTemplate = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags, content: cleanContent }
       console.log('[CommunityFeed] Signing and publishing...')
       const signedEvent = await signerService.signEvent(eventTemplate)
       const success = await nostrService.publish(signedEvent)
       if (success) {
-        console.log('[CommunityFeed] Publication success!')
-        setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); triggerHaptic(20)
+        console.log('[CommunityFeed] Publication success! Finalizing torrent...')
+        if (pendingFile && pendingMagnet) {
+          await torrentService.finalizePublication(pendingFile, pendingMagnet, pendingFallbackUrl, user.pubkey)
+        }
+        setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); setPendingFile(undefined); setPendingMagnet(undefined); triggerHaptic(20)
       } else { 
         console.warn('[CommunityFeed] Publication failed on all relays.')
         alert('Broadcast failed') 
