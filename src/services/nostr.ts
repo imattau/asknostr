@@ -54,7 +54,7 @@ class NostrService {
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
   private validationCache = new Map<string, boolean>()
-  private maxActiveRelays: number = 8 // Restored to 8 for better parallelism
+  private maxActiveRelays: number = 4 // Reduced to 4 to prevent browser connection limits
   private activeWorkerRequests: number = 0
   private readonly MAX_CONCURRENT_VERIFICATIONS = 50
   private readonly MAX_CACHE_SIZE = 10000
@@ -62,8 +62,8 @@ class NostrService {
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
-  private readonly MAX_CONCURRENT_SUBS = 20 // High concurrency allowed
-  private readonly SUB_BURST_INTERVAL_MS = 50 // Faster burst processing
+  private readonly MAX_CONCURRENT_SUBS = 10 // Reduced from 20 to prevent relay overload
+  private readonly SUB_BURST_INTERVAL_MS = 250 // Increased from 50 to give relays breathing room
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -184,7 +184,7 @@ class NostrService {
     if (type === 'replies') this.replyCountBatch.add(id)
 
     if (!this.batchTimeout) {
-      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1000)
+      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1500) // Increased window for larger batches
     }
 
     return () => {
@@ -226,7 +226,7 @@ class NostrService {
       }
     }, this.getDiscoveryRelays(), { priority: SubscriptionPriority.LOW })
 
-    setTimeout(() => sub.close(), 15000)
+    setTimeout(() => sub.close(), 10000) // Metadata snapshots close faster
   }
 
   // --- End Batching System ---
@@ -273,9 +273,7 @@ class NostrService {
     }
 
     this.subscriptionQueue.push(request)
-    // Stable sort: Priority first (lowest number), then insertion order
     this.subscriptionQueue.sort((a, b) => a.priority - b.priority)
-    
     this.processQueue()
 
     return closer
@@ -286,9 +284,8 @@ class NostrService {
       return
     }
 
-    // Process up to 3 at once in a burst if slots are available
     const slotsAvailable = this.MAX_CONCURRENT_SUBS - this.activeSubscriptionsCount
-    const toProcess = Math.min(slotsAvailable, 3)
+    const toProcess = Math.min(slotsAvailable, 2) // Reduced burst size to 2
 
     for (let i = 0; i < toProcess; i++) {
       if (this.subscriptionQueue.length === 0) break
@@ -320,8 +317,10 @@ class NostrService {
     }
 
     try {
-      const subscription = this.pool.subscribeMap(
-        urls.flatMap(url => cleanFilters.map(f => ({ url, filter: f }))),
+      // Using subscribeMany instead of subscribeMap to consolidate REQs
+      const subscription = this.pool.subscribeMany(
+        urls,
+        cleanFilters,
         {
           onevent: wrappedCallback,
           oneose: () => options?.onEose?.(),
@@ -333,10 +332,9 @@ class NostrService {
         close: () => subscription.close()
       })
 
-      // Schedule next check
       setTimeout(() => this.processQueue(), this.SUB_BURST_INTERVAL_MS)
     } catch (e) {
-      console.error('[Nostr] Pool subscription failed:', e)
+      console.error('[Nostr] Subscription failed:', e)
       this.activeSubscriptionsCount--
       resolve({ close: () => {} })
       this.processQueue()
