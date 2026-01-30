@@ -10,7 +10,7 @@ describe('TorrentWorkerBridge', () => {
   })
 
   it('should initialize a Web Worker', () => {
-    expect(global.Worker).toHaveBeenCalledWith('/torrent-worker.js', expect.any(Object))
+    expect(global.Worker).toHaveBeenCalledWith('/torrent-worker.js')
   })
 
   it('should send a seed command to the worker', async () => {
