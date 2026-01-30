@@ -13,12 +13,10 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-const Row = React.memo((props: any) => {
+const Row = (props: any) => {
   const { index, style, data } = props
   
-  if (!data) {
-    return <div style={style} />
-  }
+  if (!data) return <div style={style} />
 
   const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
 
@@ -29,8 +27,6 @@ const Row = React.memo((props: any) => {
       return dynamicRowHeight.observeRowElements([rowRef.current])
     }
   }, [dynamicRowHeight])
-
-  if (!events) return <div style={style} />
 
   if (header && index === 0) {
     return (
@@ -64,13 +60,7 @@ const Row = React.memo((props: any) => {
       <Post event={event} depth={0} />
     </div>
   )
-}, (prev, next) => {
-  return prev.index === next.index && 
-         prev.style === next.style && 
-         prev.data === next.data
-})
-
-Row.displayName = 'VirtualFeedRow'
+}
 
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
   ({ events = [], isLoadingMore, onLoadMore, onScroll, header }, ref) => {
@@ -104,7 +94,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     }
 
     return (
-      <div className="h-full w-full">
+      <div className="h-full w-full bg-transparent">
         <AutoSizer>
           {({ height, width }: any) => {
             if (!height || !width) return null;

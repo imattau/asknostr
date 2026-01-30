@@ -20,8 +20,10 @@ export class TorrentWorkerBridge {
   private torrents: Map<string, TorrentState> = new Map()
 
   constructor() {
-    this.worker = new Worker('/torrent-worker.js')
-    this.worker.onmessage = (e) => this.handleMessage(e)
+    if (typeof window !== 'undefined') {
+      this.worker = new Worker(`/torrent-worker.js?v=${Date.now()}`)
+      this.worker.onmessage = (e) => this.handleMessage(e)
+    }
   }
 
   private handleMessage(e: MessageEvent) {

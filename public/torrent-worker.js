@@ -2,16 +2,17 @@
 let client = null;
 
 try {
-  importScripts('https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/dist/webtorrent.min.js');
+  // Using a simplified URL to avoid any potential encoding/parsing issues
+  importScripts('https://cdn.jsdelivr.net/npm/webtorrent/dist/webtorrent.min.js');
   
   if (typeof WebTorrent !== 'undefined') {
     client = new WebTorrent();
   } else {
-    throw new Error('WebTorrent is not defined after importScripts');
+    throw new Error('WebTorrent not found in global scope');
   }
 } catch (err) {
-  console.error('[TorrentWorker] Initialization failed:', err);
-  self.postMessage({ type: 'ERROR', payload: 'Worker init failed: ' + err.message });
+  console.error('[TorrentWorker] Critical Init Error:', err);
+  self.postMessage({ type: 'ERROR', payload: 'Worker failure: ' + err.message });
 }
 
 const getTorrentMetadata = (torrent) => ({
@@ -20,14 +21,13 @@ const getTorrentMetadata = (torrent) => ({
   name: torrent.name,
   progress: torrent.progress,
   numPeers: torrent.numPeers,
-  files: torrent.files.map(f => ({
+  files: (torrent.files || []).map(f => ({
     name: f.name,
     length: f.length,
     path: f.path
   }))
 });
 
-// SHA-256 Hashing in Worker
 async function computeSha256(file) {
   const buffer = await file.arrayBuffer();
   const hashBuffer = await self.crypto.subtle.digest('SHA-256', buffer);
@@ -37,10 +37,7 @@ async function computeSha256(file) {
 
 self.onmessage = async (e) => {
   const { type, payload } = e.data;
-  if (!client && type !== 'HASH_FILE') {
-    console.error('[TorrentWorker] Cannot handle message: client not initialized', type);
-    return;
-  }
+  if (!client && type !== 'HASH_FILE') return;
 
   switch (type) {
     case 'HASH_FILE':
@@ -69,59 +66,38 @@ self.onmessage = async (e) => {
             payload: getTorrentMetadata(torrent)
           });
         };
-
-        if (torrent.ready) {
-          onReady();
-        } else {
-          torrent.once('ready', onReady);
-        }
+        if (torrent.ready) onReady();
+        else torrent.once('ready', onReady);
 
         self.postMessage({
           type: 'TORRENT_ADDED',
-          payload: {
-            infoHash: torrent.infoHash,
-            magnetURI: torrent.magnetURI
-          }
+          payload: { infoHash: torrent.infoHash, magnetURI: torrent.magnetURI }
         });
       });
       break;
 
     case 'PRIORITIZE':
       const tToPrioritize = client.get(payload.infoHash);
-      if (tToPrioritize) {
-        const file = tToPrioritize.files[0];
-        if (file) {
-          file.select(payload.start, payload.end, 1);
-        }
+      if (tToPrioritize && tToPrioritize.files[0]) {
+        tToPrioritize.files[0].select(payload.start, payload.end, 1);
       }
       break;
 
     case 'REMOVE':
-      const torrent = client.get(payload.magnetUri);
-      if (torrent) {
-        torrent.destroy();
-      }
+      const tToRemove = client.get(payload.magnetUri);
+      if (tToRemove) tToRemove.destroy();
       break;
-
-    default:
-      console.warn('[TorrentWorker] Unknown message type:', type);
   }
 };
 
-// Periodic health updates
 setInterval(() => {
-  if (!client || client.torrents.length === 0) return;
-
+  if (!client || !client.torrents || client.torrents.length === 0) return;
   const reports = client.torrents.map(t => ({
     infoHash: t.infoHash,
     peerCount: t.numPeers,
     progress: t.progress
   }));
-
-  self.postMessage({
-    type: 'HEALTH_UPDATE',
-    payload: { reports }
-  });
+  self.postMessage({ type: 'HEALTH_UPDATE', payload: { reports } });
 }, 5000);
 
 if (client) {
