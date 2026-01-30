@@ -31,11 +31,11 @@ const Row = ({
   }
 
   const adjustedIndex = header ? index - 1 : index
-  const isLoadMoreRow = adjustedIndex === events.length
-
-  return (
-    <div style={style} className="px-4 py-2">
-      {isLoadMoreRow ? (
+  
+  // Safety check for load more row
+  if (adjustedIndex === events.length) {
+    return (
+      <div style={style} className="px-4 py-2">
         <button
           onClick={onLoadMore}
           className={`w-full glassmorphism p-3 rounded-lg text-[10px] ${theme === 'light' ? 'text-slate-600' : 'opacity-50'} uppercase font-bold`}
@@ -43,9 +43,17 @@ const Row = ({
         >
           {isLoadingMore ? 'Loading...' : 'Load More'}
         </button>
-      ) : (
-        <Post event={events[adjustedIndex]} depth={0} />
-      )}
+      </div>
+    )
+  }
+
+  // Safety check for valid event
+  const event = events[adjustedIndex]
+  if (!event) return <div style={style} />
+
+  return (
+    <div style={style} className="px-4 py-2">
+      <Post event={event} depth={0} />
     </div>
   )
 }
