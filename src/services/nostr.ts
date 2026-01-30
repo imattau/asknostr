@@ -62,8 +62,8 @@ class NostrService {
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
-  private readonly MAX_CONCURRENT_SUBS = 10
-  private readonly SUB_BURST_INTERVAL_MS = 250
+  private readonly MAX_CONCURRENT_SUBS = 20 // Back to 20, but with discipline
+  private readonly SUB_BURST_INTERVAL_MS = 100 // Snappy but controlled
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -250,6 +250,7 @@ class NostrService {
 
     const closer = {
       close: () => {
+        if (isClosed) return
         isClosed = true
         if (underlyingSub) {
           underlyingSub.close()
@@ -283,7 +284,7 @@ class NostrService {
     }
 
     const slotsAvailable = this.MAX_CONCURRENT_SUBS - this.activeSubscriptionsCount
-    const toProcess = Math.min(slotsAvailable, 2)
+    const toProcess = Math.min(slotsAvailable, 3)
 
     for (let i = 0; i < toProcess; i++) {
       if (this.subscriptionQueue.length === 0) break
@@ -315,9 +316,9 @@ class NostrService {
     }
 
     try {
-      // Reverting to subscribeMap because some relays reject the subscribeMany array structure
-      const subscription = this.pool.subscribeMap(
-        urls.flatMap(url => cleanFilters.map(f => ({ url, filter: f }))),
+      const subscription = this.pool.subscribeMany(
+        urls,
+        cleanFilters,
         {
           onevent: wrappedCallback,
           oneose: () => options?.onEose?.(),
