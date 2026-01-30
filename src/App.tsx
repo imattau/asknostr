@@ -230,7 +230,7 @@ function MainFeed({
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-4 duration-300">
           <button
             onClick={() => {
-              flushBuffer(50)
+              flushBuffer(100)
               feedRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })
             }}
             className="bg-cyan-500 text-black text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400 hover:bg-cyan-400 transition-all flex items-center gap-2"
