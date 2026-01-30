@@ -697,19 +697,26 @@ const PostComponent: React.FC<PostProps> = ({
       {mediaMatches && mediaMatches.length > 0 && (
         <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
           {mediaMatches.map((url, idx) => (
-            <div key={idx} className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''}`}>
+            <div key={idx} className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''} min-h-[100px] flex items-center justify-center`}>
               {url.match(/\.(mp4|webm|mov)$/i) ? (
                 <video 
                   src={url} 
+                  preload="metadata"
                   controls 
-                  className="max-h-[400px] w-full"
+                  className="max-h-[500px] w-full"
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
                 <img 
                   src={url} 
                   alt="Media content" 
-                  className="max-h-[500px] w-full object-contain cursor-zoom-in"
+                  loading="lazy"
+                  decoding="async"
+                  className="max-h-[500px] w-full object-contain cursor-zoom-in transition-opacity duration-300 opacity-0"
+                  onLoad={(e) => {
+                    (e.target as HTMLImageElement).classList.remove('opacity-0');
+                    (e.target as HTMLImageElement).classList.add('opacity-100');
+                  }}
                   onClick={(e) => {
                     e.stopPropagation()
                     window.open(url, '_blank')

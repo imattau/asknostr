@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useEffect, useMemo } from 'react'
-import { List, useDynamicRowHeight, useListRef, areEqual } from 'react-window'
+import { List, useDynamicRowHeight, useListRef } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
 import { Post } from './Post'
@@ -59,7 +59,14 @@ const Row = React.memo((props: any) => {
       <Post event={event} depth={0} />
     </div>
   )
-}, areEqual)
+}, (prev, next) => {
+  // Custom comparison to mimic areEqual: check if relevant props or data changed
+  return prev.index === next.index && 
+         prev.style === next.style && 
+         prev.data.events === next.data.events &&
+         prev.data.theme === next.data.theme &&
+         prev.data.isLoadingMore === next.data.isLoadingMore
+})
 
 Row.displayName = 'VirtualFeedRow'
 
@@ -96,6 +103,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 width={width}
                 rowCount={rowCount}
                 rowHeight={dynamicRowHeight}
+                overscanCount={5}
                 rowProps={{ 
                   events, 
                   isLoadingMore, 
