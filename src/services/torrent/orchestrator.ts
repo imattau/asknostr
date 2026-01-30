@@ -6,7 +6,7 @@ import type { Event } from 'nostr-tools'
 export class SwarmOrchestrator {
   private healthReportInterval: ReturnType<typeof setInterval> | null = null
   private following: string[] = []
-  private socialSwarmCount = 0
+  private socialSwarmQueue: string[] = []
   private readonly MAX_SOCIAL_SWARMS = 10
 
   constructor() {
@@ -20,9 +20,6 @@ export class SwarmOrchestrator {
   async handleIncomingEvent(event: Event) {
     // Only auto-join swarms from people we follow to save resources
     if (!this.following.includes(event.pubkey)) return
-    
-    // Hard limit on auto-joined social swarms to prevent memory exhaustion
-    if (this.socialSwarmCount >= this.MAX_SOCIAL_SWARMS) return
 
     const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/gi
     const matches = [...event.content.matchAll(magnetRegex)]
@@ -31,15 +28,26 @@ export class SwarmOrchestrator {
       const infoHash = match[1].toLowerCase()
       const client = TorrentClient.get()
       
-      const existing = client.get(infoHash)
-      if (existing) continue
+      // If we're already seeding/leeching, or it's in our queue, skip
+      if (client.get(infoHash) || this.socialSwarmQueue.includes(infoHash)) continue
+
+      // If we've reached our limit, remove the oldest swarm to make room
+      if (this.socialSwarmQueue.length >= this.MAX_SOCIAL_SWARMS) {
+        const oldestInfoHash = this.socialSwarmQueue.shift()
+        if (oldestInfoHash) {
+          console.log('[Orchestrator] Pruning oldest social swarm to make room:', oldestInfoHash)
+          client.remove(oldestInfoHash, (err) => {
+            if (err) console.error('[Orchestrator] Failed to remove pruned torrent:', err)
+          })
+        }
+      }
 
       console.log('[Orchestrator] Auto-joining social swarm for follow:', infoHash)
       try {
         await this.addTorrent(match[0])
-        this.socialSwarmCount++
+        this.socialSwarmQueue.push(infoHash)
       } catch (e) {
-        // ignore
+        // ignore, don't add to queue if add fails
       }
     }
   }

@@ -136,7 +136,7 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
       setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet);
       setPendingFile(file);
       setPendingMagnet(magnet);
-      setSeedingStatus({ name: file.name, status: 'in-progress', magnet }); // Show magnet is ready
+      setSeedingStatus({ name: file.name, status: 'in-progress', magnet }); // Show magnet is ready, now uploading
 
       // Now wait for the upload to finish
       const fallbackUrl = await uploadPromise;
@@ -295,8 +295,9 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
           </div>
           {seedingStatus && (
             <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300">
-              {seedingStatus.status === 'in-progress' && <>Seeding {seedingStatus.name}…</>}
-              {seedingStatus.status === 'ready' && seedingStatus.magnet && <>Magnet added: {seedingStatus.magnet.slice(0, 32)}…</>}
+              {seedingStatus.status === 'in-progress' && !seedingStatus.magnet && <>Seeding {seedingStatus.name}…</>}
+              {seedingStatus.status === 'in-progress' && seedingStatus.magnet && <>Uploading Web Mirror…</>}
+              {seedingStatus.status === 'ready' && seedingStatus.magnet && <>Magnet & Mirror Ready</>}
               {seedingStatus.status === 'failed' && <>Failed to seed {seedingStatus.name}</>}
             </p>
           )}
