@@ -16,6 +16,7 @@ import { zapService } from '../services/zapService'
 import { torrentService } from '../services/torrentService'
 import { triggerHaptic } from '../utils/haptics'
 import { TorrentMedia } from './TorrentMedia'
+import { useHeightObserver } from '../hooks/useHeightObserver'
 
 interface PostProps {
   event: Event
@@ -23,7 +24,8 @@ interface PostProps {
   isModerator?: boolean
   isApproved?: boolean
   opPubkey?: string
-  depth?: number // Add depth prop
+  depth?: number
+  onHeightChange?: (height: number) => void
 }
 
 const NostrLink: React.FC<{ link: string; onClick: (link: string) => void }> = ({ link, onClick }) => {
@@ -72,7 +74,8 @@ const PostComponent: React.FC<PostProps> = ({
   isModerator = false,
   isApproved = false,
   opPubkey,
-  depth = 0 // Default to 0 if not provided
+  depth = 0,
+  onHeightChange
 }) => {
   const { data: profile, isLoading: isProfileLoading } = useProfile(event.pubkey)
   const { data: reactionData, isLoading: isReactionsLoading } = useReactions(event.id)
@@ -83,6 +86,7 @@ const PostComponent: React.FC<PostProps> = ({
   const { layout, stack, pushLayer, theme } = useUiStore()
   
   const [isSeedingLocally, setIsSeedingLocally] = useState(false)
+  const containerRef = useHeightObserver(onHeightChange)
 
   useEffect(() => {
     const checkSeeding = () => {
@@ -579,6 +583,7 @@ const PostComponent: React.FC<PostProps> = ({
 
   return (
     <div 
+      ref={containerRef}
       onClick={openThread}
       data-event-id={event.id}
       className={`glassmorphism p-4 group transition-all duration-300 relative ${bgColorClass} ${!isThreadView ? `${bgHover} cursor-pointer` : ''} ${effectiveApproved ? 'border-l-4 border-l-green-500' : `border-l ${borderClass}`}`}
@@ -738,7 +743,7 @@ const PostComponent: React.FC<PostProps> = ({
             const fallbackUrl = event.tags.find(t => t[0] === 'url')?.[1]
             return (
               <div key={idx} className={isHidden ? 'blur-md' : ''} onClick={(e) => e.stopPropagation()}>
-                <TorrentMedia magnetUri={uri} fallbackUrl={fallbackUrl} />
+                <TorrentMedia magnetUri={uri} fallbackUrl={fallbackUrl} onHeightChange={onHeightChange} />
               </div>
             )
           })}

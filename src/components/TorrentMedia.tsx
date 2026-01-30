@@ -3,19 +3,21 @@ import { torrentService } from '../services/torrentService'
 import { Loader2, Share2, Users, Download, AlertCircle } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 import type { TorrentState } from '../services/torrent/workerBridge'
+import { useHeightObserver } from '../hooks/useHeightObserver'
 
 interface TorrentMediaProps {
   magnetUri: string
   fallbackUrl?: string
+  onHeightChange?: (height: number) => void
 }
 
-export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackUrl }) => {
+export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackUrl, onHeightChange }) => {
   const [torrentState, setTorrentState] = useState<TorrentState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [useFallback, setUseFallback] = useState(false)
   const [isReady, setIsReady] = useState(false)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const mediaRef = useRef<HTMLDivElement>(null)
+  const containerRef = useHeightObserver(onHeightChange)
   const { theme } = useUiStore()
 
   const infoHashMatch = magnetUri.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
@@ -104,7 +106,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
   }
 
   return (
-    <div className={`rounded-xl border ${borderClass} overflow-hidden ${bgMuted} group relative`}>
+    <div ref={containerRef} className={`rounded-xl border ${borderClass} overflow-hidden ${bgMuted} group relative`}>
       {!isReady && (
         <div className="p-8 flex flex-col items-center justify-center space-y-4">
           <Loader2 size={32} className="animate-spin text-purple-500" />
