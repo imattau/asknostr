@@ -7,41 +7,47 @@ import { useStore } from '../store/useStore'
 import type { Event } from 'nostr-tools'
 
 class TorrentService {
+  private isInitialized = false
+  private initPromise: Promise<void> | null = null
+
   /**
    * Initialize and restore previously seeded files with staggering to avoid main-thread lockup
    */
   async init() {
-    console.log('[TorrentService] Initializing modular stack...')
-    
-    // Give the UI thread a few seconds to settle before starting heavy BitTorrent tasks
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    if (this.isInitialized) return
+    if (this.initPromise) return this.initPromise
 
-    const seedKeys = await persistenceManager.getAllSeedKeys()
-    console.log(`[TorrentService] Found ${seedKeys.length} potential seeds to restore.`)
-    
-    for (const key of seedKeys) {
-      try {
-        // Fetch the record one-by-one to avoid memory spikes
-        const record = await persistenceManager.getSeed(key.replace('seed-', ''))
-        if (!record) continue
+    this.initPromise = (async () => {
+      console.log('[TorrentService] Initializing modular stack...')
+      
+      // Give the UI thread a few seconds to settle before starting heavy BitTorrent tasks
+      await new Promise(resolve => setTimeout(resolve, 3000))
 
-        console.log('[TorrentService] Restoring seed:', record.name)
-        const file = new File([record.data], record.name, { type: record.type })
-        
-        // Pass shouldSave = false to avoid redundant IndexedDB writes
-        await swarmOrchestrator.seedFile(file, record.creatorPubkey, false)
-        
-        // Use requestIdleCallback if available for extra safety during restoration
-        if ('requestIdleCallback' in window) {
-          await new Promise(resolve => window.requestIdleCallback(resolve))
-        } else {
-          // Stagger restoration to prevent CPU spikes (hashing is heavy)
-          await new Promise(resolve => setTimeout(resolve, 1000))
+      const seedKeys = await persistenceManager.getAllSeedKeys()
+      console.log(`[TorrentService] Found ${seedKeys.length} potential seeds to restore.`)
+      
+      for (const key of seedKeys) {
+        try {
+          const record = await persistenceManager.getSeed(key.replace('seed-', ''))
+          if (!record) continue
+
+          console.log('[TorrentService] Restoring seed:', record.name)
+          const file = new File([record.data], record.name, { type: record.type })
+          await swarmOrchestrator.seedFile(file, record.creatorPubkey, false)
+          
+          if ('requestIdleCallback' in window) {
+            await new Promise(resolve => window.requestIdleCallback(resolve))
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        } catch (err) {
+          console.error('[TorrentService] Restore failed for key:', key, err)
         }
-      } catch (err) {
-        console.error('[TorrentService] Restore failed for key:', key, err)
       }
-    }
+      this.isInitialized = true
+    })()
+
+    return this.initPromise
   }
 
   /**
