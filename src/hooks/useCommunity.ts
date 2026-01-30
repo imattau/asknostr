@@ -23,33 +23,27 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
   return useQuery<CommunityDefinition | null>({
     queryKey: ['community', communityId, creatorPubkey],
     queryFn: async () => {
-      console.log(`[useCommunity] Loading metadata for ${communityId} by ${creatorPubkey}`)
-      
       // 1. Check IndexedDB
       const cacheKey = `community-${creatorPubkey}-${communityId}`
       const cached = await get(cacheKey)
       if (cached) {
-        console.log('[useCommunity] Found in IndexedDB cache')
         return cached as CommunityDefinition
       }
 
       // 3. Network Fetch
-      console.log('[useCommunity] Fetching from network...')
       return new Promise<CommunityDefinition | null>((resolve) => {
         let found = false
         let resolved = false
-        let subRef: { close: () => void } | null = null
         let timeoutId: ReturnType<typeof setTimeout> | null = null
 
         const finish = (value: CommunityDefinition | null) => {
           if (resolved) return
           resolved = true
           if (timeoutId) clearTimeout(timeoutId)
-          subRef?.close()
           resolve(value)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [
             // Specific filter
             { kinds: [34550], authors: [creatorPubkey], '#d': [communityId] },
@@ -59,27 +53,27 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
           (event: Event) => {
             const definition = parseCommunityEvent(event)
             if (definition && definition.id === communityId && definition.creator === creatorPubkey) {
-              console.log('[useCommunity] Network event received & validated')
               found = true
               set(cacheKey, definition)
+              sub.close()
               finish(definition)
             }
           },
           nostrService.getDiscoveryRelays(),
-          { onEose: () => { if (!found) finish(null) } }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(() => {
+          { onEose: () => { 
             if (!found) {
-              console.warn('[useCommunity] Network timeout')
-              finish(null)
+              sub.close()
+              finish(null) 
             }
-          }, 8000)
-        })
+          } }
+        );
+
+        timeoutId = setTimeout(() => {
+          if (!found) {
+            sub.close()
+            finish(null)
+          }
+        }, 8000)
       })
     },
     staleTime: 1000 * 60 * 10,

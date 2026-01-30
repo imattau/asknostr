@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react'
+import React, { useRef, useCallback, useEffect, useMemo } from 'react'
 import { List, useDynamicRowHeight, useListRef } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
@@ -16,7 +16,6 @@ interface VirtualFeedProps {
 const Row = (props: any): React.ReactElement | null => {
   const { index, style, events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = props
 
-  // Use a ref to capture the element for the dynamicRowHeight observer
   const rowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -66,10 +65,14 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     const internalListRef = useListRef()
     const { theme } = useUiStore()
     
-    // Use the new dynamic row height hook
+    // We want to clear cache when the list is REFRESHED (e.g. navigation or manual refresh)
+    // but not necessarily on every tiny update. 
+    // However, if the first item's ID changes, it's likely a significant enough change to reset.
+    const firstEventId = events[0]?.id || 'empty'
+    
     const dynamicRowHeight = useDynamicRowHeight({
       defaultRowHeight: 260,
-      key: events.length // Re-initialize or clear cache when length changes
+      key: `${firstEventId}-${header ? 'h' : 'nh'}`
     })
 
     const rowCount = events.length + (header ? 1 : 0) + 1

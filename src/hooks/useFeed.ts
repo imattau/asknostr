@@ -12,32 +12,31 @@ interface UseFeedOptions {
   limit?: number;
 }
 
+const MAX_FEED_SIZE = 500;
+
 export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 30 }: UseFeedOptions) => {
   const queryClient = useQueryClient();
-  const queryKey = ['feed-events', filters, customRelays];
+  
+  // Use string keys for stability in dependency arrays and query keys
+  const filtersKey = JSON.stringify(filters);
+  const relaysKey = JSON.stringify(customRelays);
+  
+  const queryKey = ['feed-events', filtersKey, relaysKey];
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   
   const eventBufferRef = useRef<Event[]>([]);
-  const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 1. Primary Query: Fetches initial historical data
   const query = useQuery<Event[], Error>({
     queryKey,
     queryFn: async ({ queryKey, signal }) => {
-      const currentFilters = (queryKey[1] as Filter[]).map(f => ({ ...f, limit }));
-      const currentCustomRelays = queryKey[2] as string[] | undefined;
+      const currentFilters = JSON.parse(queryKey[1] as string).map((f: any) => ({ ...f, limit }));
+      const currentCustomRelays = JSON.parse(queryKey[2] as string) as string[] | undefined;
 
       return new Promise<Event[]>((resolve, reject) => {
         const events: Event[] = [];
-        let sub: { close: () => void } | undefined;
-
-        const cleanup = () => {
-          if (sub) sub.close();
-        };
-
-        signal.onabort = cleanup;
-
-        nostrService.subscribe(
+        
+        const sub = nostrService.subscribe(
           currentFilters,
           (event) => {
             if (!events.some(e => e.id === event.id)) events.push(event);
@@ -45,18 +44,22 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           currentCustomRelays,
           {
             onEose: () => {
-              cleanup();
+              sub.close();
               // Stable sort: Created at descending, then ID for tie-breaker
-              resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)));
+              resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
             }
           }
-        ).then(s => {
-          sub = s;
-          setTimeout(() => {
-            cleanup();
-            resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)));
-          }, 5000);
-        }).catch(reject);
+        );
+
+        signal.onabort = () => {
+          sub.close();
+        };
+
+        // Safety timeout for EOSE
+        setTimeout(() => {
+          sub.close();
+          resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
+        }, 5000);
       });
     },
     enabled,
@@ -70,43 +73,44 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
 
     setIsFetchingMore(true);
     const oldestTimestamp = currentEvents[currentEvents.length - 1].created_at;
-    const paginatedFilters = filters.map(f => ({
+    const paginatedFilters = JSON.parse(filtersKey).map((f: any) => ({
       ...f,
       until: oldestTimestamp - 1,
       limit
     }));
 
     return new Promise<void>((resolve) => {
-      let sub: { close: () => void } | undefined;
       const newEventsBatch: Event[] = [];
 
-      nostrService.subscribe(
+      const sub = nostrService.subscribe(
         paginatedFilters,
         (event) => {
           if (!newEventsBatch.some(e => e.id === event.id)) newEventsBatch.push(event);
         },
-        customRelays,
+        JSON.parse(relaysKey),
         {
           onEose: () => {
-            sub?.close();
+            sub.close();
             queryClient.setQueryData<Event[]>(queryKey, (old = []) => {
-              const combined = [...old, ...newEventsBatch];
-              const uniqueMap = new Map();
-              combined.forEach(e => uniqueMap.set(e.id, e));
-              return Array.from(uniqueMap.values()).sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id));
+              const mergedMap = new Map<string, Event>();
+              old.forEach(e => mergedMap.set(e.id, e));
+              newEventsBatch.forEach(e => mergedMap.set(e.id, e));
+
+              return Array.from(mergedMap.values())
+                .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+                .slice(0, MAX_FEED_SIZE * 2);
             });
             setIsFetchingMore(false);
             resolve();
           }
         }
-      ).then(s => {
-        sub = s;
-        setTimeout(() => {
-          sub?.close();
-          setIsFetchingMore(false);
-          resolve();
-        }, 4000);
-      });
+      );
+
+      setTimeout(() => {
+        sub.close();
+        setIsFetchingMore(false);
+        resolve();
+      }, 4000);
     });
   };
 
@@ -114,18 +118,19 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   useEffect(() => {
     if (!enabled || !live) return;
 
-    let sub: { close: () => void } | undefined;
-    let isMounted = true;
+    let activeSub: { close: () => void } | null = null;
+    let isEffectMounted = true;
+    let flushInterval: ReturnType<typeof setInterval> | null = null;
 
-    const startLiveSubscription = async () => {
-      const liveFilters = filters.map(f => ({
+    const startLiveSubscription = () => {
+      const liveFilters = JSON.parse(filtersKey).map((f: any) => ({
         ...f,
         since: Math.floor(Date.now() / 1000),
         limit: undefined
       }));
 
-      flushIntervalRef.current = setInterval(() => {
-        if (eventBufferRef.current.length === 0) return;
+      flushInterval = setInterval(() => {
+        if (!isEffectMounted || eventBufferRef.current.length === 0) return;
 
         const newEventsBatch = [...eventBufferRef.current];
         eventBufferRef.current = [];
@@ -137,29 +142,33 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           
           return Array.from(mergedMap.values())
             .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
-            .slice(0, 1000);
+            .slice(0, MAX_FEED_SIZE);
         });
       }, 4000);
 
-      sub = await nostrService.subscribe(
+      activeSub = nostrService.subscribe(
         liveFilters,
         (event) => {
-          if (isMounted) {
+          if (isEffectMounted) {
             eventBufferRef.current.push(event);
           }
         },
-        customRelays
+        JSON.parse(relaysKey)
       );
+
+      if (!isEffectMounted) {
+        activeSub.close();
+      }
     };
 
     startLiveSubscription();
 
     return () => {
-      isMounted = false;
-      if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
-      sub?.close();
+      isEffectMounted = false;
+      if (flushInterval) clearInterval(flushInterval);
+      if (activeSub) (activeSub as any).close();
     };
-  }, [enabled, live, JSON.stringify(filters), JSON.stringify(customRelays), queryClient]);
+  }, [enabled, live, filtersKey, relaysKey, queryClient]);
 
   return { ...query, fetchMore, isFetchingMore };
 };

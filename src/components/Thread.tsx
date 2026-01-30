@@ -79,7 +79,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
   const rootPubkey = rootEventResolved?.pubkey || ''
 
   useEffect(() => {
-    let sub: { close: () => void } | undefined
+    const activeSubs = new Set<{ close: () => void }>()
     let resolved = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     
@@ -91,7 +91,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
     setReplyContent('')
     setIsNsfw(false)
 
-    const fetchThread = async () => {
+    const fetchThread = () => {
       console.log('[Thread] Fetching events for ID:', eventId, 'Root:', rootId)
       setIsLoading(true)
       
@@ -99,8 +99,8 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
       const eTagIds = getETags(sourceEvent).map(t => t[1]).filter(Boolean)
       eTagIds.forEach(id => gatheredIds.add(id))
 
-      const subscribeToIds = async (ids: string[]) => {
-        return await nostrService.subscribe(
+      const subscribeToIds = (ids: string[]) => {
+        const sub = nostrService.subscribe(
           [
             { ids },
             { kinds: [1], '#e': ids }
@@ -132,9 +132,11 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
             }
           }
         )
+        activeSubs.add(sub)
+        return sub
       }
 
-      sub = await subscribeToIds(Array.from(gatheredIds))
+      subscribeToIds(Array.from(gatheredIds))
       
       timeoutId = setTimeout(() => {
         if (resolved) return
@@ -147,9 +149,10 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
     fetchThread()
 
     return () => {
-      console.log('[Thread] Closing subscription')
+      console.log('[Thread] Closing all subscriptions:', activeSubs.size)
       if (timeoutId) clearTimeout(timeoutId)
-      sub?.close()
+      activeSubs.forEach(s => s.close())
+      activeSubs.clear()
     }
   }, [eventId, rootId, sourceEvent, rootEvent])
 

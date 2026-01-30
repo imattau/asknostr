@@ -104,18 +104,26 @@ export const useStore = create<NostrState>()(
         const currentEvent = state.optimisticReactions[eventId] || {}
         const currentEmoji = currentEvent[emoji] || []
         if (currentEmoji.includes(pubkey)) return state
-        return {
-          optimisticReactions: { 
-            ...state.optimisticReactions, 
-            [eventId]: { ...currentEvent, [emoji]: [...currentEmoji, pubkey] }
-          }
+        
+        let nextReactions = { 
+          ...state.optimisticReactions, 
+          [eventId]: { ...currentEvent, [emoji]: [...currentEmoji, pubkey] }
         }
+
+        // Keep last 100 event reactions in memory
+        const keys = Object.keys(nextReactions)
+        if (keys.length > 100) {
+          const { [keys[0]]: _, ...rest } = nextReactions
+          nextReactions = rest
+        }
+
+        return { optimisticReactions: nextReactions }
       }),
       addOptimisticDeletion: (eventId) => set((state) => ({
-        optimisticDeletions: [...state.optimisticDeletions, eventId]
+        optimisticDeletions: [...state.optimisticDeletions, eventId].slice(-100)
       })),
       addOptimisticApproval: (eventId) => set((state) => ({
-        optimisticApprovals: [...state.optimisticApprovals, eventId]
+        optimisticApprovals: [...state.optimisticApprovals, eventId].slice(-100)
       })),
       setRelays: (relays) => set({ relays: sanitizeRelayUrls(relays) }),
       setMediaServers: (mediaServers) => set({ mediaServers }),

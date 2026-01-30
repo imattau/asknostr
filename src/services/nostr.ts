@@ -38,9 +38,12 @@ class NostrService {
   private relays: string[]
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
+  private validationCache = new Map<string, boolean>()
+  private globalSeenIds = new Set<string>()
   private maxActiveRelays: number = 8
   private activeWorkerRequests: number = 0
   private readonly MAX_CONCURRENT_VERIFICATIONS = 50
+  private readonly MAX_CACHE_SIZE = 5000
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
@@ -95,6 +98,10 @@ class NostrService {
   }
 
   private async verifyInWorker(event: Event): Promise<boolean> {
+    if (this.validationCache.has(event.id)) {
+      return this.validationCache.get(event.id)!
+    }
+
     if (!this.worker) return true
     
     if (this.pendingValidations.has(event.id)) {
@@ -120,13 +127,23 @@ class NostrService {
         resolve(true)
       }, 3000)
 
-      this.pendingValidations.set(event.id, { resolve, timeoutId })
+      this.pendingValidations.set(event.id, { 
+        resolve: (isValid: boolean) => {
+          if (this.validationCache.size >= this.MAX_CACHE_SIZE) {
+            const firstKey = this.validationCache.keys().next().value
+            if (firstKey) this.validationCache.delete(firstKey)
+          }
+          this.validationCache.set(event.id, isValid)
+          resolve(isValid)
+        }, 
+        timeoutId 
+      })
       this.activeWorkerRequests++
       this.worker?.postMessage({ event })
     })
   }
 
-  async subscribe(
+  subscribe(
     filters: Filter[],
     onEvent: (event: Event) => void,
     customRelays?: string[],
@@ -148,11 +165,12 @@ class NostrService {
       return { close: () => {} }
     }
 
-    const seenIds = new Set<string>()
+    const subscriptionSeenIds = new Set<string>()
 
     const wrappedCallback = async (event: Event) => {
-      if (seenIds.has(event.id)) return
-      seenIds.add(event.id)
+      if (subscriptionSeenIds.has(event.id)) return
+      subscriptionSeenIds.add(event.id)
+
       const isValid = await this.verifyInWorker(event)
       if (isValid) {
         onEvent(event)
@@ -160,35 +178,26 @@ class NostrService {
     }
 
     try {
-      let eoseCount = 0
-      const total = cleanFilters.length
-      const subs: { close: () => void }[] = []
+      const requests = urls.flatMap(url => 
+        cleanFilters.map(filter => ({ url, filter }))
+      )
 
-      const onEose = () => {
-        eoseCount += 1
-        if (eoseCount >= total) {
-          options?.onEose?.()
-        }
-      }
-
-      cleanFilters.forEach(filter => {
-        const subscription = this.pool.subscribe(
-          urls,
-          filter,
-          {
-            onevent: wrappedCallback,
-            oneose: onEose,
-            onclose: () => {
-              // silent
-            }
+      const subscription = this.pool.subscribeMap(
+        requests,
+        {
+          onevent: wrappedCallback,
+          oneose: () => {
+            options?.onEose?.()
+          },
+          onclose: (reasons: string[]) => {
+            // silent
           }
-        )
-        subs.push(subscription)
-      })
+        }
+      )
 
       return {
         close: () => {
-          subs.forEach(s => s.close())
+          subscription.close()
         }
       }
     } catch (e) {

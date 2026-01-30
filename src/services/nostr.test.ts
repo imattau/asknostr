@@ -3,9 +3,9 @@ import { nostrService } from './nostr'
 import { SimplePool } from 'nostr-tools'
 
 vi.mock('nostr-tools', () => {
-  const subscribeMock = vi.fn().mockReturnValue({ close: vi.fn() })
+  const subscribeMapMock = vi.fn().mockReturnValue({ close: vi.fn() })
   class MockPool {
-    subscribe = subscribeMock
+    subscribeMap = subscribeMapMock
     close = vi.fn()
     publish = vi.fn()
     ensureRelay = vi.fn()
@@ -31,10 +31,10 @@ describe('NostrService', () => {
     vi.clearAllMocks()
   })
 
-  it('should pass filters individually to SimplePool.subscribe', async () => {
-    await nostrService.setRelays(['wss://relay.test'])
+  it('should use subscribeMap to batch multiple filters per relay', async () => {
+    await nostrService.setRelays(['wss://relay1.test', 'wss://relay2.test'])
     
-    const filters = [{ kinds: [1], limit: 10 }, { kinds: [4550] }]
+    const filters = [{ kinds: [1] }, { kinds: [4550] }]
     const onEvent = vi.fn()
     
     await nostrService.subscribe(filters, onEvent)
@@ -42,8 +42,15 @@ describe('NostrService', () => {
     // @ts-ignore
     const poolInstance = nostrService.pool
     
-    expect(poolInstance.subscribe).toHaveBeenCalledTimes(2)
-    expect(poolInstance.subscribe).toHaveBeenNthCalledWith(1, expect.any(Array), filters[0], expect.any(Object))
-    expect(poolInstance.subscribe).toHaveBeenNthCalledWith(2, expect.any(Array), filters[1], expect.any(Object))
+    expect(poolInstance.subscribeMap).toHaveBeenCalledTimes(1)
+    const callArgs = poolInstance.subscribeMap.mock.calls[0]
+    const requests = callArgs[0]
+    
+    // Should have 2 relays * 2 filters = 4 requests
+    expect(requests).toHaveLength(4)
+    expect(requests).toContainEqual({ url: 'wss://relay1.test', filter: filters[0] })
+    expect(requests).toContainEqual({ url: 'wss://relay1.test', filter: filters[1] })
+    expect(requests).toContainEqual({ url: 'wss://relay2.test', filter: filters[0] })
+    expect(requests).toContainEqual({ url: 'wss://relay2.test', filter: filters[1] })
   })
 })

@@ -10,12 +10,10 @@ export const useZaps = (eventId: string) => {
         const receipts: Event[] = []
         let total = 0
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [9735], '#e': [eventId] }],
           (event: Event) => {
             receipts.push(event)
-            // Parse bolt11 description or zap tag to get amount
-            // For simplicity, we just look for 'amount' in tags if present or description
             const descriptionTag = event.tags.find(t => t[0] === 'description')?.[1]
             if (descriptionTag) {
               try {
@@ -29,15 +27,16 @@ export const useZaps = (eventId: string) => {
               }
             }
           }
-        ).then(sub => {
-          setTimeout(() => {
-            sub.close()
-            resolve({ total, receipts })
-          }, 2000)
-        })
+        );
+
+        setTimeout(() => {
+          sub.close()
+          resolve({ total, receipts })
+        }, 2000)
       })
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    gcTime: 1000 * 60 * 15,    // 15 minutes
     enabled: !!eventId,
   })
 }

@@ -202,8 +202,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   }, [approvals])
 
   const filteredEvents = useMemo(() => {
-    console.log(`[CommunityFeed] Filtering ${communityEvents.length} community events...`)
-    const filtered = communityEvents.filter(e => {
+    return communityEvents.filter(e => {
       if (deletedIds.includes(e.id)) return false
       if (eventStatusMap[e.id] === 'spam') return false
       if (muted.includes(e.pubkey)) return false
@@ -222,9 +221,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         return !isModeratedOnly || eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
       }
     })
-    console.log(`[CommunityFeed] Filter complete. Result: ${filtered.length} events.`)
-    return filtered
-  }, [communityEvents, deletedIds, eventStatusMap, isModeratedOnly, community, moderators, creator, approvals, muted])
+  }, [communityEvents, deletedIds, eventStatusMap, isModeratedOnly, community?.moderationMode, moderators, creator, approvals, muted])
 
   const computeEngagement = (event: Event) => {
     return event.tags.reduce((score, tag) => ['p', 'e', 'r', 'a'].includes(tag[0]) ? score + 1 : score, 0)
