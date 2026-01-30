@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { torrentService } from '../services/torrentService'
-import WebTorrent from 'webtorrent'
+// @ts-ignore
+import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
 import { Loader2, Share2, Users, Download, AlertCircle } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 
@@ -49,7 +50,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
           }
         })
 
-        t.on('error', (err) => {
+        t.on('error', (err: any) => {
           console.error('[TorrentMedia] Torrent error:', err)
           if (mounted) setError(typeof err === 'string' ? err : err.message)
         })
@@ -84,13 +85,13 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
 
   useEffect(() => {
     if (isReady && torrent && mediaRef.current && !useFallback) {
-      const file = torrent.files.find(f => 
+      const file = torrent.files.find((f: any) => 
         f.name.match(/\.(mp4|webm|mov|png|jpg|jpeg|gif|webp|mp3|wav|ogg)$/i)
       ) || torrent.files[0]
 
       if (file && mediaRef.current.childNodes.length === 0) {
         // Use appendTo for general element creation within the div
-        file.appendTo(mediaRef.current, (err, elem) => {
+        file.appendTo(mediaRef.current, (err: any, elem: any) => {
           if (err) console.error('[TorrentMedia] Render error:', err)
           if (elem) {
             elem.className = 'max-h-[500px] w-full object-contain'

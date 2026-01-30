@@ -1,4 +1,5 @@
-import WebTorrent from 'webtorrent'
+// @ts-ignore
+import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
 import { TorrentClient, TRACKERS } from './client'
 import { persistenceManager, type SeededFileRecord } from './persistence'
 import type { Event } from 'nostr-tools'
@@ -35,7 +36,7 @@ export class SwarmOrchestrator {
         console.log(`[Orchestrator] Social Seed Trigger: Following ${event.pubkey}, auto-joining swarm...`)
         try {
           await this.addTorrent(magnet)
-        } catch (err) {
+        } catch (err: any) {
           console.error('[Orchestrator] Failed to auto-join social swarm:', err)
         }
       }
@@ -51,12 +52,12 @@ export class SwarmOrchestrator {
     }
 
     return new Promise((resolve, reject) => {
-      client.add(magnetUri, { announce: TRACKERS }, (torrent) => {
+      client.add(magnetUri, { announce: TRACKERS }, (torrent: any) => {
         console.log('[Orchestrator] Swarm joined:', torrent.infoHash)
         resolve(torrent)
       })
 
-      client.on('error', (err) => reject(err))
+      client.on('error', (err: any) => reject(err))
     })
   }
 
@@ -69,7 +70,7 @@ export class SwarmOrchestrator {
         announce: TRACKERS
       }
 
-      client.seed(file, options, async (torrent) => {
+      client.seed(file, options, async (torrent: any) => {
         const record: SeededFileRecord = {
           name: file.name,
           type: file.type,
@@ -84,7 +85,7 @@ export class SwarmOrchestrator {
         resolve(torrent.magnetURI)
       })
 
-      client.on('error', (err) => reject(err))
+      client.on('error', (err: any) => reject(err))
     })
   }
 
@@ -95,7 +96,7 @@ export class SwarmOrchestrator {
       
       if (torrents.length === 0) return
 
-      const reports = torrents.map(t => ({
+      const reports = torrents.map((t: any) => ({
         infoHash: t.infoHash,
         peerCount: t.numPeers,
         progress: t.progress

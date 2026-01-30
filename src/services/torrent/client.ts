@@ -1,4 +1,5 @@
-import WebTorrent from 'webtorrent'
+// @ts-ignore
+import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
 
 export class TorrentClient {
   private static instance: WebTorrent.Instance | null = null
