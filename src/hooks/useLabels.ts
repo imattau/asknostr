@@ -30,7 +30,7 @@ export const useLabels = (aTag?: string) => {
           resolve(Array.from(labels))
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [1985], '#a': [aTag] }],
           (event: Event) => {
             if (seen.has(event.id)) return
@@ -44,14 +44,14 @@ export const useLabels = (aTag?: string) => {
           },
           undefined,
           { onEose: finish }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(finish, 2000)
-        })
+        )
+        
+        subRef = sub
+        if (resolved) {
+          sub.close()
+          return
+        }
+        timeoutId = setTimeout(finish, 2000)
       })
     },
     enabled: !!aTag,

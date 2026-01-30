@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 import { torrentService } from '../services/torrentService'
 import { Loader2, Share2, Users, Download, AlertCircle } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
@@ -14,7 +14,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
   const [error, setError] = useState<string | null>(null)
   const [useFallback, setUseFallback] = useState(false)
   const [isReady, setIsReady] = useState(false)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [blobUrl] = useState<string | null>(null)
   const { theme } = useUiStore()
 
   const infoHashMatch = magnetUri.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)

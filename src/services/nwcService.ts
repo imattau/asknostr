@@ -58,7 +58,7 @@ class NwcService {
         reject(new Error('NWC request timeout'))
       }, 30000)
 
-      nostrService.subscribe(
+      sub = nostrService.subscribe(
         [{ kinds: [23195], '#p': [getPublicKey(localSecretKey)], authors: [connection.pubkey] }],
         async (responseEvent) => {
           try {
@@ -78,7 +78,7 @@ class NwcService {
           }
         },
         [connection.relay]
-      ).then(s => sub = s)
+      )
 
       nostrService.publishToRelays([connection.relay], event)
     })

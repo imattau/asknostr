@@ -147,6 +147,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [isSeeding, setIsSeeding] = useState(false)
+  const [seedingStatus, setSeedingStatus] = useState<{ name: string; status: 'in-progress' | 'ready' | 'failed'; magnet?: string } | null>(null)
   const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
   const [pendingMagnet, setPendingMagnet] = useState<string | undefined>()
   const [pendingFile, setPendingFile] = useState<File | undefined>()
@@ -271,21 +272,33 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   }
 
   const handleTorrentSeed = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setIsSeeding(true)
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsSeeding(true);
+    setSeedingStatus({ name: file.name, status: 'in-progress' });
+
     try {
-      const { magnet, fallbackUrl } = await torrentService.prepareDualUpload(file, user.pubkey || '')
-      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
-      setPendingFile(file)
-      setPendingMagnet(magnet)
-      if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
+      const { magnet, uploadPromise } = await torrentService.prepareDualUpload(file, user.pubkey || '');
+      
+      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet);
+      setPendingFile(file);
+      setPendingMagnet(magnet);
+      setSeedingStatus({ name: file.name, status: 'in-progress', magnet });
+
+      const fallbackUrl = await uploadPromise;
+      if (fallbackUrl) {
+        setPendingFallbackUrl(fallbackUrl);
+      }
+      setSeedingStatus({ name: file.name, status: 'ready', magnet });
+
     } catch (err) {
-      console.error('Seeding preparation failed', err)
-      alert(err instanceof Error ? err.message : 'Failed to seed file')
+      console.error('Seeding preparation failed', err);
+      alert(err instanceof Error ? err.message : 'Failed to seed file');
+      setSeedingStatus({ name: file.name, status: 'failed' });
     } finally {
-      setIsSeeding(false)
-      if (torrentInputRef.current) torrentInputRef.current.value = ''
+      setIsSeeding(false);
+      if (torrentInputRef.current) torrentInputRef.current.value = '';
     }
   }
 
@@ -342,7 +355,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         if (pendingFile && pendingMagnet) {
           await torrentService.finalizePublication(pendingFile, pendingMagnet, pendingFallbackUrl, user.pubkey)
         }
-        setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); setPendingFile(undefined); setPendingMagnet(undefined); triggerHaptic(20)
+        setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); setPendingFile(undefined); setPendingMagnet(undefined); setSeedingStatus(null); triggerHaptic(20)
       } else { 
         alert('Broadcast failed') 
       }
@@ -433,6 +446,14 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
                     <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
                   </div>
+                  {seedingStatus && (
+                    <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300 text-right">
+                      {seedingStatus.status === 'in-progress' && !seedingStatus.magnet && <>Seeding {seedingStatus.name}…</>}
+                      {seedingStatus.status === 'in-progress' && seedingStatus.magnet && <>Uploading Web Mirror…</>}
+                      {seedingStatus.status === 'ready' && <>Magnet & Mirror Ready</>}
+                      {seedingStatus.status === 'failed' && <>Failed to seed {seedingStatus.name}</>}
+                    </p>
+                  )}
                 </div>
               </div>
               {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}

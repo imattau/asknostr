@@ -42,7 +42,7 @@ export const useMyCommunities = () => {
           resolve(uniqueFinal)
         }
         
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [
             { kinds: [34550], authors: [user.pubkey as string] },
             { kinds: [34550], '#p': [user.pubkey as string] }
@@ -62,14 +62,14 @@ export const useMyCommunities = () => {
           },
           nostrService.getDiscoveryRelays(),
           { onEose: finish }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(finish, 6000)
-        })
+        )
+        
+        subRef = sub
+        if (resolved) {
+          sub.close()
+          return
+        }
+        timeoutId = setTimeout(finish, 6000)
       })
     },
     enabled: !!user.pubkey,

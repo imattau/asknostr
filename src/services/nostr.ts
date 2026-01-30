@@ -33,11 +33,12 @@ export const SEARCH_RELAYS = [
   'wss://relay.noswhere.com'
 ]
 
-export enum SubscriptionPriority {
-  HIGH = 0,
-  MEDIUM = 1,
-  LOW = 2
-}
+export const SubscriptionPriority = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2
+} as const;
+export type SubscriptionPriority = (typeof SubscriptionPriority)[keyof typeof SubscriptionPriority];
 
 interface SubscriptionRequest {
   subId: string
@@ -286,11 +287,11 @@ class NostrService {
     const data = event.data as WorkerToMainMessage
     if (!data || !data.type) return
 
-    const subscriptionEntry = data.subId ? this.workerSubscriptions.get(data.subId) : undefined
+    const subscriptionEntry = 'subId' in data && data.subId ? this.workerSubscriptions.get(data.subId) : undefined
 
     switch (data.type) {
       case 'event':
-        if (!subscriptionEntry) return
+        if (!subscriptionEntry || !('subId' in data)) return
         if (subscriptionEntry.seenIds.has(data.event.id)) return
         subscriptionEntry.seenIds.add(data.event.id)
         subscriptionEntry.request.onEvent(data.event)
@@ -299,13 +300,15 @@ class NostrService {
         subscriptionEntry?.request.options?.onEose?.()
         break
       case 'closed':
-        this.workerSubscriptions.delete(data.subId)
-        this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
-        this.processQueue()
+        if ('subId' in data && data.subId) {
+          this.workerSubscriptions.delete(data.subId)
+          this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
+          this.processQueue()
+        }
         break
       case 'error':
         // optionally log to a monitoring service if needed
-        if (data.subId) {
+        if ('subId' in data && data.subId) {
           this.workerSubscriptions.delete(data.subId)
           this.activeSubscriptionsCount = Math.max(0, this.activeSubscriptionsCount - 1)
           this.processQueue()

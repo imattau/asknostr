@@ -13,7 +13,7 @@ export const useGlobalDiscovery = () => {
       const runSubscription = async (relays: string[]) => {
         let count = 0
         return new Promise<void>((resolve) => {
-          nostrService.subscribe(
+          const sub = nostrService.subscribe(
             [{ kinds: [34550], limit: 50 }],
             (event: Event) => {
               const definition = parseCommunityEvent(event)
@@ -26,12 +26,11 @@ export const useGlobalDiscovery = () => {
               }
             },
             relays
-          ).then(sub => {
-            setTimeout(() => {
-              sub.close()
-              resolve()
-            }, 6000)
-          })
+          )
+          setTimeout(() => {
+            sub.close()
+            resolve()
+          }, 6000)
         })
       }
 

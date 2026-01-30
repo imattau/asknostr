@@ -86,7 +86,7 @@ class TorrentService {
    * This is called when the user selects a file. It does NOT persist to DB.
    * Returns the magnet immediately when ready, and the fallbackUrl via a promise
    */
-  async prepareDualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, fallbackUrl?: string }> {
+  async prepareDualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, uploadPromise: Promise<string | undefined> }> {
     
     // Step A: Local Seed (In-memory, no DB save yet)
     // This is the primary action for "BT Share"
@@ -117,11 +117,8 @@ class TorrentService {
     // We wait for the magnet because it's required for the post content
     const magnet = await magnetPromise
     
-    // Wait for the upload to complete to ensure we capture the fallback URL.
-    // The uploadPromise already contains a 30s timeout safety net.
-    const fallbackUrl = await uploadPromise
-
-    return { magnet, fallbackUrl }
+    // Return the magnet immediately and the upload as a promise for the UI to handle
+    return { magnet, uploadPromise }
   }
 
   /**

@@ -146,9 +146,6 @@ const PostComponent: React.FC<PostProps> = ({
   const bgHover = theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/10'
   const accentPurple = theme === 'light' ? 'text-purple-600' : 'text-purple-400'
   const accentCyan = theme === 'light' ? 'text-cyan-600' : 'text-cyan-400'
-  const reactionBtnClass = theme === 'light' 
-    ? 'bg-slate-100 border-slate-200 text-slate-500 hover:border-slate-300' 
-    : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
 
   const npub = formatPubkey(event.pubkey)
   const displayPubkey = profile?.display_name || profile?.name || shortenPubkey(npub)

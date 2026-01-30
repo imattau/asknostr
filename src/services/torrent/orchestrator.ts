@@ -36,9 +36,11 @@ export class SwarmOrchestrator {
         const oldestInfoHash = this.socialSwarmQueue.shift()
         if (oldestInfoHash) {
           console.log('[Orchestrator] Pruning oldest social swarm to make room:', oldestInfoHash)
-          client.remove(oldestInfoHash, (err) => {
-            if (err) console.error('[Orchestrator] Failed to remove pruned torrent:', err)
-          })
+          try {
+            client.remove(oldestInfoHash)
+          } catch (err) {
+            console.error('[Orchestrator] Failed to remove pruned torrent:', err)
+          }
         }
       }
 

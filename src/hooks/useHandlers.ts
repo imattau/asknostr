@@ -41,7 +41,7 @@ export const useHandlers = (kinds: number[]) => {
           resolve(handlers)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [31990], '#k': kinds.map(String) }],
           (event: Event) => {
             if (seen.has(event.id)) return
@@ -75,14 +75,14 @@ export const useHandlers = (kinds: number[]) => {
           },
           undefined,
           { onEose: finish }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(finish, 4000)
-        })
+        )
+        
+        subRef = sub
+        if (resolved) {
+          sub.close()
+          return
+        }
+        timeoutId = setTimeout(finish, 4000)
       })
     },
     staleTime: 1000 * 60 * 60, // 1 hour

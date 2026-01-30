@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { nostrService, DISCOVERY_RELAYS } from '../services/nostr'
+import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import { get, set } from 'idb-keyval'
 import type { UserProfile } from '../store/useStore'

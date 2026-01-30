@@ -233,7 +233,7 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
                 
                 {activeTorrents.length > 0 && (
                   <div className="space-y-3 pt-2">
-                    {activeTorrents.slice(0, 3).map((t, idx) => (
+                    {activeTorrents.slice(0, 3).map((t) => (
                       <div key={t.infoHash} className="space-y-1">
                         <div className="flex justify-between text-[8px] opacity-60">
                           <span className="truncate max-w-[120px] uppercase">{t.name || `Swarm_${t.infoHash.slice(0,6)}`}</span>

@@ -15,7 +15,7 @@ export interface TorrentState {
 }
 
 export class TorrentWorkerBridge {
-  private worker: Worker
+  private worker: Worker | null = null;
   private callbacks: Map<string, (data: any) => void> = new Map()
   private torrents: Map<string, TorrentState> = new Map()
 
@@ -88,7 +88,7 @@ export class TorrentWorkerBridge {
   hashFile(file: File): Promise<string> {
     return new Promise((resolve) => {
       this.callbacks.set(`hash-${file.name}`, resolve)
-      this.worker.postMessage({
+      this.worker?.postMessage({
         type: 'HASH_FILE',
         payload: { file, name: file.name }
       })
@@ -108,7 +108,7 @@ export class TorrentWorkerBridge {
   seed(file: File): Promise<any> {
     return new Promise((resolve) => {
       this.callbacks.set(file.name, resolve)
-      this.worker.postMessage({
+      this.worker?.postMessage({
         type: 'SEED',
         payload: { file, name: file.name, type: file.type }
       })
@@ -121,7 +121,7 @@ export class TorrentWorkerBridge {
 
     return new Promise((resolve) => {
       this.callbacks.set(id, resolve)
-      this.worker.postMessage({
+      this.worker?.postMessage({
         type: 'ADD',
         payload: { magnetUri }
       })
@@ -129,7 +129,7 @@ export class TorrentWorkerBridge {
   }
 
   prioritize(infoHash: string, start: number, end: number) {
-    this.worker.postMessage({
+    this.worker?.postMessage({
       type: 'PRIORITIZE',
       payload: { infoHash, start, end }
     })
@@ -140,13 +140,13 @@ export class TorrentWorkerBridge {
     const id = infoHashMatch ? infoHashMatch[1].toLowerCase() : magnetUri.toLowerCase()
     this.torrents.delete(id)
     
-    this.worker.postMessage({
+    this.worker?.postMessage({
       type: 'REMOVE',
       payload: { magnetUri }
     })
   }
 
   terminate() {
-    this.worker.terminate()
+    this.worker?.terminate()
   }
 }

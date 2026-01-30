@@ -109,7 +109,7 @@ class SignerService {
         reject(new Error('Remote sign timeout'))
       }, 30000)
 
-      nostrService.subscribe(
+      subscriptionRef.current = nostrService.subscribe(
         [{ kinds: [24133], '#p': [this.clientPubkey], authors: [bunkerPubkey] }],
         async (event) => {
           console.log('[Signer] Received NIP-46 response')
@@ -130,9 +130,7 @@ class SignerService {
           }
         },
         bunkerRelays
-      ).then((handle) => {
-        subscriptionRef.current = handle
-      })
+      )
 
       // Publish specifically to the bunker relay to ensure delivery
       nostrService.publishToRelays(bunkerRelays, reqEvent)
@@ -204,7 +202,7 @@ class SignerService {
         reject(new Error('Nostr Connect timeout'))
       }, 30000)
 
-      nostrService.subscribe(
+      subscriptionRef.current = nostrService.subscribe(
         [{ kinds: [24133], '#p': [this.clientPubkey], authors: [pubkey] }],
         async (event) => {
           try {
@@ -225,9 +223,7 @@ class SignerService {
           }
         },
         relays
-      ).then((handle) => {
-        subscriptionRef.current = handle
-      })
+      )
 
       nostrService.publishToRelays(relays, reqEvent)
     })
@@ -258,7 +254,7 @@ class SignerService {
         reject(new Error('get_public_key timeout'))
       }, 10000)
 
-      nostrService.subscribe(
+      subscriptionRef.current = nostrService.subscribe(
         [{ kinds: [24133], '#p': [this.clientPubkey], authors: [bunkerPubkey] }],
         async (event) => {
           try {
@@ -274,9 +270,7 @@ class SignerService {
           }
         },
         relays
-      ).then((handle) => {
-        subscriptionRef.current = handle
-      })
+      )
 
       nostrService.publishToRelays(relays, reqEvent)
     })

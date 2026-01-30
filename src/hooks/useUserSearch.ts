@@ -34,7 +34,7 @@ export const useUserSearch = (query: string) => {
         )
 
         setTimeout(() => {
-          sub.then(s => s.close())
+          sub.close()
           resolve(results)
         }, 2000)
       })

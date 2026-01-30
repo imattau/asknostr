@@ -19,7 +19,7 @@ export const useTrendingCommunities = () => {
         const now = Math.floor(Date.now() / 1000)
         const oneDayAgo = now - (24 * 60 * 60)
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [1, 4550], since: oneDayAgo, limit: 200 }],
           (event: Event) => {
             const aTags = event.tags.filter(t => t[0] === 'a' && t[1].startsWith('34550:'))
@@ -29,22 +29,21 @@ export const useTrendingCommunities = () => {
             })
           },
           nostrService.getDiscoveryRelays()
-        ).then(sub => {
-          setTimeout(() => {
-            sub.close()
-            const sorted = Object.entries(communityCounts)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 10)
-              .map(([aTag, count]) => {
-                const parts = aTag.split(':')
-                const kind = parts[0] || '34550'
-                const pubkey = parts[1] || ''
-                const id = parts[2] || ''
-                return { aTag, count, kind, pubkey, id }
-              })
-            resolve(sorted)
-          }, 4000)
-        })
+        )
+        setTimeout(() => {
+          sub.close()
+          const sorted = Object.entries(communityCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([aTag, count]) => {
+              const parts = aTag.split(':')
+              const kind = parts[0] || '34550'
+              const pubkey = parts[1] || ''
+              const id = parts[2] || ''
+              return { aTag, count, kind, pubkey, id }
+            })
+          resolve(sorted)
+        }, 4000)
       })
     },
     staleTime: 1000 * 60 * 15,

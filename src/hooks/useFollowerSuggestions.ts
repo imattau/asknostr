@@ -15,20 +15,19 @@ export const useFollowerSuggestions = () => {
       if (!user.pubkey) return []
       return new Promise<string[]>((resolve) => {
         let latest: Event | null = null
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [3], authors: [user.pubkey as string], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
               latest = event
             }
           }
-        ).then(sub => {
-          setTimeout(() => {
-            sub.close()
-            const pTags = latest?.tags?.filter(t => t[0] === 'p').map(t => t[1]) || []
-            resolve(pTags)
-          }, 4000)
-        })
+        )
+        setTimeout(() => {
+          sub.close()
+          const pTags = latest?.tags?.filter(t => t[0] === 'p').map(t => t[1]) || []
+          resolve(pTags)
+        }, 4000)
       })
     },
     enabled: !!user.pubkey,
@@ -44,7 +43,7 @@ export const useFollowerSuggestions = () => {
         // Only query first 50 follows to keep it performant
         const targetPubkeys = follows.slice(0, 50)
         
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [34550], authors: targetPubkeys, limit: 20 }],
           (event: Event) => {
             const definition = parseCommunityEvent(event)
@@ -52,12 +51,11 @@ export const useFollowerSuggestions = () => {
               suggestions.push(definition)
             }
           }
-        ).then(sub => {
-          setTimeout(() => {
-            sub.close()
-            resolve(suggestions)
-          }, 5000)
-        })
+        )
+        setTimeout(() => {
+          sub.close()
+          resolve(suggestions)
+        }, 5000)
       })
     },
     enabled: follows.length > 0,

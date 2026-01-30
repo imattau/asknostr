@@ -93,57 +93,52 @@ export const ConnectBunker: React.FC = () => {
       setError('Failed to prepare remote signer. Retry or refresh.')
     }
 
-    let subscriptionPromise = Promise.resolve({ close: () => {} })
+    let subscription: { close: () => void } | null = null;
     try {
-      subscriptionPromise = nostrService.subscribe(
-      [{ kinds: [24133], '#p': [clientPubkey], limit: 1 }],
-      async (event) => {
-        const relaysFromRef = generatedRelaysRef.current
-        const secretFromRef = generatedSecretRef.current
-        if (relaysFromRef.length === 0 || !secretFromRef) return
-        try {
-        console.log('[ConnectBunker] received subscription event', { pubkey: event.pubkey, kind: event.kind })
-        const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
-          const request = JSON.parse(decrypted)
-          if (request?.method !== 'connect') return
-          const [client, secret] = request.params || []
-          if (client !== clientPubkey || secret !== secretFromRef) return
+      subscription = nostrService.subscribe(
+        [{ kinds: [24133], '#p': [clientPubkey], limit: 1 }],
+        async (event) => {
+          const relaysFromRef = generatedRelaysRef.current
+          const secretFromRef = generatedSecretRef.current
+          if (relaysFromRef.length === 0 || !secretFromRef) return
+          try {
+            console.log('[ConnectBunker] received subscription event', { pubkey: event.pubkey, kind: event.kind })
+            const decrypted = await signerService.decryptFrom(event.pubkey, event.content)
+            const request = JSON.parse(decrypted)
+            if (request?.method !== 'connect') return
+            const [client, secret] = request.params || []
+            if (client !== clientPubkey || secret !== secretFromRef) return
 
-          const allow = window.confirm('Allow this signer to connect to AskNostr?')
-          if (!allow) {
-            setError('Connection rejected.')
-            return
+            const allow = window.confirm('Allow this signer to connect to AskNostr?')
+            if (!allow) {
+              setError('Connection rejected.')
+              return
+            }
+
+            setIsConnecting(true)
+            await signerService.acknowledgeConnect(event.pubkey, relaysFromRef, request.id)
+            const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, relaysFromRef)
+
+            setRemoteSigner({ pubkey: event.pubkey, relays: relaysFromRef, secret: secretFromRef })
+            setLoginMethod('nip46')
+            setUser(userPubkey)
+            triggerHaptic(50)
+            popLayer()
+          } catch (err) {
+            console.error('Failed to complete reverse connect', err)
+            const message = err instanceof Error ? err.message : 'Reverse connect failed.'
+            setError(message)
+            setIsConnecting(false)
           }
-
-          setIsConnecting(true)
-          await signerService.acknowledgeConnect(event.pubkey, relaysFromRef, request.id)
-          const userPubkey = await signerService.fetchRemotePublicKey(event.pubkey, relaysFromRef)
-
-          setRemoteSigner({ pubkey: event.pubkey, relays: relaysFromRef, secret: secretFromRef })
-          setLoginMethod('nip46')
-          setUser(userPubkey)
-          triggerHaptic(50)
-          popLayer()
-        } catch (err) {
-          console.error('Failed to complete reverse connect', err)
-          const message = err instanceof Error ? err.message : 'Reverse connect failed.'
-          setError(message)
-          setIsConnecting(false)
-        }
-      },
-      relays // Listen on all handshake relays
-      ).catch((err) => {
-        handleError(err, 'subscribe')
-        return { close: () => {} }
-      })
+        },
+        relays // Listen on all handshake relays
+      )
     } catch (err) {
       handleError(err, 'subscribe-sync')
     }
 
     return () => {
-      subscriptionPromise.then(s => s.close()).catch((err) => {
-        console.warn('[ConnectBunker] subscription close failed', err)
-      })
+      subscription?.close()
     }
   }, [])
 
