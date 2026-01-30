@@ -1,1 +1,0 @@
-\n---\n\n- [x] **Track: UI is extremely slow and laggy. Loading of events is extremely slow. Large memory usage (browswer tab noted +4GB of memory usage)**\n*Link: [./tracks/performance_optimization_20260130/](./tracks/performance_optimization_20260130/)*

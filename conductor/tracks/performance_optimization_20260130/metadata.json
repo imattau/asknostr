@@ -1,1 +1,0 @@
-{\n  "track_id": "performance_optimization_20260130",\n  "type": "bug",\n  "status": "new",\n  "created_at": "2026-01-30T04:58:22Z",\n  "updated_at": "2026-01-30T04:58:22Z",\n  "description": "UI is extremely slow and laggy. Loading of events is extremely slow. Large memory usage (browswer tab noted +4GB of memory usage)"\n}
