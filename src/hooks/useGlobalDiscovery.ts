@@ -39,7 +39,7 @@ export const useGlobalDiscovery = () => {
       await runSubscription(discoveryRelays)
       let usedFallback = false
 
-      if (discovered.length === 0) { // Was uniqueLocal.length check
+      if (discovered.length === 0) {
         const fallbackRelays = nostrService.getRelays()
         if (fallbackRelays.some(url => !discoveryRelays.includes(url))) {
           usedFallback = true
@@ -52,6 +52,8 @@ export const useGlobalDiscovery = () => {
       )
       return { communities: uniqueFinal, usedFallback }
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: Infinity, // Cache indefinitely
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 }

@@ -76,7 +76,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
             sub.close()
             finish(null)
           }
-        }, 8000)
+        }, 12000)
       })
     },
     staleTime: 1000 * 60 * 10,

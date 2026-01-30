@@ -90,7 +90,7 @@ class NostrService {
   private pool: SimplePool
   private relays: string[]
   private worker: Worker | null = null
-  private maxActiveRelays: number = 4
+  private maxActiveRelays: number = 8
   private workerSubscriptions = new Map<string, WorkerSubscriptionEntry>()
   private feedRegistry = new Map<string, FeedRegistryEntry>()
 
