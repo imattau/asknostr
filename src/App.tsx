@@ -54,10 +54,10 @@ function App() {  const { isConnected, user, login, logout } = useStore()
   
 
         // Use the new useFeed hook for event data
-
-  
-
-        const { data: events = [], isLoading: isFeedLoading, isFetching: isFeedFetching, refetch: refetchFeed } = useFeed({ filters: [{ kinds: [1], limit: 50 }] });
+        const { data: events = [], isLoading: isFeedLoading, isFetching: isFeedFetching, refetch: refetchFeed } = useFeed({ 
+          filters: [{ kinds: [1], limit: 50 }],
+          live: false // Disable live updates for background discovery feed
+        });
 
   useEffect(() => {
     // Process new events for social seeding
