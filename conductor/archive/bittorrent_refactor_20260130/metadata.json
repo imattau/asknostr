@@ -1,0 +1,1 @@
+{\n  "track_id": "bittorrent_refactor_20260130",\n  "type": "feature",\n  "status": "new",\n  "created_at": "2026-01-30T03:01:09Z",\n  "updated_at": "2026-01-30T03:01:09Z",\n  "description": "Refactor BitTorrent service to support background seeding and media chunking for improved playback performance."\n}
