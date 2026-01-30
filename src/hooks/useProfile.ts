@@ -17,52 +17,41 @@ const normalizeProfile = (raw: Record<string, string | undefined>): UserProfile 
   }
 }
 
+export const fetchProfile = async (pubkey: string): Promise<UserProfile | null> => {
+  if (!pubkey) return null
+  
+  const cacheKey = `profile-${pubkey}`
+  const cached = await get(cacheKey) as UserProfile | undefined
+  
+  return new Promise<UserProfile | null>((resolve) => {
+    let found = false
+    
+    // Timeout: If network is slow, resolve with cache if available, else null
+    const timeout = setTimeout(() => {
+      if (!found) {
+        resolve(cached || null)
+      }
+    }, 4000)
+
+    const cleanup = nostrService.requestMetadata('profile', pubkey, (event: Event) => {
+      try {
+        const profile = normalizeProfile(JSON.parse(event.content))
+        found = true
+        clearTimeout(timeout)
+        cleanup()
+        set(cacheKey, profile)
+        resolve(profile)
+      } catch (e) {
+        // Parse error
+      }
+    })
+  })
+}
+
 export const useProfile = (pubkey: string) => {
   return useQuery({
     queryKey: ['profile', pubkey],
-    queryFn: async () => {
-      if (!pubkey) return null
-      
-      const cacheKey = `profile-${pubkey}`
-      const cached = await get(cacheKey) as UserProfile | undefined
-      
-      console.log(`[ProfileHook] Fetching for ${pubkey.slice(0, 8)}... Cached: ${!!cached}`)
-
-      return new Promise<UserProfile | null>((resolve) => {
-        let found = false
-        
-        let sub: { close: () => void } | undefined
-
-        // Timeout: If network is slow, resolve with cache if available, else null
-        const timeout = setTimeout(() => {
-          if (!found) {
-            console.log('[ProfileHook] Network timeout. Using cache:', !!cached)
-            if (sub) sub.close()
-            resolve(cached || null)
-          }
-        }, 4000)
-
-        nostrService.subscribe(
-          [{ kinds: [0], authors: [pubkey], limit: 1 }],
-          (event: Event) => {
-            // Find the latest event if multiple come in (though limit:1 usually gives one)
-            // Ideally we check created_at, but for now take the first valid one
-            try {
-              const profile = normalizeProfile(JSON.parse(event.content))
-              console.log('[ProfileHook] Network data received')
-              found = true
-              clearTimeout(timeout)
-              if (sub) sub.close()
-              set(cacheKey, profile)
-              resolve(profile)
-            } catch (e) {
-              console.error('[ProfileHook] Parse error', e)
-            }
-          },
-          DISCOVERY_RELAYS
-        ).then(s => sub = s)
-      })
-    },
+    queryFn: () => fetchProfile(pubkey),
     // Keep profiles fresh for 30 mins, purge if unused for 1 hour
     staleTime: 1000 * 60 * 30, 
     gcTime: 1000 * 60 * 60,

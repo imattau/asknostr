@@ -48,12 +48,12 @@ export const Search: React.FC = () => {
     }
 
     // 2. Network-wide search (NIP-50) for notes, communities and profiles
-    const sub = await nostrService.subscribe(
+    const sub = nostrService.subscribe(
       [{ kinds: [1, 0, 34550], search: targetQuery, limit: 60 }],
       (event: Event) => {
         setResults(prev => {
           if (prev.find(e => e.id === event.id)) return prev
-          return [...prev, event].sort((a, b) => b.created_at - a.created_at)
+          return [...prev, event].sort((a, b) => a.created_at - b.created_at)
         })
       },
       nostrService.getSearchRelays()
@@ -68,7 +68,8 @@ export const Search: React.FC = () => {
 
   // Auto-search if initialQuery provided
   useEffect(() => {
-    let isMounted = true; // Flag to prevent state updates on unmounted component
+    let isMounted = true;
+    let activeSub: { close: () => void } | null = null;
     
     const performInitialSearch = async () => {
       if (initialQuery && isMounted) {
@@ -82,16 +83,16 @@ export const Search: React.FC = () => {
         // 1. Try NIP-05 Resolution if it looks like an identifier
         if (targetQuery.includes('@')) {
           const res = await resolveNip05(targetQuery)
-          if (res && isMounted) { // Check isMounted before setting state
+          if (res && isMounted) {
             setNip05Result({ pubkey: res.pubkey, identifier: targetQuery })
           }
         }
 
         // 2. Network-wide search (NIP-50) for notes, communities and profiles
-        const sub = await nostrService.subscribe(
+        activeSub = nostrService.subscribe(
           [{ kinds: [1, 0, 34550], search: targetQuery, limit: 60 }],
           (event: Event) => {
-            if (isMounted) { // Check isMounted before setting state
+            if (isMounted) {
               setResults(prev => {
                 if (prev.find(e => e.id === event.id)) return prev
                 return [...prev, event].sort((a, b) => a.created_at - b.created_at)
@@ -101,12 +102,12 @@ export const Search: React.FC = () => {
           nostrService.getSearchRelays()
         );
 
-        // Give it some time to gather results and then clean up subscription
         setTimeout(() => {
-          if (isMounted) { // Check isMounted before setting state
+          if (isMounted) {
             setIsSearching(false);
           }
-          sub?.close();
+          if (activeSub) activeSub.close();
+          activeSub = null;
         }, 4000);
       }
     };
@@ -114,9 +115,10 @@ export const Search: React.FC = () => {
     performInitialSearch();
 
     return () => {
-      isMounted = false; // Cleanup on unmount
+      isMounted = false;
+      if (activeSub) activeSub.close();
     };
-  }, [initialQuery, setIsSearching, setResults, setNip05Result]); // Dependencies now include all state setters
+  }, [initialQuery, setIsSearching, setResults, setNip05Result]);
 
   const categorizedResults = useMemo(() => {
     return {

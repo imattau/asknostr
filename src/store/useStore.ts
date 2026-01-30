@@ -27,8 +27,6 @@ const DEFAULT_MEDIA_SERVERS: MediaServer[] = [
   { id: 'media-nostr-build', url: 'https://nostr.build', type: 'generic' },
 ]
 
-
-
 interface NostrState {
   optimisticReactions: Record<string, Record<string, string[]>> // eventId -> { emoji -> pubkeys[] }
   optimisticDeletions: string[] // array of event IDs to treat as deleted
@@ -48,6 +46,7 @@ interface NostrState {
   }
   lastRead: Record<string, number> // aTag -> timestamp
   nwcUrl: string | null
+  bridgeUrl: string
   administeredStations: any[] // CommunityDefinition[]
   addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => void
   addOptimisticDeletion: (eventId: string) => void
@@ -62,6 +61,7 @@ interface NostrState {
   setLoginMethod: (method: 'nip07' | 'nip46' | 'local' | null) => void
   setRemoteSigner: (signer: { pubkey: string | null, relays: string[], secret: string | null }) => void
   setNwcUrl: (url: string | null) => void
+  setBridgeUrl: (url: string) => void
   setAdministeredStations: (stations: any[]) => void
   markAsRead: (aTag: string) => void
   login: () => Promise<void>
@@ -72,7 +72,7 @@ declare global {
   interface Window {
     nostr?: {
       getPublicKey: () => Promise<string>
-      signEvent: (event: Partial<Event>) => Promise<Event>
+      signEvent: (event: any) => Promise<any>
     }
   }
 }
@@ -98,31 +98,33 @@ export const useStore = create<NostrState>()(
       },
       lastRead: {},
       nwcUrl: null,
+      bridgeUrl: '',
       administeredStations: [],
       addOptimisticReaction: (eventId, pubkey, emoji) => set((state) => {
         const currentEvent = state.optimisticReactions[eventId] || {}
         const currentEmoji = currentEvent[emoji] || []
-        
         if (currentEmoji.includes(pubkey)) return state
         
-        return {
-          optimisticReactions: { 
-            ...state.optimisticReactions, 
-            [eventId]: {
-              ...currentEvent,
-              [emoji]: [...currentEmoji, pubkey]
-            }
-          }
+        let nextReactions = { 
+          ...state.optimisticReactions, 
+          [eventId]: { ...currentEvent, [emoji]: [...currentEmoji, pubkey] }
         }
+
+        // Keep last 100 event reactions in memory
+        const keys = Object.keys(nextReactions)
+        if (keys.length > 100) {
+          const { [keys[0]]: _, ...rest } = nextReactions
+          nextReactions = rest
+        }
+
+        return { optimisticReactions: nextReactions }
       }),
-      addOptimisticDeletion: (eventId) => set((state) => {
-        if (state.optimisticDeletions.includes(eventId)) return state
-        return { optimisticDeletions: [...state.optimisticDeletions, eventId] }
-      }),
-      addOptimisticApproval: (eventId) => set((state) => {
-        if (state.optimisticApprovals.includes(eventId)) return state
-        return { optimisticApprovals: [...state.optimisticApprovals, eventId] }
-      }),
+      addOptimisticDeletion: (eventId) => set((state) => ({
+        optimisticDeletions: [...state.optimisticDeletions, eventId].slice(-100)
+      })),
+      addOptimisticApproval: (eventId) => set((state) => ({
+        optimisticApprovals: [...state.optimisticApprovals, eventId].slice(-100)
+      })),
       setRelays: (relays) => set({ relays: sanitizeRelayUrls(relays) }),
       setMediaServers: (mediaServers) => set({ mediaServers }),
       addMediaServer: (server) => set((state) => ({
@@ -139,6 +141,7 @@ export const useStore = create<NostrState>()(
       setLoginMethod: (method) => set({ loginMethod: method }),
       setRemoteSigner: (signer) => set({ remoteSigner: signer }),
       setNwcUrl: (url) => set({ nwcUrl: url }),
+      setBridgeUrl: (url) => set({ bridgeUrl: url }),
       setAdministeredStations: (administeredStations) => set({ administeredStations }),
       markAsRead: (aTag) => set((state) => ({
         lastRead: { ...state.lastRead, [aTag]: Math.floor(Date.now() / 1000) }
@@ -181,6 +184,7 @@ export const useStore = create<NostrState>()(
         loginMethod: state.loginMethod,
         lastRead: state.lastRead,
         nwcUrl: state.nwcUrl,
+        bridgeUrl: state.bridgeUrl,
         administeredStations: state.administeredStations,
         remoteSigner: {
           pubkey: state.remoteSigner.pubkey,

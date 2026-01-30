@@ -31,7 +31,8 @@ class NwcService {
     const connection = this.parseNwcUrl(nwcUrl)
     if (!connection) throw new Error('Invalid NWC string')
 
-    const localSecretKey = new Uint8Array(JSON.parse(localStorage.getItem('asknostr-client-secret') || '[]'))
+    const storedSecret = localStorage.getItem('asknostr-client-secret')
+    const localSecretKey = new Uint8Array(JSON.parse(storedSecret && storedSecret !== 'undefined' ? storedSecret : '[]'))
     if (!localSecretKey.length) throw new Error('Local secret not found')
 
     const requestId = Math.random().toString(36).substring(7)

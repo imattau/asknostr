@@ -11,12 +11,21 @@ class SignerService {
 
   constructor() {
     const stored = localStorage.getItem('asknostr-client-secret')
-    if (stored) {
-      this.localSecretKey = new Uint8Array(JSON.parse(stored))
+    if (stored && stored !== 'undefined') {
+      try {
+        this.localSecretKey = new Uint8Array(JSON.parse(stored))
+      } catch (e) {
+        console.error('[Signer] Corrupt secret key in storage, generating new one')
+        this.generateAndStoreNewKey()
+      }
     } else {
-      this.localSecretKey = generateSecretKey()
-      localStorage.setItem('asknostr-client-secret', JSON.stringify(Array.from(this.localSecretKey)))
+      this.generateAndStoreNewKey()
     }
+  }
+
+  private generateAndStoreNewKey() {
+    this.localSecretKey = generateSecretKey()
+    localStorage.setItem('asknostr-client-secret', JSON.stringify(Array.from(this.localSecretKey)))
   }
 
   get clientPubkey() {

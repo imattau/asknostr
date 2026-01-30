@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
-import { nostrService } from '../services/nostr'
+import { nostrService, SubscriptionPriority } from '../services/nostr'
 import { signerService } from '../services/signer'
 import type { Event } from 'nostr-tools'
 import { triggerHaptic } from '../utils/haptics'
@@ -22,18 +22,17 @@ export const useSubscriptions = () => {
         let latest: Event | null = null
         let found = false
         let resolved = false
-        let subRef: { close: () => void } | null = null
         let timeoutId: ReturnType<typeof setTimeout> | null = null
 
         const finish = (value: Event | null) => {
           if (resolved) return
           resolved = true
           if (timeoutId) clearTimeout(timeoutId)
-          subRef?.close()
+          sub.close()
           resolve(value)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
@@ -43,17 +42,15 @@ export const useSubscriptions = () => {
             }
           },
           nostrService.getDiscoveryRelays(),
-          { onEose: () => finish(found ? latest : cached || null) }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
+          { 
+            priority: SubscriptionPriority.HIGH,
+            onEose: () => finish(found ? latest : cached || null) 
           }
-          timeoutId = setTimeout(() => {
-            finish(found ? latest : cached || null)
-          }, 6000)
-        })
+        );
+
+        timeoutId = setTimeout(() => {
+          finish(found ? latest : cached || null)
+        }, 6000)
       })
     },
     staleTime: 1000 * 60 * 15,
@@ -61,7 +58,7 @@ export const useSubscriptions = () => {
   })
 
   const subscribedCommunities = subscriptionEvent?.tags
-    .filter(t => t[0] === 'a')
+    ?.filter(t => t[0] === 'a')
     .map(t => t[1]) || []
 
   const updateSubscriptions = useMutation({
@@ -96,13 +93,11 @@ export const useSubscriptions = () => {
   })
 
   const toggleSubscription = (communityATag: string) => {
-    console.log('[Subs] Toggling:', communityATag)
     const current = subscribedCommunities
     const next = current.includes(communityATag)
       ? current.filter(a => a !== communityATag)
       : [...current, communityATag]
     
-    console.log('[Subs] Next state:', next)
     updateSubscriptions.mutate(next)
   }
 

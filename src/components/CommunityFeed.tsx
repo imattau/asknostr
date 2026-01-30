@@ -4,10 +4,11 @@ import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
 import { VirtualFeed } from './VirtualFeed'
-import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2 } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2, Share2 } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { mediaService } from '../services/mediaService'
+import { torrentService } from '../services/torrentService'
 import { triggerHaptic } from '../utils/haptics'
 import { useUiStore } from '../store/useUiStore'
 import { useDeletions } from '../hooks/useDeletions'
@@ -115,14 +116,26 @@ interface CommunityFeedProps {
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creator }) => {
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
+  const { user, markAsRead, relays: userRelays } = useStore()
   
   const communityATag = `34550:${creator}:${communityId}`
-  const { data: events = [] } = useFeed({
-    filters: [{ kinds: [1, 4550], '#a': [communityATag], limit: 100 }],
-    customRelays: community?.relays
+  
+  const combinedRelays = useMemo(() => {
+    const commRelays = community?.relays || []
+    return [...new Set([...commRelays, ...userRelays])]
+  }, [community?.relays, userRelays])
+
+  const communityFilters = useMemo(() => [
+    { kinds: [1, 4550], '#a': [communityATag] },
+    { kinds: [1], '#t': [communityId.toLowerCase()] }
+  ], [communityATag, communityId])
+
+  const { data: events = [], fetchMore, isFetchingMore } = useFeed({
+    filters: communityFilters,
+    customRelays: combinedRelays,
+    limit: 30
   })
 
-  const { user, markAsRead } = useStore()
   const { muted } = useSocialGraph()
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
@@ -133,7 +146,12 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const { subscribedCommunities, toggleSubscription, isUpdating } = useSubscriptions()
   const [optimisticSub, setOptimisticSub] = useState<boolean | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const [isSeeding, setIsSeeding] = useState(false)
+  const [pendingFallbackUrl, setPendingFallbackUrl] = useState<string | undefined>()
+  const [pendingMagnet, setPendingMagnet] = useState<string | undefined>()
+  const [pendingFile, setPendingFile] = useState<File | undefined>()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const torrentInputRef = useRef<HTMLInputElement>(null)
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
@@ -157,15 +175,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     setTimeout(() => setOptimisticSub(null), 5000)
   }
 
-  const communityEvents = events.filter(e => 
-    e.tags.some(t => t[0] === 'a' && t[1] === communityATag) ||
-    e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === communityId.toLowerCase())
-  )
+  const communityEvents = events.filter(e => {
+    const hasATag = e.tags.some(t => t[0] === 'a' && t[1] === communityATag);
+    const hasTTag = e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === communityId.toLowerCase());
+    return hasATag || hasTTag;
+  });
+
 
   const eventIds = communityEvents.map(e => e.id)
   const moderators = useMemo(() => community?.moderators || [], [community?.moderators])
   const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
-  const { data: deletedIds = [] } = useDeletions(communityEvents) // Updated to pass events, not ids? Wait, useDeletions expects events now.
+  const { data: deletedIds = [] } = useDeletions(communityEvents) 
 
   const eventStatusMap = useMemo(() => {
     const map: Record<string, string> = {}
@@ -181,25 +201,27 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     return map
   }, [approvals])
 
-  const filteredEvents = useMemo(() => communityEvents.filter(e => {
-    if (deletedIds.includes(e.id)) return false
-    if (eventStatusMap[e.id] === 'spam') return false
-    if (muted.includes(e.pubkey)) return false
-    const isReply = e.tags.some(t => t[0] === 'e')
-    if (isReply) return false
-    const mode = community?.moderationMode || 'open'
-    if (mode === 'restricted') {
-      const isApproved = eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
-      const authors = new Set<string>()
-      approvals.forEach(a => {
-        const pTag = a.tags.find(t => t[0] === 'p')?.[1]
-        if (pTag && (a.tags.find(t => t[0] === 'status')?.[1] || 'approved') === 'approved') authors.add(pTag)
-      })
-      return isApproved || authors.has(e.pubkey) || moderators.includes(e.pubkey) || e.pubkey === creator
-    } else {
-      return !isModeratedOnly || eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
-    }
-  }), [communityEvents, deletedIds, eventStatusMap, isModeratedOnly, community, moderators, creator, approvals, muted])
+  const filteredEvents = useMemo(() => {
+    return communityEvents.filter(e => {
+      if (deletedIds.includes(e.id)) return false
+      if (eventStatusMap[e.id] === 'spam') return false
+      if (muted.includes(e.pubkey)) return false
+      const isReply = e.tags.some(t => t[0] === 'e')
+      if (isReply) return false
+      const mode = community?.moderationMode || 'open'
+      if (mode === 'restricted') {
+        const isApproved = eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
+        const authors = new Set<string>()
+        approvals.forEach(a => {
+          const pTag = a.tags.find(t => t[0] === 'p')?.[1]
+          if (pTag && (a.tags.find(t => t[0] === 'status')?.[1] || 'approved') === 'approved') authors.add(pTag)
+        })
+        return isApproved || authors.has(e.pubkey) || moderators.includes(e.pubkey) || e.pubkey === creator
+      } else {
+        return !isModeratedOnly || eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
+      }
+    })
+  }, [communityEvents, deletedIds, eventStatusMap, isModeratedOnly, community?.moderationMode, moderators, creator, approvals, muted])
 
   const computeEngagement = (event: Event) => {
     return event.tags.reduce((score, tag) => ['p', 'e', 'r', 'a'].includes(tag[0]) ? score + 1 : score, 0)
@@ -230,9 +252,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   useEffect(() => {
     if (community?.relays && community.relays.length > 0) nostrService.addRelays(community.relays)
-    const sub = nostrService.subscribe([{ kinds: [34550], authors: [creator], '#d': [communityId], limit: 1 }], () => {}, community?.relays)
-    return () => { sub.then(s => s.close()) }
-  }, [communityId, creator, community?.relays])
+  }, [community?.relays])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -250,12 +270,43 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     }
   }
 
+  const handleTorrentSeed = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsSeeding(true)
+    try {
+      const { magnet, fallbackUrl } = await torrentService.prepareDualUpload(file, user.pubkey || '')
+      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
+      setPendingFile(file)
+      setPendingMagnet(magnet)
+      if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
+    } catch (err) {
+      console.error('Seeding preparation failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to seed file')
+    } finally {
+      setIsSeeding(false)
+      if (torrentInputRef.current) torrentInputRef.current.value = ''
+    }
+  }
+
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
     try {
       const tags = [['a', communityATag, '', 'root'], ['t', communityId]]
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
+      if (pendingFallbackUrl) {
+        tags.push(['url', pendingFallbackUrl])
+      }
+
+      const magnetToCommit = pendingMagnet || postContent.match(/magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i)?.[0]
+      if (magnetToCommit) {
+        const infoHashMatch = magnetToCommit.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
+        if (infoHashMatch) {
+          tags.push(['magnet', magnetToCommit])
+          tags.push(['i', infoHashMatch[1].toLowerCase()])
+        }
+      }
 
       const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {
@@ -288,10 +339,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
       const signedEvent = await signerService.signEvent(eventTemplate)
       const success = await nostrService.publish(signedEvent)
       if (success) {
-        setPostContent(''); setIsNsfw(false); triggerHaptic(20)
-      } else { alert('Broadcast failed') }
+        if (pendingFile && pendingMagnet) {
+          await torrentService.finalizePublication(pendingFile, pendingMagnet, pendingFallbackUrl, user.pubkey)
+        }
+        setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); setPendingFile(undefined); setPendingMagnet(undefined); triggerHaptic(20)
+      } else { 
+        alert('Broadcast failed') 
+      }
     } catch (e) {
-      console.error('Failed to publish', e); alert('Publish error')
+      console.error('[CommunityFeed] Publication error:', e); alert('Publish error')
     } finally { setIsPublishing(false) }
   }
 
@@ -330,7 +386,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               </div>
               <div className="min-w-0">
                 <h2 className={`text-lg font-black ${primaryText} tracking-tighter uppercase leading-none mb-0.5 truncate`}>{community?.name || communityId}</h2>
-                <div className="flex items-center gap-2"><span className={`text-[9px] ${mutedText} font-mono`}>c/{communityId}</span><div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20"><Shield size={8} /> {moderators.length}</div></div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] ${mutedText} font-mono`}>c/{communityId}</span>
+                  <div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20">
+                    <Shield size={8} /> {moderators.length}
+                  </div>
+                  <div className={`flex items-center gap-1 text-[8px] font-bold ${combinedRelays.length > 0 ? 'text-cyan-500 bg-cyan-500/5 border-cyan-500/20' : 'text-amber-500 bg-amber-500/5 border-amber-500/20'} px-1.5 py-0.5 rounded border`}>
+                    <RefreshCw size={8} className={isCommLoading ? 'animate-spin' : ''} /> {combinedRelays.length} RELAYS
+                  </div>
+                </div>
                 {labels.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{labels.slice(0, 6).map(label => <span key={label} className="text-[7px] font-mono uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">{label}</span>)}</div>}
               </div>
             </div>
@@ -340,28 +404,41 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         </div>
       </div>
       <div className="flex-1 overflow-hidden relative">
-        <VirtualFeed events={regularEvents} isLoadingMore={false} onLoadMore={() => {}} header={
-          <div className="p-4 space-y-4">
-            <div className={`glassmorphism p-3 rounded-xl ${theme === 'light' ? 'border-slate-300' : 'border-slate-800/50'}`}>
-                                  <HashtagTextarea 
-                                    value={postContent} 
-                                    onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
-                                    disabled={!user.pubkey || isPublishing} 
-                                    placeholder={`Post to c/${communityId}...`} 
-                                    onUserSearch={handleUserSearch}
-                                  />              <div className={`flex items-center justify-between mt-2 pt-2 border-t ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
-                <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
-                <div className="flex items-center gap-2">
-                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
-                  <button type="button" disabled={isUploadingMedia || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">{isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}</button>
-                  <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
+        <VirtualFeed 
+          events={regularEvents} 
+          isLoadingMore={isFetchingMore} 
+          onLoadMore={() => fetchMore()} 
+          header={
+            <div className="p-4 space-y-4">
+              <div className={`glassmorphism p-3 rounded-xl ${theme === 'light' ? 'border-slate-300' : 'border-slate-800/50'}`}>
+                                    <HashtagTextarea 
+                                      value={postContent} 
+                                      onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
+                                      disabled={!user.pubkey || isPublishing} 
+                                      placeholder={`Post to c/${communityId}...`} 
+                                      onUserSearch={handleUserSearch}
+                                    />              <div className={`flex items-center justify-between mt-2 pt-2 border-t ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
+                  <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
+                  <div className="flex items-center gap-2">
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
+                    <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
+                    
+                    <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">
+                      {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
+                    </button>
+
+                    <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} text-purple-400 transition-colors disabled:opacity-50`} title="Seed via BitTorrent">
+                      {isSeeding ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                    </button>
+
+                    <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
+                  </div>
                 </div>
               </div>
+              {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}
+              {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className={`h-px ${borderClass} mx-4`} /></div>}
             </div>
-            {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}
-            {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className={`h-px ${borderClass} mx-4`} /></div>}
-          </div>
-        } />
+          } />
       </div>
     </div>
   )

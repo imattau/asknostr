@@ -23,16 +23,15 @@ if (typeof window !== 'undefined') {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </ErrorBoundary>
-  </StrictMode>,
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </ErrorBoundary>,
 )
 
 const registerServiceWorker = () => {
+  if (import.meta.env.DEV) return
   if ('serviceWorker' in navigator) {
     const wb = new Workbox('/sw.js')
     wb.register()

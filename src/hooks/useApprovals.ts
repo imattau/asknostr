@@ -12,18 +12,17 @@ export const useApprovals = (eventIds: string[], moderators: string[], customRel
         const approvals: Event[] = []
         const seen = new Set<string>()
         let resolved = false
-        let subRef: { close: () => void } | null = null
         let timeoutId: ReturnType<typeof setTimeout> | null = null
 
         const finish = () => {
           if (resolved) return
           resolved = true
           if (timeoutId) clearTimeout(timeoutId)
-          subRef?.close()
+          sub.close()
           resolve(approvals)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ 
             kinds: [4550], 
             '#e': eventIds,
@@ -38,14 +37,9 @@ export const useApprovals = (eventIds: string[], moderators: string[], customRel
           },
           customRelays,
           { onEose: finish }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(finish, 2000)
-        })
+        );
+
+        timeoutId = setTimeout(finish, 2000)
       })
     },
     staleTime: 1000 * 60 * 5, // 5 minutes

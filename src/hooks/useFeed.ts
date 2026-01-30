@@ -1,73 +1,169 @@
 // src/hooks/useFeed.ts
-import { useQuery } from '@tanstack/react-query';
-import { nostrService } from '../services/nostr';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { nostrService, SubscriptionPriority } from '../services/nostr';
 import type { Filter, Event } from 'nostr-tools';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { fetchProfile } from './useProfile';
+import { fetchReactions } from './useReactions';
+import { fetchZaps } from './useZaps';
+import { fetchReplyCount } from './useReplyCount';
 
 interface UseFeedOptions {
   filters: Filter[];
   customRelays?: string[];
-  enabled?: boolean; // Control when the query runs
+  enabled?: boolean;
+  live?: boolean;
+  limit?: number;
+  manualFlush?: boolean; // New option
 }
 
-export const useFeed = ({ filters, customRelays, enabled = true }: UseFeedOptions) => {
-  return useQuery<Event[], Error>({ // Explicitly type the resolved data and error
-    queryKey: ['feed-events', filters, customRelays], // Key must uniquely identify the query
-    queryFn: async ({ queryKey, signal }) => {
-      const currentFilters = queryKey[1] as Filter[];
-      const currentCustomRelays = queryKey[2] as string[] | undefined;
+const MAX_FEED_SIZE = 200; 
+const FLUSH_INTERVAL_MS = 3000;
+const PENDING_FLUSH_CHUNK = 100;
+const MAX_BUFFER_SIZE = 200;
 
-      // Use a Promise to collect events from the subscription
-      return new Promise<Event[]>((resolve, reject) => {
-        const events: Event[] = [];
-        let sub: { close: () => void } | undefined;
-        let timeout: ReturnType<typeof setTimeout> | undefined;
+export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 20, manualFlush = false }: UseFeedOptions) => {
+  const queryClient = useQueryClient();
+  
+  const filtersKey = JSON.stringify(filters || []);
+  const relaysKey = JSON.stringify(customRelays || null);
+  const parsedFilters = useMemo(() => (JSON.parse(filtersKey || '[]') as Filter[]), [filtersKey]);
+  const parsedRelays = useMemo(() => (JSON.parse(relaysKey || 'null') as string[] | null), [relaysKey]);
+  const normalizedRelayList = parsedRelays && parsedRelays.length ? parsedRelays : undefined;
+  const snapshotLimit = Math.max(limit, MAX_FEED_SIZE);
+  const feedKey = useMemo(() => nostrService.getFeedKey(parsedFilters, normalizedRelayList, snapshotLimit), [parsedFilters, normalizedRelayList, snapshotLimit]);
 
-        const cleanup = () => {
-          if (sub) sub.close();
-          if (timeout) clearTimeout(timeout);
-        };
+  const queryKey = ['feed-events', filtersKey, relaysKey];
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  
+  const eventBufferRef = useRef<Event[]>([]);
 
-        // If the query is cancelled or invalidated, cleanup the subscription
-        signal.onabort = cleanup;
-
-        // Ensure filters are valid before subscribing
-        if (!currentFilters || currentFilters.length === 0 || currentFilters.every(f => !f || Object.keys(f).length === 0)) {
-          resolve([]); // No valid filters, resolve with empty array
-          return;
-        }
-
-        nostrService.subscribe(
-          currentFilters,
-          (event) => {
-            // Check for duplicates before adding, if needed.
-            // React Query's cache and subsequent renders will handle unique keys.
-            events.push(event);
-          },
-          currentCustomRelays,
-          {
-            onEose: () => {
-              cleanup(); // Close subscription after EOSE
-              resolve(events);
-            }
-          }
-        ).then(s => {
-          sub = s; // Store the subscription object
-
-          // Set a timeout to resolve even if EOSE is not received from all relays
-          // This prevents the query from hanging indefinitely
-          timeout = setTimeout(() => {
-            console.warn('[useFeed] Subscription EOSE timeout. Resolving with collected events.');
-            cleanup();
-            resolve(events);
-          }, 5000); // 5 seconds timeout for EOSE
-        }).catch(reject); // Propagate any errors from subscribe
-      });
+  const query = useQuery<Event[], Error>({
+    queryKey,
+    queryFn: async () => {
+      const snapshotFilters = parsedFilters.map(f => ({ ...f, limit }));
+      const events = await nostrService.requestFeedSnapshot(feedKey, snapshotFilters, normalizedRelayList, snapshotLimit);
+      return events;
     },
-    enabled: enabled, // Only run the query if enabled is true
-    staleTime: 1000 * 60, // Data considered fresh for 1 minute
-    gcTime: 1000 * 60 * 5, // Data stays in cache for 5 minutes
-    refetchOnWindowFocus: false, // Feeds can be noisy, might not want to refetch aggressively
-    refetchOnMount: true, // Refetch when component mounts
-    refetchOnReconnect: true, // Refetch on network reconnect
+    enabled,
+    staleTime: Infinity, // Keep data fresh indefinitely to prevent auto-refetch
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
+
+  const flushBuffer = useCallback((maxItems: number = PENDING_FLUSH_CHUNK) => {
+    if (eventBufferRef.current.length === 0) return;
+
+    const chunk = eventBufferRef.current.splice(0, maxItems);
+    setPendingCount(eventBufferRef.current.length);
+
+    queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
+      const mergedMap = new Map<string, Event>();
+      oldEvents.forEach(e => mergedMap.set(e.id, e));
+      chunk.forEach(e => mergedMap.set(e.id, e));
+      
+      return Array.from(mergedMap.values())
+        .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+        .slice(0, MAX_FEED_SIZE);
+    });
+  }, [queryClient, queryKey]);
+
+  const fetchMore = async () => {
+    const currentEvents = query.data || [];
+    if (currentEvents.length === 0 || isFetchingMore) return;
+
+    setIsFetchingMore(true);
+    const oldestTimestamp = currentEvents[currentEvents.length - 1].created_at;
+    const paginatedFilters = JSON.parse(filtersKey).map((f: any) => ({
+      ...f,
+      until: oldestTimestamp - 1,
+      limit
+    }));
+
+    return new Promise<void>((resolve) => {
+      const newEventsBatch: Event[] = [];
+
+      const sub = nostrService.subscribe(
+        paginatedFilters,
+        (event) => {
+          if (!newEventsBatch.some(e => e.id === event.id)) newEventsBatch.push(event);
+        },
+        JSON.parse(relaysKey),
+        {
+          priority: SubscriptionPriority.MEDIUM,
+          onEose: () => {
+            sub.close();
+            queryClient.setQueryData<Event[]>(queryKey, (old = []) => {
+              const mergedMap = new Map<string, Event>();
+              old.forEach(e => mergedMap.set(e.id, e));
+              newEventsBatch.forEach(e => mergedMap.set(e.id, e));
+
+              return Array.from(mergedMap.values())
+                .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+                .slice(0, MAX_FEED_SIZE * 2);
+            });
+            setIsFetchingMore(false);
+            resolve();
+          }
+        }
+      );
+
+      setTimeout(() => {
+        sub.close();
+        setIsFetchingMore(false);
+        resolve();
+      }, 4000);
+    });
+  };
+
+  useEffect(() => {
+    if (!enabled || !live) return;
+
+    let isMounted = true;
+    let unregister: (() => void) | null = null;
+    let flushInterval: ReturnType<typeof setInterval> | null = null;
+
+    const handleEvent = (event: Event) => {
+      if (!isMounted) return;
+      if (eventBufferRef.current.length >= MAX_BUFFER_SIZE) return;
+
+      const currentData = queryClient.getQueryData<Event[]>(queryKey) || [];
+      if (currentData.some(e => e.id === event.id) || eventBufferRef.current.some(e => e.id === event.id)) {
+        return;
+      }
+      eventBufferRef.current.push(event);
+      setPendingCount(eventBufferRef.current.length);
+
+      // Optimistically prefetch images so they render instantly when flushed
+      const imageMatches = event.content.match(/https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp)/gi);
+      if (imageMatches) {
+        imageMatches.forEach(url => {
+          const img = new Image();
+          img.src = url;
+        });
+      }
+
+      // Prefetch metadata (Profile, Reactions, Zaps, Replies)
+      queryClient.prefetchQuery({ queryKey: ['profile', event.pubkey], queryFn: () => fetchProfile(event.pubkey) });
+      queryClient.prefetchQuery({ queryKey: ['reactions', event.id], queryFn: () => fetchReactions(event.id) });
+      queryClient.prefetchQuery({ queryKey: ['zaps', event.id], queryFn: () => fetchZaps(event.id) });
+      queryClient.prefetchQuery({ queryKey: ['reply-count', event.id], queryFn: () => fetchReplyCount(event.id) });
+    };
+
+    unregister = nostrService.registerFeed(feedKey, parsedFilters, normalizedRelayList, snapshotLimit, handleEvent);
+
+    if (!manualFlush) {
+      flushInterval = setInterval(() => flushBuffer(PENDING_FLUSH_CHUNK), FLUSH_INTERVAL_MS);
+    }
+
+    return () => {
+      isMounted = false;
+      if (flushInterval) clearInterval(flushInterval);
+      unregister?.();
+    };
+  }, [enabled, live, feedKey, parsedFilters, normalizedRelayList, snapshotLimit, manualFlush, flushBuffer, queryClient, queryKey]);
+
+  return { ...query, fetchMore, isFetchingMore, pendingCount, flushBuffer };
 };

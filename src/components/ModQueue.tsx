@@ -16,7 +16,8 @@ interface ModQueueProps {
 export const ModQueue: React.FC<ModQueueProps> = ({ communityId, creator }) => {
   const { data: community } = useCommunity(communityId, creator)
   const communityATag = `34550:${creator}:${communityId}`
-  const { data: events = [] } = useFeed({ filters: [{ '#a': [communityATag] }] })
+  const filters = useMemo(() => [{ '#a': [communityATag] }], [communityATag])
+  const { data: events = [] } = useFeed({ filters })
   const [reports, setReports] = useState<Event[]>([])
   const { theme } = useUiStore()
   

@@ -8,11 +8,9 @@ export const useGlobalDiscovery = () => {
   return useQuery({
     queryKey: ['global-community-discovery'],
     queryFn: async () => {
-      console.log('[Discovery] Initiating network scan for Kind 34550...')
       const discovered: CommunityDefinition[] = []
 
       const runSubscription = async (relays: string[]) => {
-        console.log(`[Discovery] Scanning ${relays.length} relays for communities...`)
         let count = 0
         return new Promise<void>((resolve) => {
           nostrService.subscribe(
@@ -31,7 +29,6 @@ export const useGlobalDiscovery = () => {
           ).then(sub => {
             setTimeout(() => {
               sub.close()
-              console.log(`[Discovery] Scan complete. Found ${count} new items on this set.`)
               resolve()
             }, 6000)
           })
@@ -42,7 +39,7 @@ export const useGlobalDiscovery = () => {
       await runSubscription(discoveryRelays)
       let usedFallback = false
 
-      if (discovered.length === 0) { // Was uniqueLocal.length check
+      if (discovered.length === 0) {
         const fallbackRelays = nostrService.getRelays()
         if (fallbackRelays.some(url => !discoveryRelays.includes(url))) {
           usedFallback = true
@@ -55,6 +52,8 @@ export const useGlobalDiscovery = () => {
       )
       return { communities: uniqueFinal, usedFallback }
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: Infinity, // Cache indefinitely
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 }

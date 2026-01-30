@@ -14,7 +14,6 @@ export const useTrendingCommunities = () => {
   return useQuery({
     queryKey: ['trending-communities'],
     queryFn: async () => {
-      console.log('[Trending] Aggregating network activity...')
       return new Promise<TrendingCommunity[]>((resolve) => {
         const communityCounts: Record<string, number> = {}
         const now = Math.floor(Date.now() / 1000)
@@ -43,7 +42,6 @@ export const useTrendingCommunities = () => {
                 const id = parts[2] || ''
                 return { aTag, count, kind, pubkey, id }
               })
-            console.log('[Trending] Found', sorted.length, 'active community hubs')
             resolve(sorted)
           }, 4000)
         })

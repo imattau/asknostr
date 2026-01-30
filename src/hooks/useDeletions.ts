@@ -15,18 +15,17 @@ export const useDeletions = (events: Event[]) => {
         const seen = new Set<string>()
         const authorById = new Map(events.map(event => [event.id, event.pubkey]))
         let resolved = false
-        let subRef: { close: () => void } | null = null
         let timeoutId: ReturnType<typeof setTimeout> | null = null
 
         const finish = () => {
           if (resolved) return
           resolved = true
           if (timeoutId) clearTimeout(timeoutId)
-          subRef?.close()
+          sub.close()
           resolve([...deletedSet])
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ 
             kinds: [5], 
             '#e': eventIds
@@ -34,7 +33,9 @@ export const useDeletions = (events: Event[]) => {
           (event: Event) => {
             if (seen.has(event.id)) return
             seen.add(event.id)
-            const targets = event.tags.filter(t => t[0] === 'e').map(t => t[1])
+            const targets = (event?.tags || [])
+              .filter(t => t[0] === 'e')
+              .map(t => t[1])
             targets.forEach((targetId) => {
               if (authorById.get(targetId) === event.pubkey) {
                 deletedSet.add(targetId)
@@ -43,14 +44,9 @@ export const useDeletions = (events: Event[]) => {
           },
           undefined,
           { onEose: finish }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(finish, 1500)
-        })
+        );
+
+        timeoutId = setTimeout(finish, 1500)
       })
     },
     staleTime: 1000 * 60 * 5, // 5 minutes

@@ -12,8 +12,9 @@ interface ModerationLogProps {
 
 export const ModerationLog: React.FC<ModerationLogProps> = ({ communityId, creator }) => {
   const communityATag = `34550:${creator}:${communityId}`
+  const filters = React.useMemo(() => [{ kinds: [4550, 1984], '#a': [communityATag], limit: 100 }], [communityATag])
   const { data: events = [], isLoading } = useFeed({
-    filters: [{ kinds: [4550, 1984], '#a': [communityATag], limit: 100 }]
+    filters
   })
   const { theme } = useUiStore()
 

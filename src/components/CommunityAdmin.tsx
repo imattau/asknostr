@@ -17,7 +17,7 @@ interface CommunityAdminProps {
 }
 
 export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, creator }) => {
-  const { data: community, isLoading } = useCommunity(communityId, creator)
+  const { data: community, isLoading, refetch } = useCommunity(communityId, creator)
   const { user } = useStore()
   const { popLayer, theme } = useUiStore()
   const queryClient = useQueryClient()
@@ -29,7 +29,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   const bgMuted = theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'
   
   const [name, setName] = useState('')
-  // ... (keep state)
   const [description, setDescription] = useState('')
   const [rules, setRules] = useState('')
   const [image, setImage] = useState('')
@@ -45,7 +44,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
-    // ... (keep logic)
     if (community) {
       setName(community.name || '')
       setDescription(community.description || '')
@@ -55,10 +53,10 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
       setMods(community.moderators)
       setRelays(community.relays.join(', '))
       setMode(community.moderationMode || 'open')
-    } else if (!isLoading && user.pubkey === creator) {
+    } else if (!isLoading) {
       setMods([creator])
     }
-  }, [community, isLoading, creator, user.pubkey])
+  }, [community, isLoading, creator])
 
   if (isLoading) return (
     <div className={`p-20 flex flex-col items-center justify-center space-y-4 ${containerBg}`}>
@@ -75,7 +73,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   )
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'image' | 'banner') => {
-    // ... (keep logic)
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -93,7 +90,6 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   }
 
   const addMod = () => {
-    // ... (keep logic)
     if (newMod && !mods.includes(newMod)) {
       setMods([...mods, newMod])
       setNewMod('')
@@ -102,17 +98,15 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
   }
 
   const removeMod = (pubkey: string) => {
-    // ... (keep logic)
     if (pubkey === creator) return 
     setMods(mods.filter(m => m !== pubkey))
     triggerHaptic(10)
   }
 
   const handleSave = async () => {
-    // ... (keep logic)
     setIsSaving(true)
     try {
-      const relayList = relays.split(',').map(r => r.trim()).filter(r => r.startsWith('wss://'))
+      const relayList = relays.split(',').map(r => r.trim()).filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
       
       const eventTemplate = {
         kind: 34550,
@@ -166,13 +160,22 @@ export const CommunityAdmin: React.FC<CommunityAdminProps> = ({ communityId, cre
 
   return (
     <div className={`p-6 space-y-8 pb-20 overflow-y-auto ${containerBg}`}>
-      <header className="terminal-border p-4 bg-cyan-500/10 border-cyan-500/30">
-        <h2 className="text-xl font-bold text-cyan-400 uppercase flex items-center gap-2 tracking-tighter">
-          <Shield size={24} /> Station_Administration: c/{communityId}
-        </h2>
-        <p className="text-[10px] opacity-70 uppercase mt-1 font-mono">
-          Modifying community nodes and moderator authorizations
-        </p>
+      <header className="terminal-border p-4 bg-cyan-500/10 border-cyan-500/30 flex justify-between items-start">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold text-cyan-400 uppercase flex items-center gap-2 tracking-tighter truncate">
+            <Shield size={24} className="shrink-0" /> Station_Administration: c/{communityId}
+          </h2>
+          <p className="text-[10px] opacity-70 uppercase mt-1 font-mono">
+            Modifying community nodes and moderator authorizations
+          </p>
+        </div>
+        <button 
+          onClick={() => refetch()}
+          className={`p-2 rounded-lg border ${borderClass} ${mutedText} hover:text-cyan-400 transition-all`}
+          title="Force Refresh Metadata"
+        >
+          <RefreshCw size={16} />
+        </button>
       </header>
 
       {/* Visual Identity Section */}

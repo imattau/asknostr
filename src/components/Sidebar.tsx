@@ -47,7 +47,8 @@ export const Sidebar: React.FC = () => {
   const { pushLayer, resetStack, layout, theme } = useUiStore()
   const { user, logout, loginMethod } = useStore()
   const { subscribedCommunities } = useSubscriptions()
-  const { data: events = [] } = useFeed({ filters: [{ kinds: [1], limit: 50 }] })
+  const sidebarFilters = React.useMemo(() => [{ kinds: [1], limit: 50 }], [])
+  const { data: events = [] } = useFeed({ filters: sidebarFilters })
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'

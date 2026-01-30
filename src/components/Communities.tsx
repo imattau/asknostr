@@ -34,8 +34,6 @@ export const Communities: React.FC = () => {
   const bgMuted = theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'
   const bgHover = theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'
 
-  console.log('[CommunitiesUI] myNodes:', myNodes.length, 'globalNodes:', globalNodes.length)
-
   const selectCommunity = (id: string, creator: string) => {
     pushLayer({
       id: `community-${id}`,

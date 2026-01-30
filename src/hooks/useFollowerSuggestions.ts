@@ -25,7 +25,7 @@ export const useFollowerSuggestions = () => {
         ).then(sub => {
           setTimeout(() => {
             sub.close()
-            const pTags = latest?.tags.filter(t => t[0] === 'p').map(t => t[1]) || []
+            const pTags = latest?.tags?.filter(t => t[0] === 'p').map(t => t[1]) || []
             resolve(pTags)
           }, 4000)
         })
