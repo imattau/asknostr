@@ -127,11 +127,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   console.log(`[CommunityFeed] Rendering c/${communityId}. a-tag: ${communityATag}. Relays:`, combinedRelays.length)
 
+  const communityFilters = useMemo(() => [
+    { kinds: [1, 4550], '#a': [communityATag] },
+    { kinds: [1], '#t': [communityId.toLowerCase()] }
+  ], [communityATag, communityId])
+
   const { data: events = [], fetchMore, isFetchingMore } = useFeed({
-    filters: [
-      { kinds: [1, 4550], '#a': [communityATag] },
-      { kinds: [1], '#t': [communityId.toLowerCase()] }
-    ],
+    filters: communityFilters,
     customRelays: combinedRelays,
     limit: 30
   })
@@ -177,7 +179,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   const communityEvents = events.filter(e => 
     e.tags.some(t => t[0] === 'a' && t[1] === communityATag) ||
-    e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === communityId.toLowerCase())
+    e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === communityId.toLowerCase())
   )
 
   const eventIds = communityEvents.map(e => e.id)

@@ -7,7 +7,7 @@ export const useTrendingTags = (events: Event[] = []) => {
     
     events.forEach(event => {
       event.tags.forEach(tag => {
-        if (tag[0] === 't') {
+        if (tag[0] === 't' && tag[1]) {
           const tagName = tag[1].toLowerCase()
           tagCounts[tagName] = (tagCounts[tagName] || 0) + 1
         }

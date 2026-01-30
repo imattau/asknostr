@@ -1,5 +1,4 @@
-import React, { memo } from 'react'
-// @ts-ignore
+import React from 'react'
 import { List } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
@@ -14,12 +13,8 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-const Row = memo(({
-  index,
-  style,
-  data
-}: any): React.ReactElement | null => {
-  const { events, isLoadingMore, onLoadMore, header, theme } = data || {}
+const Row = (props: any): React.ReactElement | null => {
+  const { index, style, events, isLoadingMore, onLoadMore, header, theme } = props
 
   if (!events) return <div style={style} />
 
@@ -50,59 +45,45 @@ const Row = memo(({
   const event = events[adjustedIndex]
   if (!event) return <div style={style} />
 
-  return (
-    <div style={style} className="px-4 py-2">
-      <Post event={event} depth={0} />
-    </div>
-  )
-})
-
-Row.displayName = 'VirtualFeedRow'
+      return (
+        <div style={style} className="px-4 py-2">
+          <Post event={event} depth={0} />
+        </div>
+      )
+    }
+  Row.displayName = 'VirtualFeedRow'
 
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
   ({ events = [], isLoadingMore, onLoadMore, onScroll, header }, ref) => {
     const rowCount = events.length + (header ? 1 : 0) + 1
     const { theme } = useUiStore()
 
-    // Stable key generator to prevent unnecessary re-mounts
-    const getKey = (index: number, data: any) => {
-      const { events, header } = data;
-      if (header && index === 0) return 'header';
-      const adjustedIndex = header ? index - 1 : index;
-      if (adjustedIndex === events.length) return 'load-more';
-      return events[adjustedIndex]?.id || `idx-${index}`;
-    };
-
     return (
       <div className="h-full w-full">
         <AutoSizer
           renderProp={({ height, width }: any) => {
             if (!height || !width) return null;
-            const ListAny = List as any;
             return (
-              <ListAny
-                ref={ref}
-                height={height}
-                width={width}
-                itemCount={rowCount}
-                itemSize={260}
-                itemKey={getKey}
-                itemData={{ 
+              <List
+                listRef={ref}
+                style={{ height, width }}
+                rowCount={rowCount}
+                rowHeight={260}
+                rowProps={{ 
                   events, 
                   isLoadingMore, 
                   onLoadMore, 
                   header,
                   theme 
                 }}
+                rowComponent={Row}
                 onScroll={(e: any) => {
                   if (onScroll) {
-                    const offset = e.scrollOffset !== undefined ? e.scrollOffset : e.target?.scrollTop;
+                    const offset = e.target?.scrollTop;
                     if (offset !== undefined) onScroll(offset);
                   }
                 }}
-              >
-                {Row}
-              </ListAny>
+              />
             );
           }}
         />

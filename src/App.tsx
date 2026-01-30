@@ -33,82 +33,106 @@ import { torrentService } from './services/torrentService'
 import type { CommunityDefinition } from './hooks/useCommunity'
 import type { Event } from 'nostr-tools'
 
-function App() {  const { isConnected, user, login, logout } = useStore()
+function App() {
+  const { isConnected, user, login, logout } = useStore()
 
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
 
-  const { muted, following } = useSocialGraph()
-
-      useSubscriptions() 
-
-      useRelays()
-
-  useEffect(() => {
-    torrentService.init().catch(err => console.error('[App] Torrent init failed:', err))
-  }, [])
-
-  useEffect(() => {
-    torrentService.setFollowedUsers(following)
-  }, [following])
+    const { muted, following } = useSocialGraph()
 
   
 
-        // Use the new useFeed hook for event data
-        const { data: events = [], isLoading: isFeedLoading, isFetching: isFeedFetching, refetch: refetchFeed } = useFeed({ 
-          filters: [{ kinds: [1], limit: 50 }],
-          live: false // Disable live updates for background discovery feed
-        });
+    useSubscriptions() 
 
-  useEffect(() => {
-    // Process new events for social seeding during idle time
-    if (!events.length) return
-
-    const processEvents = () => {
-      // Only process the most recent events to save CPU
-      const recent = events.slice(0, 50)
-      recent.forEach(e => torrentService.processEvent(e))
-    }
-
-    if ('requestIdleCallback' in window) {
-      window.requestIdleCallback(processEvents)
-    } else {
-      setTimeout(processEvents, 1000)
-    }
-  }, [events])
+    useRelays()
 
   
 
-    
+    useEffect(() => {
+
+      torrentService.init().catch(err => console.error('[App] Torrent init failed:', err))
+
+    }, [])
 
   
 
-            const deletionEvents = useMemo(() => events.slice(0, 500), [events])
+    useEffect(() => {
+
+      torrentService.setFollowedUsers(following)
+
+    }, [following])
 
   
 
-    
+    // Use the new useFeed hook for event data
+
+    const feedFilters = useMemo(() => [{ kinds: [1], limit: 50 }], []);
+
+    const { data: events = [], isLoading: isFeedLoading, isFetching: isFeedFetching, fetchMore, isFetchingMore } = useFeed({ 
+
+      filters: feedFilters,
+
+      live: false // Disable live updates for background discovery feed
+
+    });
 
   
 
-            const { data: deletedIds = [] } = useDeletions(deletionEvents)
+    useEffect(() => {
+
+      // Process new events for social seeding during idle time
+
+      if (!events.length) return
 
   
 
-        const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
+      const processEvents = () => {
 
+        // Only process the most recent events to save CPU
 
+        const recent = events.slice(0, 50)
 
-  // Set default view for logged-in users on mobile
+        recent.forEach(e => torrentService.processEvent(e))
 
-  useEffect(() => {
+      }
 
-    if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
+  
 
-      resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
+      if ('requestIdleCallback' in window) {
 
-    }
+        window.requestIdleCallback(processEvents)
 
-  }, [user.pubkey, layout])
+      } else {
+
+        setTimeout(processEvents, 1000)
+
+      }
+
+    }, [events])
+
+  
+
+    const deletionEvents = useMemo(() => events.slice(0, 500), [events])
+
+    const { data: deletedIds = [] } = useDeletions(deletionEvents)
+
+    const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
+
+  
+
+    // Set default view for logged-in users on mobile
+
+    useEffect(() => {
+
+      if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
+
+        resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
+
+      }
+
+    }, [user.pubkey, layout])
+
+  
 
 
 
@@ -156,7 +180,7 @@ function App() {  const { isConnected, user, login, logout } = useStore()
         const tagFilter = params?.filter?.['#t']
         const firstTag = tagFilter?.[0]
         const filteredEvents = (firstTag 
-          ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1].toLowerCase() === firstTag.toLowerCase()))
+          ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
           : events).filter(e => !deletedSet.has(e.id) && !muted.includes(e.pubkey))
 
         return (
@@ -168,7 +192,13 @@ function App() {  const { isConnected, user, login, logout } = useStore()
               isHidden={isHeaderHidden} 
             />
             <div className="flex-1 min-h-0 relative">
-              <VirtualFeed ref={feedRef} events={filteredEvents} isLoadingMore={isFeedFetching} onLoadMore={() => refetchFeed()} onScroll={handleFeedScroll} />
+              <VirtualFeed 
+                ref={feedRef} 
+                events={filteredEvents} 
+                isLoadingMore={isFetchingMore} 
+                onLoadMore={() => fetchMore()} 
+                onScroll={handleFeedScroll} 
+              />
             </div>
           </div>
         )
