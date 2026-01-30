@@ -49,7 +49,6 @@ class NostrService {
     if (typeof window !== 'undefined') {
       this.worker = new Worker('/event-worker.js', { type: 'module' })
       this.worker.addEventListener('message', (e: MessageEvent) => {
-        // Use requestIdleCallback if available to process results without blocking frames
         const processResult = () => {
           this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
           const { id, isValid } = e.data || {}
@@ -62,7 +61,7 @@ class NostrService {
         }
 
         if ('requestIdleCallback' in window) {
-          window.requestIdleCallback(processResult)
+          (window as any).requestIdleCallback(processResult)
         } else {
           processResult()
         }
@@ -75,7 +74,6 @@ class NostrService {
   }
 
   getDiscoveryRelays() {
-    // Prioritize global discovery relays for finding metadata/subscriptions
     return [...new Set([...DISCOVERY_RELAYS, ...this.relays])].slice(0, this.maxActiveRelays)
   }
 
@@ -99,7 +97,6 @@ class NostrService {
   private async verifyInWorker(event: Event): Promise<boolean> {
     if (!this.worker) return true
     
-    // If we're already checking this ID, don't double-post
     if (this.pendingValidations.has(event.id)) {
       return new Promise((resolve) => {
         const existing = this.pendingValidations.get(event.id)
@@ -112,7 +109,6 @@ class NostrService {
       })
     }
 
-    // Backpressure: If too many requests are active, wait a bit or skip for low-priority
     if (this.activeWorkerRequests > this.MAX_CONCURRENT_VERIFICATIONS) {
       await new Promise(r => setTimeout(r, 100))
     }
@@ -149,11 +145,8 @@ class NostrService {
     }
 
     if (urls.length === 0) {
-      console.warn('[Nostr] Subscribe skipped: no valid relay URLs')
       return { close: () => {} }
     }
-
-    console.log('[Nostr] Subscribe:', { urls, filters: cleanFilters })
 
     const seenIds = new Set<string>()
 
@@ -190,8 +183,8 @@ class NostrService {
               eosed = true
               onEose()
             },
-            onclose: (reasons: string[]) => {
-              console.log('[Nostr] Subscription closed:', reasons)
+            onclose: () => {
+              // silent
             }
           }
         )
@@ -256,7 +249,6 @@ class NostrService {
 
   async publish(event: Event): Promise<boolean> {
     if (this.relays.length === 0) {
-      console.warn('No relays configured for broadcast.')
       return false
     }
     const targetRelays = [...new Set([...this.relays, ...DISCOVERY_RELAYS])].slice(0, 15)
@@ -266,17 +258,13 @@ class NostrService {
   async publishToRelays(relays: string[], event: Event): Promise<boolean> {
     const urls = this.normalizeRelays(relays)
     if (urls.length === 0) {
-      console.warn('[Nostr] Publish skipped: no valid relay URLs')
       return false
     }
-    console.log('[Nostr] Publishing Event:', event.id, 'to', urls.length, 'relays')
     const promises = this.pool.publish(urls, event)
     try {
       await Promise.any(promises)
-      console.log('[Nostr] Event successfully accepted by at least one relay.')
       return true
     } catch (e) {
-      console.warn('[Nostr] Broadcast might have failed on all relays', e)
       return false
     }
   }

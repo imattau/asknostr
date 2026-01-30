@@ -15,7 +15,6 @@ const DEFAULT_QUOTA_MB = 500
 
 export class PersistenceManager {
   async saveSeed(record: SeededFileRecord) {
-    // Before saving, check if we need to prune
     await this.enforceQuota()
     await set(`${STORAGE_KEY_PREFIX}${record.infoHash}`, record)
   }
@@ -28,13 +27,23 @@ export class PersistenceManager {
     await del(`${STORAGE_KEY_PREFIX}${infoHash}`)
   }
 
-  async getAllSeeds(): Promise<SeededFileRecord[]> {
+  /**
+   * Retrieves keys only to avoid loading large blobs into memory all at once
+   */
+  async getAllSeedKeys(): Promise<string[]> {
     const allKeys = await keys()
-    const seedKeys = allKeys.filter(k => typeof k === 'string' && k.startsWith(STORAGE_KEY_PREFIX))
+    return allKeys
+      .filter(k => typeof k === 'string' && k.startsWith(STORAGE_KEY_PREFIX))
+      .map(k => k as string)
+  }
+
+  async getAllSeeds(): Promise<SeededFileRecord[]> {
+    const seedKeys = await this.getAllSeedKeys()
     const records: SeededFileRecord[] = []
     
+    // Load sequentially to prevent I/O burst
     for (const key of seedKeys) {
-      const record = await get<SeededFileRecord>(key as string)
+      const record = await get<SeededFileRecord>(key)
       if (record) records.push(record)
     }
     
@@ -42,20 +51,26 @@ export class PersistenceManager {
   }
 
   async enforceQuota(quotaMB: number = DEFAULT_QUOTA_MB) {
-    const seeds = await this.getAllSeeds()
-    let currentSize = seeds.reduce((acc, s) => acc + s.data.size, 0)
+    const seedKeys = await this.getAllSeedKeys()
+    if (seedKeys.length === 0) return
+
+    // We still need to calculate size, but we do it more carefully
+    const records: SeededFileRecord[] = []
+    for (const key of seedKeys) {
+      const r = await get<SeededFileRecord>(key)
+      if (r) records.push(r)
+    }
+
+    let currentSize = records.reduce((acc, s) => acc + s.data.size, 0)
     const quotaBytes = quotaMB * 1024 * 1024
 
     if (currentSize <= quotaBytes) return
 
-    console.log(`[Persistence] Storage quota exceeded (${(currentSize / 1024 / 1024).toFixed(2)}MB). Pruning...`)
-
-    // Sort by oldest first for pruning
-    const oldestFirst = [...seeds].sort((a, b) => a.addedAt - b.addedAt)
+    console.log(`[Persistence] Storage quota exceeded. Pruning...`)
+    const oldestFirst = records.sort((a, b) => a.addedAt - b.addedAt)
 
     for (const seed of oldestFirst) {
       if (currentSize <= quotaBytes) break
-      console.log(`[Persistence] Pruning: ${seed.name}`)
       await this.removeSeed(seed.infoHash)
       currentSize -= seed.data.size
     }

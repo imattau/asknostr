@@ -14,22 +14,32 @@ class TorrentService {
     console.log('[TorrentService] Initializing modular stack...')
     
     // Give the UI thread a few seconds to settle before starting heavy BitTorrent tasks
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
-    const seeds = await persistenceManager.getAllSeeds()
-    console.log(`[TorrentService] Found ${seeds.length} seeds to restore.`)
+    const seedKeys = await persistenceManager.getAllSeedKeys()
+    console.log(`[TorrentService] Found ${seedKeys.length} potential seeds to restore.`)
     
-    for (const record of seeds) {
+    for (const key of seedKeys) {
       try {
+        // Fetch the record one-by-one to avoid memory spikes
+        const record = await persistenceManager.getSeed(key.replace('seed-', ''))
+        if (!record) continue
+
         console.log('[TorrentService] Restoring seed:', record.name)
         const file = new File([record.data], record.name, { type: record.type })
+        
         // Pass shouldSave = false to avoid redundant IndexedDB writes
         await swarmOrchestrator.seedFile(file, record.creatorPubkey, false)
         
-        // Stagger restoration to prevent CPU spikes (hashing is heavy)
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Use requestIdleCallback if available for extra safety during restoration
+        if ('requestIdleCallback' in window) {
+          await new Promise(resolve => window.requestIdleCallback(resolve))
+        } else {
+          // Stagger restoration to prevent CPU spikes (hashing is heavy)
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       } catch (err) {
-        console.error('[TorrentService] Restore failed:', record.infoHash, err)
+        console.error('[TorrentService] Restore failed for key:', key, err)
       }
     }
   }
