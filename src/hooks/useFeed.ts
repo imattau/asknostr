@@ -2,7 +2,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { nostrService, SubscriptionPriority } from '../services/nostr';
 import type { Filter, Event } from 'nostr-tools';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface UseFeedOptions {
   filters: Filter[];
@@ -10,13 +10,14 @@ interface UseFeedOptions {
   enabled?: boolean;
   live?: boolean;
   limit?: number;
+  manualFlush?: boolean; // New option
 }
 
-const MAX_FEED_SIZE = 200; // Even tighter for performance
-const FLUSH_INTERVAL_MS = 3000; // Flush more often
-const PENDING_FLUSH_CHUNK = 100; // Larger chunks
+const MAX_FEED_SIZE = 200; 
+const FLUSH_INTERVAL_MS = 3000;
+const PENDING_FLUSH_CHUNK = 100;
 
-export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 20 }: UseFeedOptions) => {
+export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 20, manualFlush = false }: UseFeedOptions) => {
   const queryClient = useQueryClient();
   
   const filtersKey = JSON.stringify(filters || []);
@@ -24,10 +25,10 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   
   const queryKey = ['feed-events', filtersKey, relaysKey];
   const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   
   const eventBufferRef = useRef<Event[]>([]);
 
-  // 1. Primary Query: Fetches initial historical data
   const query = useQuery<Event[], Error>({
     queryKey,
     queryFn: async ({ queryKey, signal }) => {
@@ -44,7 +45,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           },
           currentCustomRelays,
           {
-            priority: SubscriptionPriority.HIGH, // Accelerate initial fetch
+            priority: SubscriptionPriority.HIGH,
             onEose: () => {
               sub.close();
               resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
@@ -66,7 +67,23 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
     staleTime: 1000 * 60 * 5,
   });
 
-  // Manual "Load More" function
+  const flushBuffer = useCallback((maxItems: number = PENDING_FLUSH_CHUNK) => {
+    if (eventBufferRef.current.length === 0) return;
+
+    const chunk = eventBufferRef.current.splice(0, maxItems);
+    setPendingCount(eventBufferRef.current.length);
+
+    queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
+      const mergedMap = new Map<string, Event>();
+      oldEvents.forEach(e => mergedMap.set(e.id, e));
+      chunk.forEach(e => mergedMap.set(e.id, e));
+      
+      return Array.from(mergedMap.values())
+        .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+        .slice(0, MAX_FEED_SIZE);
+    });
+  }, [queryClient, queryKey]);
+
   const fetchMore = async () => {
     const currentEvents = query.data || [];
     if (currentEvents.length === 0 || isFetchingMore) return;
@@ -115,33 +132,12 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
     });
   };
 
-  // 2. Real-time Subscription with Gradual Chunked Flushing
   useEffect(() => {
     if (!enabled || !live) return;
 
     let activeSub: { close: () => void } | null = null;
     let isEffectMounted = true;
     let flushInterval: ReturnType<typeof setInterval> | null = null;
-
-    const flushBuffer = () => {
-      if (!isEffectMounted || eventBufferRef.current.length === 0) return;
-
-      const chunk = eventBufferRef.current.splice(0, PENDING_FLUSH_CHUNK);
-
-      queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
-        const mergedMap = new Map<string, Event>();
-        oldEvents.forEach(e => mergedMap.set(e.id, e));
-        chunk.forEach(e => mergedMap.set(e.id, e));
-        
-        return Array.from(mergedMap.values())
-          .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
-          .slice(0, MAX_FEED_SIZE);
-      });
-
-      if (eventBufferRef.current.length > 0) {
-        setTimeout(flushBuffer, 100);
-      }
-    };
 
     const startLiveSubscription = () => {
       const liveFilters = JSON.parse(filtersKey).map((f: any) => ({
@@ -150,13 +146,20 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         limit: undefined
       }));
 
-      flushInterval = setInterval(flushBuffer, FLUSH_INTERVAL_MS);
+      if (!manualFlush) {
+        flushInterval = setInterval(() => flushBuffer(PENDING_FLUSH_CHUNK), FLUSH_INTERVAL_MS);
+      }
 
       activeSub = nostrService.subscribe(
         liveFilters,
         (event) => {
           if (isEffectMounted) {
-            eventBufferRef.current.push(event);
+            // Check for duplicates before adding to buffer
+            const currentData = queryClient.getQueryData<Event[]>(queryKey) || [];
+            if (!currentData.some(e => e.id === event.id) && !eventBufferRef.current.some(e => e.id === event.id)) {
+              eventBufferRef.current.push(event);
+              setPendingCount(eventBufferRef.current.length);
+            }
           }
         },
         JSON.parse(relaysKey),
@@ -175,7 +178,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
       if (flushInterval) clearInterval(flushInterval);
       if (activeSub) (activeSub as any).close();
     };
-  }, [enabled, live, filtersKey, relaysKey, queryClient]);
+  }, [enabled, live, filtersKey, relaysKey, queryClient, queryKey, manualFlush, flushBuffer]);
 
-  return { ...query, fetchMore, isFetchingMore };
+  return { ...query, fetchMore, isFetchingMore, pendingCount, flushBuffer };
 };
