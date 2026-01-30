@@ -59,7 +59,7 @@ export class SwarmOrchestrator {
     })
   }
 
-  async seedFile(file: File, creatorPubkey?: string): Promise<string> {
+  async seedFile(file: File, creatorPubkey?: string, shouldSave = true): Promise<string> {
     return new Promise((resolve, reject) => {
       const client = TorrentClient.get()
       
@@ -69,17 +69,19 @@ export class SwarmOrchestrator {
       }
 
       client.seed(file, options, async (torrent: any) => {
-        const record: SeededFileRecord = {
-          name: file.name,
-          type: file.type,
-          data: file,
-          magnetUri: torrent.magnetURI,
-          infoHash: torrent.infoHash,
-          addedAt: Date.now(),
-          creatorPubkey
+        if (shouldSave) {
+          const record: SeededFileRecord = {
+            name: file.name,
+            type: file.type,
+            data: file,
+            magnetUri: torrent.magnetURI,
+            infoHash: torrent.infoHash,
+            addedAt: Date.now(),
+            creatorPubkey
+          }
+          
+          await persistenceManager.saveSeed(record)
         }
-        
-        await persistenceManager.saveSeed(record)
         resolve(torrent.magnetURI)
       })
 

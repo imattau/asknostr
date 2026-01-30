@@ -277,15 +277,20 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
+    console.log('[CommunityFeed] Initiating publication...')
     try {
       const tags = [['a', communityATag, '', 'root'], ['t', communityId]]
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
-      if (pendingFallbackUrl) tags.push(['url', pendingFallbackUrl])
+      if (pendingFallbackUrl) {
+        console.log('[CommunityFeed] Including fallback URL:', pendingFallbackUrl)
+        tags.push(['url', pendingFallbackUrl])
+      }
 
       // Extract Magnet and InfoHash for NIP-94 style tags
       const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i
       const magnetMatch = postContent.match(magnetRegex)
       if (magnetMatch) {
+        console.log('[CommunityFeed] Found magnet link, adding NIP-94 tags...')
         tags.push(['magnet', magnetMatch[0]])
         tags.push(['i', magnetMatch[1].toLowerCase()])
       }
@@ -317,14 +322,20 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         .replace(/#\[(\w+)\]/g, '#$1')
         .replace(/nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi, 'nostr:$1')
 
+      console.log('[CommunityFeed] Final tags:', tags)
       const eventTemplate = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags, content: cleanContent }
+      console.log('[CommunityFeed] Signing and publishing...')
       const signedEvent = await signerService.signEvent(eventTemplate)
       const success = await nostrService.publish(signedEvent)
       if (success) {
+        console.log('[CommunityFeed] Publication success!')
         setPostContent(''); setIsNsfw(false); setPendingFallbackUrl(undefined); triggerHaptic(20)
-      } else { alert('Broadcast failed') }
+      } else { 
+        console.warn('[CommunityFeed] Publication failed on all relays.')
+        alert('Broadcast failed') 
+      }
     } catch (e) {
-      console.error('Failed to publish', e); alert('Publish error')
+      console.error('[CommunityFeed] Publication error:', e); alert('Publish error')
     } finally { setIsPublishing(false) }
   }
 

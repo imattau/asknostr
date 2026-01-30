@@ -137,15 +137,20 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
+    console.log('[FeedComposer] Initiating publication...')
     try {
       const tags: string[][] = []
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
-      if (pendingFallbackUrl) tags.push(['url', pendingFallbackUrl])
+      if (pendingFallbackUrl) {
+        console.log('[FeedComposer] Including fallback URL:', pendingFallbackUrl)
+        tags.push(['url', pendingFallbackUrl])
+      }
       
       // Extract Magnet and InfoHash for NIP-94 style tags
       const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/i
       const magnetMatch = postContent.match(magnetRegex)
       if (magnetMatch) {
+        console.log('[FeedComposer] Found magnet link, adding NIP-94 tags...')
         tags.push(['magnet', magnetMatch[0]])
         tags.push(['i', magnetMatch[1].toLowerCase()])
       }
@@ -185,12 +190,21 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
         .replace(/#\[(\w+)\]/g, '#$1')
         .replace(/nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi, 'nostr:$1')
 
-      await nostrService.createAndPublishPost(cleanContent, tags)
-      setPostContent('')
-      setIsNsfw(false)
-      setPendingFallbackUrl(undefined)
+      console.log('[FeedComposer] Final tags:', tags)
+      console.log('[FeedComposer] Broadcasting to relays...')
+      const success = await nostrService.createAndPublishPost(cleanContent, tags)
+      
+      if (success) {
+        console.log('[FeedComposer] Publication success!')
+        setPostContent('')
+        setIsNsfw(false)
+        setPendingFallbackUrl(undefined)
+      } else {
+        console.warn('[FeedComposer] Publication failed on all relays.')
+        alert('Publication failed. Relays may be unreachable.')
+      }
     } catch (e) {
-      console.error('Failed to publish', e)
+      console.error('[FeedComposer] Publication error:', e)
       alert('Failed to publish post. Check connection.')
     } finally {
       setIsPublishing(false)

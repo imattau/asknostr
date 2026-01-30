@@ -18,7 +18,8 @@ class TorrentService {
       try {
         console.log('[TorrentService] Restoring seed:', record.name)
         const file = new File([record.data], record.name, { type: record.type })
-        await swarmOrchestrator.seedFile(file, record.creatorPubkey)
+        // Pass shouldSave = false to avoid redundant IndexedDB writes
+        await swarmOrchestrator.seedFile(file, record.creatorPubkey, false)
       } catch (err) {
         console.error('[TorrentService] Restore failed:', record.infoHash, err)
       }
@@ -45,25 +46,34 @@ class TorrentService {
    * 2. Fallback to AskNostr Bridge
    */
   async dualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, fallbackUrl?: string }> {
-    console.log('[TorrentService] Starting hybrid dual-action broadcast...')
+    console.log('[TorrentService] Starting hybrid dual-action broadcast for:', file.name)
     
     // Step A: Local Seed
-    const magnet = await swarmOrchestrator.seedFile(file, creatorPubkey)
+    // Start seeding in parallel with the upload
+    const magnetPromise = swarmOrchestrator.seedFile(file, creatorPubkey)
     
     // Step B: Hierarchy Upload
-    let fallbackUrl: string | undefined
+    const uploadPromise = (async () => {
+      try {
+        console.log('[TorrentService] Attempting primary upload...')
+        return await mediaService.uploadFile(file)
+      } catch (err) {
+        console.warn('[TorrentService] Preferred media servers failed, falling back to bridge...', err)
+        // 2. Fallback to Bridge
+        return await bridgeService.uploadToBridge(file).catch((bridgeErr) => {
+          console.error('[TorrentService] Bridge fallback also failed:', bridgeErr)
+          return undefined
+        })
+      }
+    })()
 
-    try {
-      // 1. Try configured media servers (Blossom etc)
-      fallbackUrl = await mediaService.uploadFile(file)
-    } catch (err) {
-      console.warn('[TorrentService] Preferred media servers failed, falling back to bridge...', err)
-      // 2. Fallback to Bridge
-      fallbackUrl = await bridgeService.uploadToBridge(file).catch(() => undefined)
-    }
+    const [magnet, fallbackUrl] = await Promise.all([magnetPromise, uploadPromise])
+    
+    console.log('[TorrentService] Dual-action complete:', { magnet, fallbackUrl })
 
     // Step C: Bootstrap Ping
     if (fallbackUrl) {
+      console.log('[TorrentService] Sending bootstrap ping to bridge...')
       this.bootstrapPing(magnet, fallbackUrl)
     }
     
