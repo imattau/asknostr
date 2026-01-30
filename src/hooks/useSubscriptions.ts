@@ -55,7 +55,7 @@ export const useSubscriptions = () => {
   })
 
   const subscribedCommunities = subscriptionEvent?.tags
-    .filter(t => t[0] === 'a')
+    ?.filter(t => t[0] === 'a')
     .map(t => t[1]) || []
 
   const updateSubscriptions = useMutation({

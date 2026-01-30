@@ -206,8 +206,8 @@ function MainFeed({
   const filteredEvents = useMemo(() => {
     if (!events) return []
     return (firstTag 
-      ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
-      : events).filter(e => !deletedSet.has(e.id) && !(muted || []).includes(e.pubkey))
+      ? events.filter(e => e.tags?.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
+      : events).filter(e => e && !deletedSet.has(e.id) && !(muted || []).includes(e.pubkey))
   }, [events, firstTag, deletedSet, muted])
 
   return (

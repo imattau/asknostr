@@ -23,7 +23,7 @@ interface ClassicLayoutProps {
   popLayer: () => void;
   pushLayer: (layer: Layer) => void;
   renderLayerContent: (layer: Layer) => React.ReactNode;
-  events: Event[];
+  events?: Event[];
 }
 
 interface ResizeHandleProps {
@@ -69,7 +69,7 @@ const ResizeHandle: React.FC<ResizeHandleProps> = ({ index, columnWidths, onResi
 export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
   theme, layout, setLayout, setTheme, isHeaderHidden, isConnected, user, login, logout,
   isFeedLoading, isFeedFetching, stack, popLayer, pushLayer, renderLayerContent,
-  events,
+  events = [],
 }) => {
   const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
   const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});

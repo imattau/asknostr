@@ -33,7 +33,9 @@ export const useDeletions = (events: Event[]) => {
           (event: Event) => {
             if (seen.has(event.id)) return
             seen.add(event.id)
-            const targets = event.tags.filter(t => t[0] === 'e').map(t => t[1])
+            const targets = (event?.tags || [])
+              .filter(t => t[0] === 'e')
+              .map(t => t[1])
             targets.forEach((targetId) => {
               if (authorById.get(targetId) === event.pubkey) {
                 deletedSet.add(targetId)

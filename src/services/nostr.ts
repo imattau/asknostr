@@ -350,13 +350,12 @@ class NostrService {
           return
         }
 
-        let relays: string[] = []
-        if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
-          relays = latestEvent.tags
-            .filter(t => t[0] === 'r')
-            .map(t => t[1])
-        } else if (latestEvent.kind === 3) {
-          try {
+                  let relays: string[] = []
+                  if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
+                    relays = (latestEvent.tags || [])
+                      .filter(t => t[0] === 'r')
+                      .map(t => t[1])
+                  } else if (latestEvent.kind === 3) {          try {
             const content = JSON.parse(latestEvent.content)
             relays = Object.keys(content)
           } catch {

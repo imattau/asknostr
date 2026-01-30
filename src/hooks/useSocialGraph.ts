@@ -90,8 +90,8 @@ export const useSocialGraph = () => {
     enabled: !!user.pubkey,
   })
 
-  const following = contactEvent?.tags.filter(t => t[0] === 'p').map(t => t[1]) || []
-  const muted = muteEvent?.tags.filter(t => t[0] === 'p').map(t => t[1]) || []
+  const following = contactEvent?.tags?.filter(t => t[0] === 'p').map(t => t[1]) || []
+  const muted = muteEvent?.tags?.filter(t => t[0] === 'p').map(t => t[1]) || []
 
   const updateContacts = useMutation({
     mutationFn: async (newFollowing: string[]) => {

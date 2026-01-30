@@ -43,7 +43,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
     }
   }, [isLoading, allEvents.length, eventId])
 
-  const getETags = (source?: Event) => source?.tags.filter(t => t[0] === 'e') || []
+  const getETags = (source?: Event) => source?.tags?.filter(t => t[0] === 'e') || []
 
   const deriveRootId = useCallback((fallbackId: string, source?: Event) => {
     if (!source) return fallbackId
