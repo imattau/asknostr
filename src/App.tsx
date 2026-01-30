@@ -38,34 +38,21 @@ function App() {
 
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
 
-    const { muted, following } = useSocialGraph()
-
-  
+    const { muted = [], following = [] } = useSocialGraph()
 
     useSubscriptions() 
 
     useRelays()
 
-  
-
     useEffect(() => {
-
       torrentService.init().catch(err => console.error('[App] Torrent init failed:', err))
-
     }, [])
 
-  
-
     useEffect(() => {
-
-      torrentService.setFollowedUsers(following)
-
+      if (following && following.length > 0) {
+        torrentService.setFollowedUsers(following)
+      }
     }, [following])
-
-  
-
-    // Discovery logic removed from App shell to prevent redraws
-    // Social seeding will be handled by the active feed components instead
 
     // Set default view for logged-in users on mobile
     useEffect(() => {
@@ -122,6 +109,8 @@ function App() {
           />
         )
       }
+// ... (rest of the file remains similar)
+
 // ... (rest of renderLayerContent remains similar)
 
       case 'thread': return (
@@ -194,7 +183,7 @@ function App() {
 
 function MainFeed({ 
   firstTag, user, composerCollapsed, setComposerCollapsed, 
-  isHeaderHidden, handleFeedScroll, feedRef, muted 
+  isHeaderHidden, handleFeedScroll, feedRef, muted = [] 
 }: any) {
   const feedFilters = useMemo(() => [{ kinds: [1], limit: 50 }], []);
   const { data: events = [], fetchMore, isFetchingMore } = useFeed({ 
@@ -203,7 +192,7 @@ function MainFeed({
   });
 
   useEffect(() => {
-    if (!events.length) return
+    if (!events || events.length === 0) return
     const processEvents = () => {
       events.slice(0, 50).forEach(e => torrentService.processEvent(e))
     }
@@ -211,13 +200,14 @@ function MainFeed({
     else setTimeout(processEvents, 1000)
   }, [events])
 
-  const { data: deletedIds = [] } = useDeletions(events.slice(0, 500))
-  const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
+  const { data: deletedIds = [] } = useDeletions(events ? events.slice(0, 500) : [])
+  const deletedSet = useMemo(() => new Set(deletedIds || []), [deletedIds])
 
   const filteredEvents = useMemo(() => {
+    if (!events) return []
     return (firstTag 
       ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
-      : events).filter(e => !deletedSet.has(e.id) && !muted.includes(e.pubkey))
+      : events).filter(e => !deletedSet.has(e.id) && !(muted || []).includes(e.pubkey))
   }, [events, firstTag, deletedSet, muted])
 
   return (
