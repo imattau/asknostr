@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useMemo } from 'react'
 import { List, useDynamicRowHeight, useListRef } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
@@ -14,22 +14,13 @@ interface VirtualFeedProps {
 }
 
 const Row = React.memo((props: any) => {
-  const { index, style } = props
+  const { index, style, data } = props
   
-  // Diagnostic log to see exactly what react-window v2 passes
-  if (index === 0) {
-    console.log('[VirtualFeed] Row props sample:', Object.keys(props))
-  }
-
-  // Support v2 (spread props), v2 (explicit rowProps), and v1 (itemData/data)
-  const data = props.rowProps || props.data || props
-  
-  const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
-
-  if (!events) {
-    if (index === 0) console.warn('[VirtualFeed] No events found in row data')
+  if (!data) {
     return <div style={style} />
   }
+
+  const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
 
   const rowRef = useRef<HTMLDivElement>(null)
 
@@ -51,7 +42,7 @@ const Row = React.memo((props: any) => {
 
   const adjustedIndex = header ? index - 1 : index
   
-  if (adjustedIndex === events.length) {
+  if (events.length > 0 && adjustedIndex === events.length) {
     return (
       <div style={style} className="px-4 py-2" ref={rowRef}>
         <button
@@ -74,13 +65,9 @@ const Row = React.memo((props: any) => {
     </div>
   )
 }, (prev, next) => {
-  const prevData = prev.rowProps || prev.data
-  const nextData = next.rowProps || next.data
   return prev.index === next.index && 
          prev.style === next.style && 
-         prevData?.events === nextData?.events &&
-         prevData?.theme === nextData?.theme &&
-         prevData?.isLoadingMore === nextData?.isLoadingMore
+         prev.data === next.data
 })
 
 Row.displayName = 'VirtualFeedRow'
@@ -99,6 +86,15 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
 
     const rowCount = events.length + (header ? 1 : 0) + (events.length > 0 ? 1 : 0)
 
+    const itemData = useMemo(() => ({
+      events, 
+      isLoadingMore, 
+      onLoadMore, 
+      header,
+      theme,
+      dynamicRowHeight
+    }), [events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight])
+
     if (events.length === 0 && !header) {
       return (
         <div className="flex flex-col items-center justify-center h-full opacity-20 font-mono text-[10px] uppercase tracking-[0.3em]">
@@ -112,9 +108,6 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
         <AutoSizer>
           {({ height, width }: any) => {
             if (!height || !width) return null;
-            
-            console.log(`[VirtualFeed] Rendering ${rowCount} rows at ${width}x${height}`);
-            
             return (
               <List
                 listRef={(node) => {
@@ -127,23 +120,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 rowCount={rowCount}
                 rowHeight={dynamicRowHeight}
                 overscanCount={5}
-                // Pass data in all possible ways to ensure compatibility
-                rowProps={{ 
-                  events, 
-                  isLoadingMore, 
-                  onLoadMore, 
-                  header,
-                  theme,
-                  dynamicRowHeight
-                }}
-                itemData={{
-                  events, 
-                  isLoadingMore, 
-                  onLoadMore, 
-                  header,
-                  theme,
-                  dynamicRowHeight
-                }}
+                itemData={itemData}
                 rowComponent={Row}
                 onScroll={(e: any) => {
                   if (onScroll) {
