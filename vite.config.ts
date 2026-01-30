@@ -78,7 +78,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react-mentions', 'substyle', 'react-window'],
+    include: ['react-mentions', 'substyle'],
   },
 // ... (keep build manualChunks)
   build: {
