@@ -174,7 +174,7 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
                 </div>
                 <div className={`text-[8px] font-mono ${theme === 'light' ? 'opacity-40' : 'opacity-20'} uppercase`}>L:{index + 1}</div>
               </header>
-              <div className="flex-1 overflow-y-auto custom-scrollbar">{renderLayerContent(layer)}</div>
+              <div className="flex-1 overflow-hidden">{renderLayerContent(layer)}</div>
               <ResizeHandle index={index} columnWidths={columnWidths} onResize={handleResize} />
             </div>
           ))}

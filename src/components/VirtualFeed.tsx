@@ -13,10 +13,12 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-// In react-window v2, rowProps are spread directly onto the row component
 const Row = (props: any) => {
-  const { index, style, events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = props
+  const { index, style, data } = props
   
+  // Extract data from whichever prop react-window decided to use
+  const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
+
   const rowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -24,6 +26,9 @@ const Row = (props: any) => {
       return dynamicRowHeight.observeRowElements([rowRef.current])
     }
   }, [dynamicRowHeight])
+
+  // Basic safety check
+  if (!events) return <div style={style} />
 
   if (header && index === 0) {
     return (
@@ -35,7 +40,7 @@ const Row = (props: any) => {
 
   const adjustedIndex = header ? index - 1 : index
   
-  if (events && events.length > 0 && adjustedIndex === events.length) {
+  if (events.length > 0 && adjustedIndex === events.length) {
     return (
       <div style={style} className="px-4 py-2" ref={rowRef}>
         <button
@@ -49,7 +54,7 @@ const Row = (props: any) => {
     )
   }
 
-  const event = events ? events[adjustedIndex] : null
+  const event = events[adjustedIndex]
   if (!event) return <div style={style} />
 
   return (
@@ -64,14 +69,24 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     const internalListRef = useListRef()
     const { theme } = useUiStore()
     
+    // Stability key for dynamic heights
     const firstEventId = events[0]?.id || 'empty'
-    
     const dynamicRowHeight = useDynamicRowHeight({
       defaultRowHeight: 260,
       key: `${firstEventId}-${header ? 'h' : 'nh'}`
     })
 
     const rowCount = events.length + (header ? 1 : 0) + (events.length > 0 ? 1 : 0)
+
+    // Memoize itemData to prevent Row re-renders
+    const itemData = useMemo(() => ({
+      events, 
+      isLoadingMore, 
+      onLoadMore, 
+      header,
+      theme,
+      dynamicRowHeight
+    }), [events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight])
 
     if (events.length === 0 && !header) {
       return (
@@ -82,7 +97,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     }
 
     return (
-      <div className="h-full w-full">
+      <div className="h-full w-full relative min-h-[200px]">
         <AutoSizer>
           {({ height, width }: any) => {
             if (!height || !width) return null;
@@ -98,15 +113,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 rowCount={rowCount}
                 rowHeight={dynamicRowHeight}
                 overscanCount={5}
-                // react-window v2 uses rowProps which are SPREAD onto the component
-                rowProps={{ 
-                  events, 
-                  isLoadingMore, 
-                  onLoadMore, 
-                  header,
-                  theme,
-                  dynamicRowHeight
-                }}
+                itemData={itemData}
                 rowComponent={Row}
                 onScroll={(e: any) => {
                   if (onScroll) {

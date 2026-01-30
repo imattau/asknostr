@@ -2,16 +2,14 @@
 let client = null;
 
 try {
-  // Absolute, space-free URL for WebTorrent
-  importScripts('https://unpkg.com/webtorrent@2.8.5/dist/webtorrent.min.js');
+  // Use UNPKG which is generally more reliable for latest/clean versions
+  importScripts('https://unpkg.com/webtorrent/dist/webtorrent.min.js');
   
   if (typeof WebTorrent !== 'undefined') {
     client = new WebTorrent();
-  } else {
-    throw new Error('WebTorrent_Not_Found');
   }
 } catch (err) {
-  console.error('[TorrentWorker] Critical_Init_Error:', err);
+  console.error('[TorrentWorker] Uncaught Init Error:', err);
 }
 
 const getTorrentMetadata = (torrent) => ({
@@ -86,3 +84,9 @@ setInterval(() => {
   }));
   self.postMessage({ type: 'HEALTH_UPDATE', payload: { reports } });
 }, 5000);
+
+if (client) {
+  client.on('error', (err) => {
+    self.postMessage({ type: 'ERROR', payload: err.message });
+  });
+}
