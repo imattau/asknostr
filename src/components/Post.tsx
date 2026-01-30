@@ -160,6 +160,7 @@ const PostComponent: React.FC<PostProps> = ({
   const openThread = (e: React.MouseEvent, options?: { force?: boolean }) => {
     if (!options?.force && (e.target as HTMLElement).closest('button')) return
 
+    const currentLayer = stack[stack.length - 1]
     const isRoot = !event.tags.some(t => t[0] === 'e')
     const fromFeed = currentLayer?.type === 'feed'
 

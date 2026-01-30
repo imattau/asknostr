@@ -32,7 +32,6 @@ const Row = ({
 
   const adjustedIndex = header ? index - 1 : index
   
-  // Safety check for load more row
   if (adjustedIndex === events.length) {
     return (
       <div style={style} className="px-4 py-2">
@@ -47,7 +46,6 @@ const Row = ({
     )
   }
 
-  // Safety check for valid event
   const event = events[adjustedIndex]
   if (!event) return <div style={style} />
 
@@ -78,7 +76,6 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 itemData={{ events, isLoadingMore, onLoadMore, header }}
                 onScroll={(e: any) => {
                   if (onScroll) {
-                    // Handle both standard react-window and potentially 2.x specific event structures
                     const offset = e.scrollOffset !== undefined ? e.scrollOffset : e.target?.scrollTop;
                     if (offset !== undefined) onScroll(offset);
                   }
