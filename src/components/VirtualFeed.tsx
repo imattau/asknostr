@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 // @ts-ignore
 import { List } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
@@ -14,14 +14,13 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-const Row = ({
+// Extract Row to a memoized component outside the main class to prevent re-renders
+const Row = memo(({
   index,
   style,
-  data,
-  isScrolling
+  data
 }: any): React.ReactElement | null => {
-  const { events, isLoadingMore, onLoadMore, header } = data || {}
-  const { theme } = useUiStore()
+  const { events, isLoadingMore, onLoadMore, header, theme } = data || {}
 
   if (!events) return <div style={style} />
 
@@ -52,25 +51,19 @@ const Row = ({
   const event = events[adjustedIndex]
   if (!event) return <div style={style} />
 
-  // If scrolling fast, render a simplified version to keep FPS high
-  if (isScrolling) {
-    return (
-      <div style={style} className="px-4 py-2">
-        <div className={`w-full h-full glassmorphism animate-pulse rounded-xl border border-slate-800/50`} />
-      </div>
-    )
-  }
-
   return (
     <div style={style} className="px-4 py-2">
       <Post event={event} depth={0} />
     </div>
   )
-}
+})
+
+Row.displayName = 'VirtualFeedRow'
 
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
-  ({ events, isLoadingMore, onLoadMore, onScroll, header }, ref) => {
+  ({ events = [], isLoadingMore, onLoadMore, onScroll, header }, ref) => {
     const rowCount = events.length + (header ? 1 : 0) + 1
+    const { theme } = useUiStore()
 
     return (
       <div className="h-full w-full">
@@ -84,9 +77,14 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 height={height}
                 width={width}
                 itemCount={rowCount}
-                itemSize={260} // Use fixed size for stability with List
-                useIsScrolling // Enable scroll detection
-                itemData={{ events, isLoadingMore, onLoadMore, header }}
+                itemSize={260}
+                itemData={{ 
+                  events, 
+                  isLoadingMore, 
+                  onLoadMore, 
+                  header,
+                  theme // Pass theme via itemData instead of individual hook calls
+                }}
                 onScroll={(e: any) => {
                   if (onScroll) {
                     const offset = e.scrollOffset !== undefined ? e.scrollOffset : e.target?.scrollTop;
