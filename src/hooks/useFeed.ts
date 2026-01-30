@@ -1,6 +1,6 @@
 // src/hooks/useFeed.ts
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { nostrService } from '../services/nostr';
+import { nostrService, SubscriptionPriority } from '../services/nostr';
 import type { Filter, Event } from 'nostr-tools';
 import { useEffect, useRef, useState } from 'react';
 
@@ -44,6 +44,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           },
           currentCustomRelays,
           {
+            priority: SubscriptionPriority.HIGH, // Accelerate initial fetch
             onEose: () => {
               sub.close();
               resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
@@ -88,6 +89,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         },
         JSON.parse(relaysKey),
         {
+          priority: SubscriptionPriority.MEDIUM,
           onEose: () => {
             sub.close();
             queryClient.setQueryData<Event[]>(queryKey, (old = []) => {
@@ -124,7 +126,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
     const flushBuffer = () => {
       if (!isEffectMounted || eventBufferRef.current.length === 0) return;
 
-      // Extract a manageable chunk
       const chunk = eventBufferRef.current.splice(0, PENDING_FLUSH_CHUNK);
 
       queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
@@ -137,7 +138,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           .slice(0, MAX_FEED_SIZE);
       });
 
-      // If more left in buffer, schedule another immediate-ish chunk flush
       if (eventBufferRef.current.length > 0) {
         setTimeout(flushBuffer, 100);
       }
@@ -159,7 +159,8 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
             eventBufferRef.current.push(event);
           }
         },
-        JSON.parse(relaysKey)
+        JSON.parse(relaysKey),
+        { priority: SubscriptionPriority.MEDIUM }
       );
 
       if (!isEffectMounted) {

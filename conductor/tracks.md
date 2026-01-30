@@ -13,3 +13,4 @@
 
 - [x] **Track: bug fix. community feeds. posts missing or not displayed. potential filtering issue?**
 *Link: [./archive/community_feed_fix_20260130/](./archive/community_feed_fix_20260130/)*
+\n---\n\n- [~] **Track: change feeds to React Virtuoso**\n*Link: [./tracks/virtuoso_migration_20260130/](./tracks/virtuoso_migration_20260130/)*

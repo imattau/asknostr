@@ -1,48 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
-import { nostrService } from '../services/nostr'
+import { nostrService, SubscriptionPriority } from '../services/nostr'
 import { signerService } from '../services/signer'
-import type { Event } from 'nostr-tools'
-import { triggerHaptic } from '../utils/haptics'
-import { get, set } from 'idb-keyval'
-
-export const useSubscriptions = () => {
-  const { user, relays: storeRelays } = useStore()
-  const queryClient = useQueryClient()
-
-  const { data: subscriptionEvent, isLoading } = useQuery({
-    queryKey: ['subscriptions', user.pubkey, storeRelays],
-    queryFn: async () => {
-      if (!user.pubkey) return null
-      
-      const cacheKey = `subs-${user.pubkey}`
-      const cached = await get(cacheKey)
-
-      return new Promise<Event | null>((resolve) => {
-        let latest: Event | null = null
-        let found = false
-        let resolved = false
-        let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-        const finish = (value: Event | null) => {
-          if (resolved) return
-          resolved = true
-          if (timeoutId) clearTimeout(timeoutId)
-          sub.close()
-          resolve(value)
-        }
-
+// ... (several lines down)
         const sub = nostrService.subscribe(
           [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
           (event: Event) => {
-            if (!latest || event.created_at > latest.created_at) {
-              latest = event
-              found = true
-              set(cacheKey, event)
-            }
+// ... (several lines down)
           },
           nostrService.getDiscoveryRelays(),
-          { onEose: () => finish(found ? latest : cached || null) }
+          { 
+            priority: SubscriptionPriority.HIGH,
+            onEose: () => finish(found ? latest : cached || null) 
+          }
         );
 
         timeoutId = setTimeout(() => {

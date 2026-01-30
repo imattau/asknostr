@@ -33,10 +33,17 @@ export const SEARCH_RELAYS = [
   'wss://relay.noswhere.com'
 ]
 
+export enum SubscriptionPriority {
+  HIGH = 0,
+  MEDIUM = 1,
+  LOW = 2
+}
+
 interface SubscriptionRequest {
   filters: Filter[]
   onEvent: (event: Event) => void
   relays: string[]
+  priority: SubscriptionPriority
   options?: { onEose?: () => void }
   resolve: (closer: { close: () => void }) => void
 }
@@ -47,7 +54,7 @@ class NostrService {
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
   private validationCache = new Map<string, boolean>()
-  private maxActiveRelays: number = 4 // Reduced from 8
+  private maxActiveRelays: number = 8 // Restored to 8 for better parallelism
   private activeWorkerRequests: number = 0
   private readonly MAX_CONCURRENT_VERIFICATIONS = 50
   private readonly MAX_CACHE_SIZE = 10000
@@ -55,8 +62,8 @@ class NostrService {
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
-  private readonly MAX_CONCURRENT_SUBS = 20 // Increased from 3 to prevent starvation
-  private readonly SUB_COOLDOWN_MS = 100 // Reduced from 500 for snappier startup
+  private readonly MAX_CONCURRENT_SUBS = 20 // High concurrency allowed
+  private readonly SUB_BURST_INTERVAL_MS = 50 // Faster burst processing
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -177,7 +184,7 @@ class NostrService {
     if (type === 'replies') this.replyCountBatch.add(id)
 
     if (!this.batchTimeout) {
-      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1500) // Even more aggressive batching window
+      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1000)
     }
 
     return () => {
@@ -217,10 +224,9 @@ class NostrService {
           this.listeners.get(`${type}:${eTag}`)?.forEach(cb => cb(event))
         }
       }
-    }, this.getDiscoveryRelays())
+    }, this.getDiscoveryRelays(), { priority: SubscriptionPriority.LOW })
 
-    // Snapshot mode: metadata batch subscriptions close after gathering initial results
-    setTimeout(() => sub.close(), 10000)
+    setTimeout(() => sub.close(), 15000)
   }
 
   // --- End Batching System ---
@@ -229,25 +235,10 @@ class NostrService {
     filters: Filter[],
     onEvent: (event: Event) => void,
     customRelays?: string[],
-    options?: { onEose?: () => void }
+    options?: { onEose?: () => void, priority?: SubscriptionPriority }
   ) {
-    // 1. Wrap in a stable return object
     let underlyingSub: { close: () => void } | null = null
     let isClosed = false
-
-    const closer = {
-      close: () => {
-        isClosed = true
-        if (underlyingSub) {
-          underlyingSub.close()
-          this.activeSubscriptionsCount--
-          this.processQueue()
-        } else {
-          // Still in queue, remove it
-          this.subscriptionQueue = this.subscriptionQueue.filter(req => req.resolve !== resolveRequest)
-        }
-      }
-    }
 
     const resolveRequest = (sub: { close: () => void }) => {
       if (isClosed) {
@@ -259,15 +250,32 @@ class NostrService {
       }
     }
 
+    const closer = {
+      close: () => {
+        isClosed = true
+        if (underlyingSub) {
+          underlyingSub.close()
+          this.activeSubscriptionsCount--
+          this.processQueue()
+        } else {
+          this.subscriptionQueue = this.subscriptionQueue.filter(req => req.resolve !== resolveRequest)
+        }
+      }
+    }
+
     const request: SubscriptionRequest = {
       filters,
       onEvent,
       relays: customRelays || this.relays,
+      priority: options?.priority ?? SubscriptionPriority.MEDIUM,
       options,
       resolve: resolveRequest
     }
 
     this.subscriptionQueue.push(request)
+    // Stable sort: Priority first (lowest number), then insertion order
+    this.subscriptionQueue.sort((a, b) => a.priority - b.priority)
+    
     this.processQueue()
 
     return closer
@@ -278,10 +286,20 @@ class NostrService {
       return
     }
 
-    const request = this.subscriptionQueue.shift()!
-    this.activeSubscriptionsCount++
+    // Process up to 3 at once in a burst if slots are available
+    const slotsAvailable = this.MAX_CONCURRENT_SUBS - this.activeSubscriptionsCount
+    const toProcess = Math.min(slotsAvailable, 3)
 
-    // Execute the actual pool subscription
+    for (let i = 0; i < toProcess; i++) {
+      if (this.subscriptionQueue.length === 0) break
+      
+      const request = this.subscriptionQueue.shift()!
+      this.activeSubscriptionsCount++
+      this.executeSubscription(request)
+    }
+  }
+
+  private executeSubscription(request: SubscriptionRequest) {
     const { filters, onEvent, relays, options, resolve } = request
     const urls = this.normalizeRelays(relays.slice(0, this.maxActiveRelays))
     const cleanFilters = filters.filter(f => f && typeof f === 'object' && Object.keys(f).length > 0)
@@ -315,8 +333,8 @@ class NostrService {
         close: () => subscription.close()
       })
 
-      // Throttle next processing to avoid relay REQ bursts
-      setTimeout(() => this.processQueue(), this.SUB_COOLDOWN_MS)
+      // Schedule next check
+      setTimeout(() => this.processQueue(), this.SUB_BURST_INTERVAL_MS)
     } catch (e) {
       console.error('[Nostr] Pool subscription failed:', e)
       this.activeSubscriptionsCount--
@@ -340,7 +358,8 @@ class NostrService {
             latestEvent = event
           }
         },
-        urls
+        urls,
+        { priority: SubscriptionPriority.HIGH }
       )
 
       setTimeout(() => {
@@ -350,12 +369,13 @@ class NostrService {
           return
         }
 
-                  let relays: string[] = []
-                  if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
-                    relays = (latestEvent.tags || [])
-                      .filter(t => t[0] === 'r')
-                      .map(t => t[1])
-                  } else if (latestEvent.kind === 3) {          try {
+        let relays: string[] = []
+        if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
+          relays = (latestEvent.tags || [])
+            .filter(t => t[0] === 'r')
+            .map(t => t[1])
+        } else if (latestEvent.kind === 3) {
+          try {
             const content = JSON.parse(latestEvent.content)
             relays = Object.keys(content)
           } catch {
