@@ -27,9 +27,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
       const currentFilters = (queryKey[1] as Filter[]).map(f => ({ ...f, limit }));
       const currentCustomRelays = queryKey[2] as string[] | undefined;
 
-      console.log('[useFeed] Primary Query Filters:', JSON.stringify(currentFilters));
-      console.log('[useFeed] Target Relays:', currentCustomRelays?.length || 'Default');
-
       return new Promise<Event[]>((resolve, reject) => {
         const events: Event[] = [];
         let sub: { close: () => void } | undefined;
@@ -43,10 +40,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         nostrService.subscribe(
           currentFilters,
           (event) => {
-            if (!events.some(e => e.id === event.id)) {
-              console.log(`[useFeed] Event received: ${event.id} (kind: ${event.kind})`);
-              events.push(event);
-            }
+            if (!events.some(e => e.id === event.id)) events.push(event);
           },
           currentCustomRelays,
           {
@@ -130,8 +124,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         limit: undefined
       }));
 
-      console.log('[useFeed] Live Subscription Filters:', JSON.stringify(liveFilters));
-
       flushIntervalRef.current = setInterval(() => {
         if (eventBufferRef.current.length === 0) return;
 
@@ -153,7 +145,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         liveFilters,
         (event) => {
           if (isMounted) {
-            console.log(`[useFeed] Live event received: ${event.id} (kind: ${event.kind})`);
             eventBufferRef.current.push(event);
           }
         },

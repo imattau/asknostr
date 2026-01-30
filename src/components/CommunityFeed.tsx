@@ -177,17 +177,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     setTimeout(() => setOptimisticSub(null), 5000)
   }
 
-  const communityEvents = events.filter(e => {
-    const hasATag = e.tags.some(t => t[0] === 'a' && t[1] === communityATag);
-    const hasTTag = e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === communityId.toLowerCase());
-    return hasATag || hasTTag;
-  });
-
-  console.log(`[CommunityFeed] Total events from useFeed: ${events.length}`);
-  console.log(`[CommunityFeed] Community events after local filter: ${communityEvents.length}`);
-  if (events.length > 0 && communityEvents.length === 0) {
-    console.log('[CommunityFeed] Sample event tags:', JSON.stringify(events[0].tags));
-  }
+  const communityEvents = events.filter(e => 
+    e.tags.some(t => t[0] === 'a' && t[1] === communityATag) ||
+    e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === communityId.toLowerCase())
+  )
 
   const eventIds = communityEvents.map(e => e.id)
   const moderators = useMemo(() => community?.moderators || [], [community?.moderators])

@@ -31,7 +31,7 @@ describe('NostrService', () => {
     vi.clearAllMocks()
   })
 
-  it('should pass filters as an array to SimplePool.subscribe', async () => {
+  it('should pass filters individually to SimplePool.subscribe', async () => {
     await nostrService.setRelays(['wss://relay.test'])
     
     const filters = [{ kinds: [1], limit: 10 }, { kinds: [4550] }]
@@ -42,13 +42,8 @@ describe('NostrService', () => {
     // @ts-ignore
     const poolInstance = nostrService.pool
     
-    expect(poolInstance.subscribe).toHaveBeenCalled()
-    const callArgs = poolInstance.subscribe.mock.calls[0]
-    const passedFilters = callArgs[1]
-    
-    // Verify fix (passes the whole array)
-    expect(Array.isArray(passedFilters)).toBe(true)
-    expect(passedFilters).toHaveLength(2)
-    expect(passedFilters[0].kinds).toContain(1)
+    expect(poolInstance.subscribe).toHaveBeenCalledTimes(2)
+    expect(poolInstance.subscribe).toHaveBeenNthCalledWith(1, expect.any(Array), filters[0], expect.any(Object))
+    expect(poolInstance.subscribe).toHaveBeenNthCalledWith(2, expect.any(Array), filters[1], expect.any(Object))
   })
 })

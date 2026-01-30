@@ -160,23 +160,35 @@ class NostrService {
     }
 
     try {
-      const subscription = this.pool.subscribe(
-        urls,
-        cleanFilters,
-        {
-          onevent: wrappedCallback,
-          oneose: () => {
-            options?.onEose?.()
-          },
-          onclose: () => {
-            // silent
-          }
+      let eoseCount = 0
+      const total = cleanFilters.length
+      const subs: { close: () => void }[] = []
+
+      const onEose = () => {
+        eoseCount += 1
+        if (eoseCount >= total) {
+          options?.onEose?.()
         }
-      )
+      }
+
+      cleanFilters.forEach(filter => {
+        const subscription = this.pool.subscribe(
+          urls,
+          filter,
+          {
+            onevent: wrappedCallback,
+            oneose: onEose,
+            onclose: () => {
+              // silent
+            }
+          }
+        )
+        subs.push(subscription)
+      })
 
       return {
         close: () => {
-          subscription.close()
+          subs.forEach(s => s.close())
         }
       }
     } catch (e) {
