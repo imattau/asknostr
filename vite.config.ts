@@ -2,27 +2,21 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { createRequire } from 'node:module'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 const require = createRequire(import.meta.url)
 const mentionsPath = require.resolve('react-mentions').replace('.cjs.js', '.esm.js')
 
 // https://vite.dev/config/
 export default defineConfig({
-  define: {
-    'process.env': {},
-    'global': 'globalThis',
-  },
-  resolve: {
-    alias: {
-      'react-mentions': mentionsPath,
-      'path': 'path-browserify',
-      'crypto': 'crypto-browserify',
-      'stream': 'stream-browserify',
-    },
-  },
   plugins: [
     react(),
+    nodePolyfills({
+      // Whether to polyfill `node:` protocol imports.
+      protocolImports: true,
+    }),
     VitePWA({
+// ... (keep PWA config)
       registerType: 'autoUpdate',
       includeAssets: ['robots.txt', 'asknostr_logo.png'],
       manifest: {
@@ -56,6 +50,7 @@ export default defineConfig({
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4MB
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'image',
@@ -77,9 +72,15 @@ export default defineConfig({
       }
     })
   ],
+  resolve: {
+    alias: {
+      'react-mentions': mentionsPath,
+    },
+  },
   optimizeDeps: {
     include: ['react-mentions', 'substyle'],
   },
+// ... (keep build manualChunks)
   build: {
     rollupOptions: {
       output: {

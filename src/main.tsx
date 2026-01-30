@@ -2,20 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Workbox } from 'workbox-window'
-import { Buffer } from 'buffer'
-import EventEmitter from 'events'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { errorReporter } from './services/errorReporter'
-
-if (typeof window !== 'undefined') {
-  window.Buffer = Buffer
-  // @ts-ignore
-  window.EventEmitter = EventEmitter
-  // @ts-ignore
-  window.process = { env: { NODE_ENV: import.meta.env.MODE }, nextTick: (cb: Function) => setTimeout(cb, 0) }
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
