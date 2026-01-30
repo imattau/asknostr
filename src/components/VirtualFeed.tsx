@@ -13,18 +13,23 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-// In react-window v2 (and v1), if you use rowComponent, it receives props.index, props.style, and props.rowProps (v2) or props.data (v1)
 const Row = React.memo((props: any) => {
-  const { index, style, rowProps } = props
-  // Check if it's v2 (rowProps) or v1 (data)
-  const data = rowProps || props.data
+  const { index, style } = props
   
-  if (!data) {
-    console.error('[VirtualFeed] Row rendered without data at index:', index)
-    return <div style={style} />
+  // Diagnostic log to see exactly what react-window v2 passes
+  if (index === 0) {
+    console.log('[VirtualFeed] Row props sample:', Object.keys(props))
   }
 
+  // Support v2 (spread props), v2 (explicit rowProps), and v1 (itemData/data)
+  const data = props.rowProps || props.data || props
+  
   const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
+
+  if (!events) {
+    if (index === 0) console.warn('[VirtualFeed] No events found in row data')
+    return <div style={style} />
+  }
 
   const rowRef = useRef<HTMLDivElement>(null)
 
@@ -92,13 +97,24 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
       key: `${firstEventId}-${header ? 'h' : 'nh'}`
     })
 
-    const rowCount = events.length + (header ? 1 : 0) + 1
+    const rowCount = events.length + (header ? 1 : 0) + (events.length > 0 ? 1 : 0)
+
+    if (events.length === 0 && !header) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full opacity-20 font-mono text-[10px] uppercase tracking-[0.3em]">
+          No_Activity_Detected
+        </div>
+      )
+    }
 
     return (
       <div className="h-full w-full">
-        <AutoSizer
-          renderProp={({ height, width }: any) => {
+        <AutoSizer>
+          {({ height, width }: any) => {
             if (!height || !width) return null;
+            
+            console.log(`[VirtualFeed] Rendering ${rowCount} rows at ${width}x${height}`);
+            
             return (
               <List
                 listRef={(node) => {
@@ -111,7 +127,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 rowCount={rowCount}
                 rowHeight={dynamicRowHeight}
                 overscanCount={5}
-                // In v2, rowProps is the way to pass data to rowComponent
+                // Pass data in all possible ways to ensure compatibility
                 rowProps={{ 
                   events, 
                   isLoadingMore, 
@@ -120,7 +136,6 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                   theme,
                   dynamicRowHeight
                 }}
-                // Support both v1 and v2 just in case
                 itemData={{
                   events, 
                   isLoadingMore, 
@@ -139,7 +154,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
               />
             );
           }}
-        />
+        </AutoSizer>
       </div>
     )
   }

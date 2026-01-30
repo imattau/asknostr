@@ -1,8 +1,18 @@
 // BitTorrent Background Worker
-// Using a more robust CDN URL format
-importScripts('https://cdn.jsdelivr.net/npm/webtorrent/dist/webtorrent.min.js');
+let client = null;
 
-const client = new WebTorrent();
+try {
+  importScripts('https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/dist/webtorrent.min.js');
+  
+  if (typeof WebTorrent !== 'undefined') {
+    client = new WebTorrent();
+  } else {
+    throw new Error('WebTorrent is not defined after importScripts');
+  }
+} catch (err) {
+  console.error('[TorrentWorker] Initialization failed:', err);
+  self.postMessage({ type: 'ERROR', payload: 'Worker init failed: ' + err.message });
+}
 
 const getTorrentMetadata = (torrent) => ({
   infoHash: torrent.infoHash,
@@ -27,6 +37,10 @@ async function computeSha256(file) {
 
 self.onmessage = async (e) => {
   const { type, payload } = e.data;
+  if (!client && type !== 'HASH_FILE') {
+    console.error('[TorrentWorker] Cannot handle message: client not initialized', type);
+    return;
+  }
 
   switch (type) {
     case 'HASH_FILE':
@@ -96,7 +110,7 @@ self.onmessage = async (e) => {
 
 // Periodic health updates
 setInterval(() => {
-  if (client.torrents.length === 0) return;
+  if (!client || client.torrents.length === 0) return;
 
   const reports = client.torrents.map(t => ({
     infoHash: t.infoHash,
@@ -110,6 +124,8 @@ setInterval(() => {
   });
 }, 5000);
 
-client.on('error', (err) => {
-  self.postMessage({ type: 'ERROR', payload: err.message });
-});
+if (client) {
+  client.on('error', (err) => {
+    self.postMessage({ type: 'ERROR', payload: err.message });
+  });
+}

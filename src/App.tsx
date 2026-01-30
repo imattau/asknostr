@@ -191,6 +191,8 @@ function MainFeed({
     live: true // Enable live for active view
   });
 
+  console.log(`[MainFeed] Received ${events?.length || 0} events from hook`);
+
   useEffect(() => {
     if (!events || events.length === 0) return
     const processEvents = () => {
@@ -205,9 +207,12 @@ function MainFeed({
 
   const filteredEvents = useMemo(() => {
     if (!events) return []
-    return (firstTag 
+    const result = (firstTag 
       ? events.filter(e => e.tags?.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
       : events).filter(e => e && !deletedSet.has(e.id) && !(muted || []).includes(e.pubkey))
+    
+    console.log(`[MainFeed] Filtered events: ${result.length}`);
+    return result;
   }, [events, firstTag, deletedSet, muted])
 
   return (

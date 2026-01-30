@@ -55,8 +55,8 @@ class NostrService {
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
-  private readonly MAX_CONCURRENT_SUBS = 3 // Reduced from 5
-  private readonly SUB_COOLDOWN_MS = 500 // Increased from 250
+  private readonly MAX_CONCURRENT_SUBS = 20 // Increased from 3 to prevent starvation
+  private readonly SUB_COOLDOWN_MS = 100 // Reduced from 500 for snappier startup
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
