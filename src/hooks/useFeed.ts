@@ -2,53 +2,45 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { nostrService } from '../services/nostr';
 import type { Filter, Event } from 'nostr-tools';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface UseFeedOptions {
   filters: Filter[];
   customRelays?: string[];
   enabled?: boolean;
-  live?: boolean; // Allow disabling live updates for background feeds
+  live?: boolean;
+  limit?: number;
 }
 
-export const useFeed = ({ filters, customRelays, enabled = true, live = true }: UseFeedOptions) => {
+export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 30 }: UseFeedOptions) => {
   const queryClient = useQueryClient();
   const queryKey = ['feed-events', filters, customRelays];
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   
-  // Use a ref to buffer incoming live events to avoid "render storms"
   const eventBufferRef = useRef<Event[]>([]);
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 1. Primary Query: Fetches historical data
+  // 1. Primary Query: Fetches initial historical data
   const query = useQuery<Event[], Error>({
     queryKey,
     queryFn: async ({ queryKey, signal }) => {
-      const currentFilters = queryKey[1] as Filter[];
+      const currentFilters = (queryKey[1] as Filter[]).map(f => ({ ...f, limit }));
       const currentCustomRelays = queryKey[2] as string[] | undefined;
 
       return new Promise<Event[]>((resolve, reject) => {
         const events: Event[] = [];
         let sub: { close: () => void } | undefined;
-        let timeout: ReturnType<typeof setTimeout> | undefined;
 
         const cleanup = () => {
           if (sub) sub.close();
-          if (timeout) clearTimeout(timeout);
         };
 
         signal.onabort = cleanup;
 
-        if (!currentFilters || currentFilters.length === 0) {
-          resolve([]);
-          return;
-        }
-
         nostrService.subscribe(
           currentFilters,
           (event) => {
-            if (!events.some(e => e.id === event.id)) {
-              events.push(event);
-            }
+            if (!events.some(e => e.id === event.id)) events.push(event);
           },
           currentCustomRelays,
           {
@@ -59,7 +51,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true }: 
           }
         ).then(s => {
           sub = s;
-          timeout = setTimeout(() => {
+          setTimeout(() => {
             cleanup();
             resolve(events.sort((a, b) => b.created_at - a.created_at));
           }, 5000);
@@ -69,6 +61,56 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true }: 
     enabled,
     staleTime: Infinity,
   });
+
+  // Manual "Load More" function for pagination
+  const fetchMore = async () => {
+    const currentEvents = query.data || [];
+    if (currentEvents.length === 0 || isFetchingMore) return;
+
+    setIsFetchingMore(true);
+    const oldestTimestamp = currentEvents[currentEvents.length - 1].created_at;
+    const paginatedFilters = filters.map(f => ({
+      ...f,
+      until: oldestTimestamp - 1,
+      limit
+    }));
+
+    console.log('[useFeed] Fetching more history before:', oldestTimestamp);
+
+    return new Promise<void>((resolve) => {
+      let sub: { close: () => void } | undefined;
+      const newEvents: Event[] = [];
+
+      nostrService.subscribe(
+        paginatedFilters,
+        (event) => {
+          if (!newEvents.some(e => e.id === event.id)) newEvents.push(event);
+        },
+        customRelays,
+        {
+          onEose: () => {
+            sub?.close();
+            queryClient.setQueryData<Event[]>(queryKey, (old = []) => {
+              const combined = [...old, ...newEvents];
+              // Ensure uniqueness and maintain sort order
+              const uniqueMap = new Map();
+              combined.forEach(e => uniqueMap.set(e.id, e));
+              return Array.from(uniqueMap.values()).sort((a, b) => b.created_at - a.created_at);
+            });
+            setIsFetchingMore(false);
+            resolve();
+          }
+        }
+      ).then(s => {
+        sub = s;
+        setTimeout(() => {
+          sub?.close();
+          setIsFetchingMore(false);
+          resolve();
+        }, 4000);
+      });
+    });
+  };
 
   // 2. Real-time Subscription: Listens for new incoming events with throttling
   useEffect(() => {
@@ -88,15 +130,15 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true }: 
       flushIntervalRef.current = setInterval(() => {
         if (eventBufferRef.current.length === 0) return;
 
-        const newEvents = [...eventBufferRef.current];
+        const newEventsBatch = [...eventBufferRef.current];
         eventBufferRef.current = [];
 
         queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
-          const filteredNew = newEvents.filter(ne => !oldEvents.some(oe => oe.id === ne.id));
+          const filteredNew = newEventsBatch.filter(ne => !oldEvents.some(oe => oe.id === ne.id));
           if (filteredNew.length === 0) return oldEvents;
           
           const updated = [...filteredNew, ...oldEvents];
-          return updated.sort((a, b) => b.created_at - a.created_at).slice(0, 500); // Cap feed size
+          return updated.sort((a, b) => b.created_at - a.created_at).slice(0, 1000); // Cap size for performance
         });
       }, 3000);
 
@@ -120,5 +162,5 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true }: 
     };
   }, [enabled, live, JSON.stringify(filters), JSON.stringify(customRelays), queryClient]);
 
-  return query;
+  return { ...query, fetchMore, isFetchingMore };
 };

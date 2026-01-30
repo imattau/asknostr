@@ -127,16 +127,16 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   console.log(`[CommunityFeed] Rendering c/${communityId}. a-tag: ${communityATag}. Relays:`, combinedRelays.length)
 
-  const { data: events = [] } = useFeed({
+  const { data: events = [], fetchMore, isFetchingMore } = useFeed({
     filters: [
-      { kinds: [1, 4550], '#a': [communityATag], limit: 100 },
-      { kinds: [1], '#t': [communityId.toLowerCase()], limit: 100 }
+      { kinds: [1, 4550], '#a': [communityATag] },
+      { kinds: [1], '#t': [communityId.toLowerCase()] }
     ],
-    customRelays: combinedRelays
+    customRelays: combinedRelays,
+    limit: 30
   })
 
   const { muted } = useSocialGraph()
-// ... (rest of the component)
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
   const [postContent, setPostContent] = useState('')
@@ -154,7 +154,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
-// ... (keep primaryText assignments and effects)
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
   const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
@@ -184,7 +183,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const eventIds = communityEvents.map(e => e.id)
   const moderators = useMemo(() => community?.moderators || [], [community?.moderators])
   const { data: approvals = [] } = useApprovals(eventIds, moderators, community?.relays)
-  const { data: deletedIds = [] } = useDeletions(communityEvents) // Updated to pass events, not ids? Wait, useDeletions expects events now.
+  const { data: deletedIds = [] } = useDeletions(communityEvents) 
 
   const eventStatusMap = useMemo(() => {
     const map: Record<string, string> = {}
@@ -410,37 +409,41 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
         </div>
       </div>
       <div className="flex-1 overflow-hidden relative">
-        <VirtualFeed events={regularEvents} isLoadingMore={false} onLoadMore={() => {}} header={
-          <div className="p-4 space-y-4">
-            <div className={`glassmorphism p-3 rounded-xl ${theme === 'light' ? 'border-slate-300' : 'border-slate-800/50'}`}>
-                                  <HashtagTextarea 
-                                    value={postContent} 
-                                    onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
-                                    disabled={!user.pubkey || isPublishing} 
-                                    placeholder={`Post to c/${communityId}...`} 
-                                    onUserSearch={handleUserSearch}
-                                  />              <div className={`flex items-center justify-between mt-2 pt-2 border-t ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
-                <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
-                <div className="flex items-center gap-2">
-                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
-                  <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
-                  
-                  <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">
-                    {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
-                  </button>
+        <VirtualFeed 
+          events={regularEvents} 
+          isLoadingMore={isFetchingMore} 
+          onLoadMore={() => fetchMore()} 
+          header={
+            <div className="p-4 space-y-4">
+              <div className={`glassmorphism p-3 rounded-xl ${theme === 'light' ? 'border-slate-300' : 'border-slate-800/50'}`}>
+                                    <HashtagTextarea 
+                                      value={postContent} 
+                                      onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
+                                      disabled={!user.pubkey || isPublishing} 
+                                      placeholder={`Post to c/${communityId}...`} 
+                                      onUserSearch={handleUserSearch}
+                                    />              <div className={`flex items-center justify-between mt-2 pt-2 border-t ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
+                  <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
+                  <div className="flex items-center gap-2">
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
+                    <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
+                    
+                    <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">
+                      {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
+                    </button>
 
-                  <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} text-purple-400 transition-colors disabled:opacity-50`} title="Seed via BitTorrent">
-                    {isSeeding ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
-                  </button>
+                    <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} text-purple-400 transition-colors disabled:opacity-50`} title="Seed via BitTorrent">
+                      {isSeeding ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                    </button>
 
-                  <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
+                    <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
+                  </div>
                 </div>
               </div>
+              {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}
+              {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className={`h-px ${borderClass} mx-4`} /></div>}
             </div>
-            {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}
-            {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className={`h-px ${borderClass} mx-4`} /></div>}
-          </div>
-        } />
+          } />
       </div>
     </div>
   )
