@@ -13,13 +13,10 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
+// In react-window v2, rowProps are spread directly onto the row component
 const Row = (props: any) => {
-  const { index, style, data } = props
+  const { index, style, events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = props
   
-  if (!data) return <div style={style} />
-
-  const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
-
   const rowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -38,7 +35,7 @@ const Row = (props: any) => {
 
   const adjustedIndex = header ? index - 1 : index
   
-  if (events.length > 0 && adjustedIndex === events.length) {
+  if (events && events.length > 0 && adjustedIndex === events.length) {
     return (
       <div style={style} className="px-4 py-2" ref={rowRef}>
         <button
@@ -52,7 +49,7 @@ const Row = (props: any) => {
     )
   }
 
-  const event = events[adjustedIndex]
+  const event = events ? events[adjustedIndex] : null
   if (!event) return <div style={style} />
 
   return (
@@ -76,15 +73,6 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
 
     const rowCount = events.length + (header ? 1 : 0) + (events.length > 0 ? 1 : 0)
 
-    const itemData = useMemo(() => ({
-      events, 
-      isLoadingMore, 
-      onLoadMore, 
-      header,
-      theme,
-      dynamicRowHeight
-    }), [events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight])
-
     if (events.length === 0 && !header) {
       return (
         <div className="flex flex-col items-center justify-center h-full opacity-20 font-mono text-[10px] uppercase tracking-[0.3em]">
@@ -94,7 +82,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     }
 
     return (
-      <div className="h-full w-full bg-transparent">
+      <div className="h-full w-full">
         <AutoSizer>
           {({ height, width }: any) => {
             if (!height || !width) return null;
@@ -110,7 +98,15 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 rowCount={rowCount}
                 rowHeight={dynamicRowHeight}
                 overscanCount={5}
-                itemData={itemData}
+                // react-window v2 uses rowProps which are SPREAD onto the component
+                rowProps={{ 
+                  events, 
+                  isLoadingMore, 
+                  onLoadMore, 
+                  header,
+                  theme,
+                  dynamicRowHeight
+                }}
                 rowComponent={Row}
                 onScroll={(e: any) => {
                   if (onScroll) {

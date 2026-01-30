@@ -894,8 +894,5 @@ export const Post = React.memo(
     prev.isModerator === next.isModerator &&
     prev.isApproved === next.isApproved &&
     prev.opPubkey === next.opPubkey &&
-    prev.depth === next.depth &&
-    // Check for deep equality or simplified markers if needed, but for now ID is enough
-    // since we memoized the hooks themselves
-    true
+    prev.depth === next.depth
 )

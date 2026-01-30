@@ -2,17 +2,16 @@
 let client = null;
 
 try {
-  // Using a simplified URL to avoid any potential encoding/parsing issues
-  importScripts('https://cdn.jsdelivr.net/npm/webtorrent/dist/webtorrent.min.js');
+  // Absolute, space-free URL for WebTorrent
+  importScripts('https://unpkg.com/webtorrent@2.8.5/dist/webtorrent.min.js');
   
   if (typeof WebTorrent !== 'undefined') {
     client = new WebTorrent();
   } else {
-    throw new Error('WebTorrent not found in global scope');
+    throw new Error('WebTorrent_Not_Found');
   }
 } catch (err) {
-  console.error('[TorrentWorker] Critical Init Error:', err);
-  self.postMessage({ type: 'ERROR', payload: 'Worker failure: ' + err.message });
+  console.error('[TorrentWorker] Critical_Init_Error:', err);
 }
 
 const getTorrentMetadata = (torrent) => ({
@@ -45,47 +44,35 @@ self.onmessage = async (e) => {
         const hash = await computeSha256(payload.file);
         self.postMessage({ type: 'HASH_READY', payload: { hash, name: payload.name } });
       } catch (err) {
-        self.postMessage({ type: 'ERROR', payload: 'Hashing failed: ' + err.message });
+        self.postMessage({ type: 'ERROR', payload: 'Hashing_Failed' });
       }
       break;
 
     case 'SEED':
       client.seed(payload.file, { name: payload.name }, (torrent) => {
-        self.postMessage({
-          type: 'SEED_READY',
-          payload: getTorrentMetadata(torrent)
-        });
+        self.postMessage({ type: 'SEED_READY', payload: getTorrentMetadata(torrent) });
       });
       break;
 
     case 'ADD':
       client.add(payload.magnetUri, (torrent) => {
         const onReady = () => {
-          self.postMessage({
-            type: 'TORRENT_READY',
-            payload: getTorrentMetadata(torrent)
-          });
+          self.postMessage({ type: 'TORRENT_READY', payload: getTorrentMetadata(torrent) });
         };
         if (torrent.ready) onReady();
         else torrent.once('ready', onReady);
-
-        self.postMessage({
-          type: 'TORRENT_ADDED',
-          payload: { infoHash: torrent.infoHash, magnetURI: torrent.magnetURI }
-        });
+        self.postMessage({ type: 'TORRENT_ADDED', payload: { infoHash: torrent.infoHash, magnetURI: torrent.magnetURI } });
       });
       break;
 
     case 'PRIORITIZE':
-      const tToPrioritize = client.get(payload.infoHash);
-      if (tToPrioritize && tToPrioritize.files[0]) {
-        tToPrioritize.files[0].select(payload.start, payload.end, 1);
-      }
+      const t = client.get(payload.infoHash);
+      if (t && t.files[0]) t.files[0].select(payload.start, payload.end, 1);
       break;
 
     case 'REMOVE':
-      const tToRemove = client.get(payload.magnetUri);
-      if (tToRemove) tToRemove.destroy();
+      const tr = client.get(payload.magnetUri);
+      if (tr) tr.destroy();
       break;
   }
 };
@@ -99,9 +86,3 @@ setInterval(() => {
   }));
   self.postMessage({ type: 'HEALTH_UPDATE', payload: { reports } });
 }, 5000);
-
-if (client) {
-  client.on('error', (err) => {
-    self.postMessage({ type: 'ERROR', payload: err.message });
-  });
-}
