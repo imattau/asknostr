@@ -60,7 +60,7 @@ const Row = ({
 
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
   ({ events, isLoadingMore, onLoadMore, onScroll, header }, ref) => {
-    const rowCount = events.length + 1 + (header ? 1 : 0)
+    const rowCount = events.length + (header ? 1 : 0) + 1
 
     return (
       <div className="h-full w-full">
@@ -74,7 +74,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 height={height}
                 width={width}
                 itemCount={rowCount}
-                itemSize={260}
+                itemSize={260} // Use fixed size for stability with List
                 itemData={{ events, isLoadingMore, onLoadMore, header }}
                 onScroll={(e: any) => {
                   if (onScroll) {
