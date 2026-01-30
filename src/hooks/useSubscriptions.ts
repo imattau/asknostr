@@ -2,11 +2,44 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService, SubscriptionPriority } from '../services/nostr'
 import { signerService } from '../services/signer'
-// ... (several lines down)
+import type { Event } from 'nostr-tools'
+import { triggerHaptic } from '../utils/haptics'
+import { get, set } from 'idb-keyval'
+
+export const useSubscriptions = () => {
+  const { user, relays: storeRelays } = useStore()
+  const queryClient = useQueryClient()
+
+  const { data: subscriptionEvent, isLoading } = useQuery({
+    queryKey: ['subscriptions', user.pubkey, storeRelays],
+    queryFn: async () => {
+      if (!user.pubkey) return null
+      
+      const cacheKey = `subs-${user.pubkey}`
+      const cached = await get(cacheKey)
+
+      return new Promise<Event | null>((resolve) => {
+        let latest: Event | null = null
+        let found = false
+        let resolved = false
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const finish = (value: Event | null) => {
+          if (resolved) return
+          resolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          sub.close()
+          resolve(value)
+        }
+
         const sub = nostrService.subscribe(
           [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
           (event: Event) => {
-// ... (several lines down)
+            if (!latest || event.created_at > latest.created_at) {
+              latest = event
+              found = true
+              set(cacheKey, event)
+            }
           },
           nostrService.getDiscoveryRelays(),
           { 
@@ -60,13 +93,11 @@ import { signerService } from '../services/signer'
   })
 
   const toggleSubscription = (communityATag: string) => {
-    console.log('[Subs] Toggling:', communityATag)
     const current = subscribedCommunities
     const next = current.includes(communityATag)
       ? current.filter(a => a !== communityATag)
       : [...current, communityATag]
     
-    console.log('[Subs] Next state:', next)
     updateSubscriptions.mutate(next)
   }
 
