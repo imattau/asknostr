@@ -39,13 +39,14 @@ export const useFeed = ({ filters, customRelays, enabled = true }: UseFeedOption
         nostrService.subscribe(
           currentFilters,
           (event) => {
-            // Check for duplicates before adding, if needed.
-            // React Query's cache and subsequent renders will handle unique keys.
-            events.push(event);
+            if (!events.some(e => e.id === event.id)) {
+              events.push(event);
+            }
           },
           currentCustomRelays,
           {
             onEose: () => {
+              console.log(`[useFeed] EOSE received for filters:`, currentFilters, `Unique events collected:`, events.length);
               cleanup(); // Close subscription after EOSE
               resolve(events);
             }
@@ -56,11 +57,14 @@ export const useFeed = ({ filters, customRelays, enabled = true }: UseFeedOption
           // Set a timeout to resolve even if EOSE is not received from all relays
           // This prevents the query from hanging indefinitely
           timeout = setTimeout(() => {
-            console.warn('[useFeed] Subscription EOSE timeout. Resolving with collected events.');
+            console.warn('[useFeed] Subscription EOSE timeout. Resolving with collected events:', events.length);
             cleanup();
             resolve(events);
           }, 5000); // 5 seconds timeout for EOSE
-        }).catch(reject); // Propagate any errors from subscribe
+        }).catch(err => {
+          console.error('[useFeed] Subscription error:', err);
+          reject(err);
+        });
       });
     },
     enabled: enabled, // Only run the query if enabled is true

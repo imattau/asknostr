@@ -116,15 +116,27 @@ interface CommunityFeedProps {
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creator }) => {
   const { data: community, isLoading: isCommLoading } = useCommunity(communityId, creator)
+  const { user, markAsRead, relays: userRelays } = useStore()
   
   const communityATag = `34550:${creator}:${communityId}`
+  
+  const combinedRelays = useMemo(() => {
+    const commRelays = community?.relays || []
+    return [...new Set([...commRelays, ...userRelays])]
+  }, [community?.relays, userRelays])
+
+  console.log(`[CommunityFeed] Rendering c/${communityId}. a-tag: ${communityATag}. Relays:`, combinedRelays.length)
+
   const { data: events = [] } = useFeed({
-    filters: [{ kinds: [1, 4550], '#a': [communityATag], limit: 100 }],
-    customRelays: community?.relays
+    filters: [
+      { kinds: [1, 4550], '#a': [communityATag], limit: 100 },
+      { kinds: [1], '#t': [communityId.toLowerCase()], limit: 100 }
+    ],
+    customRelays: combinedRelays
   })
 
-  const { user, markAsRead } = useStore()
   const { muted } = useSocialGraph()
+// ... (rest of the component)
   const [isModeratedOnly, setIsModeratedOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'hot' | 'top' | 'new'>('new')
   const [postContent, setPostContent] = useState('')
@@ -142,6 +154,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
   const torrentInputRef = useRef<HTMLInputElement>(null)
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
+// ... (keep primaryText assignments and effects)
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
   const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
@@ -187,25 +200,30 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
     return map
   }, [approvals])
 
-  const filteredEvents = useMemo(() => communityEvents.filter(e => {
-    if (deletedIds.includes(e.id)) return false
-    if (eventStatusMap[e.id] === 'spam') return false
-    if (muted.includes(e.pubkey)) return false
-    const isReply = e.tags.some(t => t[0] === 'e')
-    if (isReply) return false
-    const mode = community?.moderationMode || 'open'
-    if (mode === 'restricted') {
-      const isApproved = eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
-      const authors = new Set<string>()
-      approvals.forEach(a => {
-        const pTag = a.tags.find(t => t[0] === 'p')?.[1]
-        if (pTag && (a.tags.find(t => t[0] === 'status')?.[1] || 'approved') === 'approved') authors.add(pTag)
-      })
-      return isApproved || authors.has(e.pubkey) || moderators.includes(e.pubkey) || e.pubkey === creator
-    } else {
-      return !isModeratedOnly || eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
-    }
-  }), [communityEvents, deletedIds, eventStatusMap, isModeratedOnly, community, moderators, creator, approvals, muted])
+  const filteredEvents = useMemo(() => {
+    console.log(`[CommunityFeed] Filtering ${communityEvents.length} community events...`)
+    const filtered = communityEvents.filter(e => {
+      if (deletedIds.includes(e.id)) return false
+      if (eventStatusMap[e.id] === 'spam') return false
+      if (muted.includes(e.pubkey)) return false
+      const isReply = e.tags.some(t => t[0] === 'e')
+      if (isReply) return false
+      const mode = community?.moderationMode || 'open'
+      if (mode === 'restricted') {
+        const isApproved = eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
+        const authors = new Set<string>()
+        approvals.forEach(a => {
+          const pTag = a.tags.find(t => t[0] === 'p')?.[1]
+          if (pTag && (a.tags.find(t => t[0] === 'status')?.[1] || 'approved') === 'approved') authors.add(pTag)
+        })
+        return isApproved || authors.has(e.pubkey) || moderators.includes(e.pubkey) || e.pubkey === creator
+      } else {
+        return !isModeratedOnly || eventStatusMap[e.id] === 'approved' || eventStatusMap[e.id] === 'pinned'
+      }
+    })
+    console.log(`[CommunityFeed] Filter complete. Result: ${filtered.length} events.`)
+    return filtered
+  }, [communityEvents, deletedIds, eventStatusMap, isModeratedOnly, community, moderators, creator, approvals, muted])
 
   const computeEngagement = (event: Event) => {
     return event.tags.reduce((score, tag) => ['p', 'e', 'r', 'a'].includes(tag[0]) ? score + 1 : score, 0)
@@ -236,9 +254,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   useEffect(() => {
     if (community?.relays && community.relays.length > 0) nostrService.addRelays(community.relays)
-    const sub = nostrService.subscribe([{ kinds: [34550], authors: [creator], '#d': [communityId], limit: 1 }], () => {}, community?.relays)
-    return () => { sub.then(s => s.close()) }
-  }, [communityId, creator, community?.relays])
+  }, [community?.relays])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -376,7 +392,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
               </div>
               <div className="min-w-0">
                 <h2 className={`text-lg font-black ${primaryText} tracking-tighter uppercase leading-none mb-0.5 truncate`}>{community?.name || communityId}</h2>
-                <div className="flex items-center gap-2"><span className={`text-[9px] ${mutedText} font-mono`}>c/{communityId}</span><div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20"><Shield size={8} /> {moderators.length}</div></div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] ${mutedText} font-mono`}>c/{communityId}</span>
+                  <div className="flex items-center gap-1 text-[8px] font-bold text-green-500 bg-green-500/5 px-1.5 py-0.5 rounded border border-green-500/20">
+                    <Shield size={8} /> {moderators.length}
+                  </div>
+                  <div className={`flex items-center gap-1 text-[8px] font-bold ${combinedRelays.length > 0 ? 'text-cyan-500 bg-cyan-500/5 border-cyan-500/20' : 'text-amber-500 bg-amber-500/5 border-amber-500/20'} px-1.5 py-0.5 rounded border`}>
+                    <RefreshCw size={8} className={isCommLoading ? 'animate-spin' : ''} /> {combinedRelays.length} RELAYS
+                  </div>
+                </div>
                 {labels.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{labels.slice(0, 6).map(label => <span key={label} className="text-[7px] font-mono uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">{label}</span>)}</div>}
               </div>
             </div>

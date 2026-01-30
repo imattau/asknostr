@@ -65,7 +65,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
               finish(definition)
             }
           },
-          undefined,
+          nostrService.getDiscoveryRelays(),
           { onEose: () => { if (!found) finish(null) } }
         ).then(sub => {
           subRef = sub

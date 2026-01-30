@@ -148,10 +148,10 @@ class NostrService {
     }
 
     try {
-      // THE FIX: SimplePool.subscribe expects a SINGLE filter.
-      // We must map our filter array to individual subscriptions and composite the closers.
       let eoseCount = 0
       const total = cleanFilters.length
+      const subs: { close: () => void }[] = []
+
       const onEose = () => {
         eoseCount += 1
         if (eoseCount >= total) {
@@ -159,7 +159,7 @@ class NostrService {
         }
       }
 
-      const subs = cleanFilters.map(filter => {
+      cleanFilters.forEach(filter => {
         let eosed = false
         const subscription = this.pool.subscribe(
           urls,
@@ -169,7 +169,6 @@ class NostrService {
             oneose: () => {
               if (eosed) return
               eosed = true
-              console.log('[Nostr] Subscription EOSE')
               onEose()
             },
             onclose: (reasons: string[]) => {
@@ -177,15 +176,12 @@ class NostrService {
             }
           }
         )
-        return subscription
+        subs.push(subscription)
       })
 
-      let closed = false
       return {
         close: () => {
-          if (closed) return
-          closed = true
-          subs.forEach(sub => sub.close())
+          subs.forEach(s => s.close())
         }
       }
     } catch (e) {
