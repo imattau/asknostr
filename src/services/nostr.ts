@@ -49,14 +49,23 @@ class NostrService {
     if (typeof window !== 'undefined') {
       this.worker = new Worker('/event-worker.js', { type: 'module' })
       this.worker.addEventListener('message', (e: MessageEvent) => {
-        this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
-        const { id, isValid } = e.data || {}
-        if (!id) return
-        const pending = this.pendingValidations.get(id)
-        if (!pending) return
-        clearTimeout(pending.timeoutId)
-        this.pendingValidations.delete(id)
-        pending.resolve(!!isValid)
+        // Use requestIdleCallback if available to process results without blocking frames
+        const processResult = () => {
+          this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
+          const { id, isValid } = e.data || {}
+          if (!id) return
+          const pending = this.pendingValidations.get(id)
+          if (!pending) return
+          clearTimeout(pending.timeoutId)
+          this.pendingValidations.delete(id)
+          pending.resolve(!!isValid)
+        }
+
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(processResult)
+        } else {
+          processResult()
+        }
       })
     }
   }

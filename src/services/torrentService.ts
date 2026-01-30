@@ -8,11 +8,16 @@ import type { Event } from 'nostr-tools'
 
 class TorrentService {
   /**
-   * Initialize and restore previously seeded files
+   * Initialize and restore previously seeded files with staggering to avoid main-thread lockup
    */
   async init() {
     console.log('[TorrentService] Initializing modular stack...')
+    
+    // Give the UI thread a few seconds to settle before starting heavy BitTorrent tasks
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
     const seeds = await persistenceManager.getAllSeeds()
+    console.log(`[TorrentService] Found ${seeds.length} seeds to restore.`)
     
     for (const record of seeds) {
       try {
@@ -20,6 +25,9 @@ class TorrentService {
         const file = new File([record.data], record.name, { type: record.type })
         // Pass shouldSave = false to avoid redundant IndexedDB writes
         await swarmOrchestrator.seedFile(file, record.creatorPubkey, false)
+        
+        // Stagger restoration to prevent CPU spikes (hashing is heavy)
+        await new Promise(resolve => setTimeout(resolve, 500))
       } catch (err) {
         console.error('[TorrentService] Restore failed:', record.infoHash, err)
       }

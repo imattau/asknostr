@@ -65,7 +65,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
             setNumPeers(t.numPeers)
             if (t.numPeers > 0) setUseFallback(false)
           }
-        }, 1000)
+        }, 3000) // Reduced frequency to 3s
 
         // If it's already ready (e.g. from service cache)
         if (t.ready && mounted) {
