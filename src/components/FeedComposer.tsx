@@ -123,24 +123,35 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
   }
 
   const handleTorrentSeed = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setIsSeeding(true)
-    setSeedingStatus({ name: file.name, status: 'in-progress' })
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsSeeding(true);
+    setSeedingStatus({ name: file.name, status: 'in-progress' });
+
     try {
-      const { magnet, fallbackUrl } = await torrentService.prepareDualUpload(file, user.pubkey || '')
-      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet)
-      setPendingFile(file)
-      setPendingMagnet(magnet)
-      if (fallbackUrl) setPendingFallbackUrl(fallbackUrl)
-      setSeedingStatus({ name: file.name, status: 'ready', magnet })
+      // Get magnet immediately, but upload promise for later
+      const { magnet, uploadPromise } = await torrentService.prepareDualUpload(file, user.pubkey || '');
+      
+      setPostContent(prev => prev ? `${prev}\n${magnet}` : magnet);
+      setPendingFile(file);
+      setPendingMagnet(magnet);
+      setSeedingStatus({ name: file.name, status: 'in-progress', magnet }); // Show magnet is ready
+
+      // Now wait for the upload to finish
+      const fallbackUrl = await uploadPromise;
+      if (fallbackUrl) {
+        setPendingFallbackUrl(fallbackUrl);
+      }
+      setSeedingStatus({ name: file.name, status: 'ready', magnet });
+
     } catch (err) {
-      console.error('Seeding preparation failed', err)
-      alert(err instanceof Error ? err.message : 'Failed to seed file')
-      setSeedingStatus({ name: file.name, status: 'failed' })
+      console.error('Seeding preparation failed', err);
+      alert(err instanceof Error ? err.message : 'Failed to seed file');
+      setSeedingStatus({ name: file.name, status: 'failed' });
     } finally {
-      setIsSeeding(false)
-      if (torrentInputRef.current) torrentInputRef.current.value = ''
+      setIsSeeding(false);
+      if (torrentInputRef.current) torrentInputRef.current.value = '';
     }
   }
 

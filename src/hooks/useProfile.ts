@@ -17,39 +17,41 @@ const normalizeProfile = (raw: Record<string, string | undefined>): UserProfile 
   }
 }
 
+export const fetchProfile = async (pubkey: string): Promise<UserProfile | null> => {
+  if (!pubkey) return null
+  
+  const cacheKey = `profile-${pubkey}`
+  const cached = await get(cacheKey) as UserProfile | undefined
+  
+  return new Promise<UserProfile | null>((resolve) => {
+    let found = false
+    
+    // Timeout: If network is slow, resolve with cache if available, else null
+    const timeout = setTimeout(() => {
+      if (!found) {
+        resolve(cached || null)
+      }
+    }, 4000)
+
+    const cleanup = nostrService.requestMetadata('profile', pubkey, (event: Event) => {
+      try {
+        const profile = normalizeProfile(JSON.parse(event.content))
+        found = true
+        clearTimeout(timeout)
+        cleanup()
+        set(cacheKey, profile)
+        resolve(profile)
+      } catch (e) {
+        // Parse error
+      }
+    })
+  })
+}
+
 export const useProfile = (pubkey: string) => {
   return useQuery({
     queryKey: ['profile', pubkey],
-    queryFn: async () => {
-      if (!pubkey) return null
-      
-      const cacheKey = `profile-${pubkey}`
-      const cached = await get(cacheKey) as UserProfile | undefined
-      
-      return new Promise<UserProfile | null>((resolve) => {
-        let found = false
-        
-        // Timeout: If network is slow, resolve with cache if available, else null
-        const timeout = setTimeout(() => {
-          if (!found) {
-            resolve(cached || null)
-          }
-        }, 4000)
-
-        const cleanup = nostrService.requestMetadata('profile', pubkey, (event: Event) => {
-          try {
-            const profile = normalizeProfile(JSON.parse(event.content))
-            found = true
-            clearTimeout(timeout)
-            cleanup()
-            set(cacheKey, profile)
-            resolve(profile)
-          } catch (e) {
-            // Parse error
-          }
-        })
-      })
-    },
+    queryFn: () => fetchProfile(pubkey),
     // Keep profiles fresh for 30 mins, purge if unused for 1 hour
     staleTime: 1000 * 60 * 30, 
     gcTime: 1000 * 60 * 60,

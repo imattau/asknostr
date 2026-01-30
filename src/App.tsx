@@ -68,6 +68,13 @@ function App() {
       }
     }, [user.pubkey, layout, stack.length, resetStack])
 
+  // Fetch global events for trends
+  const { data: trendEvents = [] } = useFeed({ 
+    filters: [{ kinds: [1], limit: 100 }],
+    limit: 100,
+    live: true
+  });
+
   const [composerCollapsed, setComposerCollapsed] = useState(false)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
 
@@ -181,6 +188,7 @@ function App() {
       stack={stack}
       popLayer={popLayer}
       pushLayer={pushLayer}
+      events={trendEvents}
     />
   )
 }

@@ -3,6 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { nostrService, SubscriptionPriority } from '../services/nostr';
 import type { Filter, Event } from 'nostr-tools';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { fetchProfile } from './useProfile';
+import { fetchReactions } from './useReactions';
+import { fetchZaps } from './useZaps';
+import { fetchReplyCount } from './useReplyCount';
 
 interface UseFeedOptions {
   filters: Filter[];
@@ -131,6 +135,21 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
       }
       eventBufferRef.current.push(event);
       setPendingCount(eventBufferRef.current.length);
+
+      // Optimistically prefetch images so they render instantly when flushed
+      const imageMatches = event.content.match(/https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp)/gi);
+      if (imageMatches) {
+        imageMatches.forEach(url => {
+          const img = new Image();
+          img.src = url;
+        });
+      }
+
+      // Prefetch metadata (Profile, Reactions, Zaps, Replies)
+      queryClient.prefetchQuery({ queryKey: ['profile', event.pubkey], queryFn: () => fetchProfile(event.pubkey) });
+      queryClient.prefetchQuery({ queryKey: ['reactions', event.id], queryFn: () => fetchReactions(event.id) });
+      queryClient.prefetchQuery({ queryKey: ['zaps', event.id], queryFn: () => fetchZaps(event.id) });
+      queryClient.prefetchQuery({ queryKey: ['reply-count', event.id], queryFn: () => fetchReplyCount(event.id) });
     };
 
     unregister = nostrService.registerFeed(feedKey, parsedFilters, normalizedRelayList, snapshotLimit, handleEvent);

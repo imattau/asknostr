@@ -117,15 +117,9 @@ class TorrentService {
     // We wait for the magnet because it's required for the post content
     const magnet = await magnetPromise
     
-    // We check if the upload is already done, otherwise we let it finish in the background
-    // but we return the magnet so the UI can proceed.
-    // To handle the case where the user hits "Transmit" before the upload finishes,
-    // we return the promise for the fallbackUrl or the value if it's already there.
-    
-    const fallbackUrl = await Promise.race([
-      uploadPromise,
-      new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 2000))
-    ])
+    // Wait for the upload to complete to ensure we capture the fallback URL.
+    // The uploadPromise already contains a 30s timeout safety net.
+    const fallbackUrl = await uploadPromise
 
     return { magnet, fallbackUrl }
   }
