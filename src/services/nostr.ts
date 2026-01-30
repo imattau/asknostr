@@ -62,8 +62,8 @@ class NostrService {
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
-  private readonly MAX_CONCURRENT_SUBS = 20 // Back to 20, but with discipline
-  private readonly SUB_BURST_INTERVAL_MS = 100 // Snappy but controlled
+  private readonly MAX_CONCURRENT_SUBS = 10
+  private readonly SUB_BURST_INTERVAL_MS = 250
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -235,15 +235,20 @@ class NostrService {
     customRelays?: string[],
     options?: { onEose?: () => void, priority?: SubscriptionPriority }
   ) {
+    const subId = Math.random().toString(36).slice(2, 9)
+    console.log(`[Nostr] [${subId}] New sub request. Priority: ${options?.priority ?? 1}. Filters:`, filters.length)
+
     let underlyingSub: { close: () => void } | null = null
     let isClosed = false
 
     const resolveRequest = (sub: { close: () => void }) => {
       if (isClosed) {
+        console.log(`[Nostr] [${subId}] Sub resolved but already closed. Closing underlying.`)
         sub.close()
         this.activeSubscriptionsCount--
         this.processQueue()
       } else {
+        console.log(`[Nostr] [${subId}] Sub active and linked.`)
         underlyingSub = sub
       }
     }
@@ -252,11 +257,13 @@ class NostrService {
       close: () => {
         if (isClosed) return
         isClosed = true
+        console.log(`[Nostr] [${subId}] Closing sub.`)
         if (underlyingSub) {
           underlyingSub.close()
           this.activeSubscriptionsCount--
           this.processQueue()
         } else {
+          console.log(`[Nostr] [${subId}] Sub was still in queue. Removing.`)
           this.subscriptionQueue = this.subscriptionQueue.filter(req => req.resolve !== resolveRequest)
         }
       }
@@ -279,12 +286,16 @@ class NostrService {
   }
 
   private processQueue() {
+    if (this.subscriptionQueue.length > 0) {
+      console.log(`[Nostr] Queue status: ${this.activeSubscriptionsCount}/${this.MAX_CONCURRENT_SUBS} active. ${this.subscriptionQueue.length} pending.`)
+    }
+
     if (this.activeSubscriptionsCount >= this.MAX_CONCURRENT_SUBS || this.subscriptionQueue.length === 0) {
       return
     }
 
     const slotsAvailable = this.MAX_CONCURRENT_SUBS - this.activeSubscriptionsCount
-    const toProcess = Math.min(slotsAvailable, 3)
+    const toProcess = Math.min(slotsAvailable, 2)
 
     for (let i = 0; i < toProcess; i++) {
       if (this.subscriptionQueue.length === 0) break
@@ -295,12 +306,13 @@ class NostrService {
     }
   }
 
-  private executeSubscription(request: SubscriptionRequest) {
-    const { filters, onEvent, relays, options, resolve } = request
     const urls = this.normalizeRelays(relays.slice(0, this.maxActiveRelays))
     const cleanFilters = filters.filter(f => f && typeof f === 'object' && Object.keys(f).length > 0)
 
+    console.log(`[Nostr] [${subId}] Executing sub. Raw Filters:`, filters, 'Cleaned Filters:', cleanFilters); // Log raw and cleaned filters
+
     if (urls.length === 0 || cleanFilters.length === 0) {
+      console.warn(`[Nostr] [${subId}] Execution skipped: No relays (${urls.length}) or empty filters (${cleanFilters.length}).`)
       this.activeSubscriptionsCount--
       resolve({ close: () => {} })
       this.processQueue()
@@ -316,15 +328,21 @@ class NostrService {
     }
 
     try {
-      const subscription = this.pool.subscribeMany(
-        urls,
-        cleanFilters,
+      console.log(`[Nostr] [${subId}] Calling pool.subscribeMap with relays: ${urls.length}, filters: ${cleanFilters.length}. Sample filter:`, cleanFilters.length > 0 ? cleanFilters[0] : 'N/A');
+      const subscription = this.pool.subscribeMap(
+        urls.flatMap(url => cleanFilters.map(f => ({ url, filter: f }))),
         {
           onevent: wrappedCallback,
-          oneose: () => options?.onEose?.(),
-          onclose: () => {}
+          oneose: () => {
+            console.log(`[Nostr] [${subId}] EOSE received`)
+            options?.onEose?.()
+          },
+          onclose: () => {
+            console.log(`[Nostr] [${subId}] Relay connection closed for sub`)
+          }
         }
       )
+      console.log(`[Nostr] [${subId}] Subscription object returned:`, subscription);
 
       resolve({
         close: () => subscription.close()
@@ -332,7 +350,7 @@ class NostrService {
 
       setTimeout(() => this.processQueue(), this.SUB_BURST_INTERVAL_MS)
     } catch (e) {
-      console.error('[Nostr] Subscription failed:', e)
+      console.error(`[Nostr] [${subId}] Subscription failed execution:`, e)
       this.activeSubscriptionsCount--
       resolve({ close: () => {} })
       this.processQueue()
