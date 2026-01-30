@@ -1,3 +1,4 @@
-# Tech Stack: asknostr\n\n- **Programming Language:** TypeScript\n- **Frontend Framework:** React (v19)\n- **Build Tool:** Vite\n- **Styling:** Tailwind CSS (v4)\n- **State Management:** \n  - **Zustand:** Client-side state (UI, Auth, Navigation)\n  - **React Query (TanStack Query):** Server-side/Relay state management (Data fetching, caching)\n- **Protocols:** Nostr (`nostr-tools`), BitTorrent (`webtorrent`)\n- **Testing:** 
+# Tech Stack: asknostr\n\n- **Programming Language:** TypeScript\n- **Frontend Framework:** React (v19)\n- **Build Tool:** Vite\n- **Styling:** Tailwind CSS (v4)\n- **State Management:** \n  - **Zustand:** Client-side state (UI, Auth, Navigation)\n  - **React Query (TanStack Query):** Server-side/Relay state management (Data fetching, caching)\n- **Protocols:** Nostr (`nostr-tools`), BitTorrent (`webtorrent`)
+- **Web Workers:** Background BitTorrent client and cryptographic hashing\n- **Testing:** 
   - **Vitest:** Unit and integration testing
 - **Utilities:** Framer Motion, React Hook Form, Zod, Lucide React
