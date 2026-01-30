@@ -74,7 +74,8 @@ describe('TorrentWorkerBridge', () => {
         payload: {
           infoHash: 'abc',
           magnetURI: 'magnet:?xt=urn:btih:abc',
-          name: 'test.txt'
+          name: 'test.txt',
+          progress: 1
         }
       }
     })
@@ -85,13 +86,14 @@ describe('TorrentWorkerBridge', () => {
     expect(bridge.get('abc')?.progress).toBe(1)
   })
 
-  it('should update local state when TORRENT_ADDED is received', async () => {
+  it('should update local state when TORRENT_ADDED and TORRENT_READY are received', async () => {
     const magnet = 'magnet:?xt=urn:btih:def'
     const addPromise = bridge.add(magnet)
     
     const mockWorker = (bridge as any).worker
     const onmessage = mockWorker.onmessage
     
+    // 1. Torrent added (metadata only)
     onmessage({
       data: {
         type: 'TORRENT_ADDED',
@@ -102,10 +104,25 @@ describe('TorrentWorkerBridge', () => {
       }
     })
     
+    expect(bridge.get('def')).toBeDefined()
+    expect(bridge.get('def')?.isReady).toBe(false)
+
+    // 2. Torrent ready
+    onmessage({
+      data: {
+        type: 'TORRENT_READY',
+        payload: {
+          infoHash: 'def',
+          magnetURI: magnet,
+          progress: 0.1
+        }
+      }
+    })
+    
     const result = await addPromise
     expect(result.infoHash).toBe('def')
-    expect(bridge.get('def')).toBeDefined()
-    expect(bridge.get('def')?.progress).toBe(0)
+    expect(bridge.get('def')?.isReady).toBe(true)
+    expect(bridge.get('def')?.progress).toBe(0.1)
   })
 
   it('should update health when HEALTH_UPDATE is received', () => {

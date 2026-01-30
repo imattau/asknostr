@@ -225,15 +225,42 @@ export const ClassicLayout: React.FC<ClassicLayoutProps> = ({
               <h2 className={`text-[10px] font-mono font-bold uppercase ${mutedText} mb-4 border-b ${borderClass} pb-2 tracking-widest`}>
                 Storage_Contribution
               </h2>
-              <div className="space-y-3 text-[10px] font-mono">
+              <div className="space-y-4 text-[10px] font-mono">
                 <div className="flex justify-between items-center">
                   <span className="opacity-50 uppercase">Swarms:</span>
                   <span className="text-purple-500 font-bold">{activeTorrents.length} ACTIVE</span>
                 </div>
-                <div className="w-full bg-black/20 rounded-full h-1 overflow-hidden">
-                  <div className="bg-purple-500 h-full animate-pulse" style={{ width: activeTorrents.length > 0 ? '60%' : '0%' }} />
-                </div>
-                <p className="text-[8px] opacity-40 uppercase">Helping the community scale</p>
+                
+                {activeTorrents.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    {activeTorrents.slice(0, 3).map((t, idx) => (
+                      <div key={t.infoHash} className="space-y-1">
+                        <div className="flex justify-between text-[8px] opacity-60">
+                          <span className="truncate max-w-[120px] uppercase">{t.name || `Swarm_${t.infoHash.slice(0,6)}`}</span>
+                          <span>{t.numPeers}P</span>
+                        </div>
+                        <div className="w-full bg-black/20 rounded-full h-1 overflow-hidden">
+                          <div 
+                            className="bg-purple-500 h-full transition-all duration-1000" 
+                            style={{ width: `${(t.progress * 100)}%` }} 
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {activeTorrents.length > 3 && (
+                      <p className="text-[7px] opacity-30 text-center uppercase">+{activeTorrents.length - 3} more swarms</p>
+                    )}
+                  </div>
+                )}
+
+                {activeTorrents.length === 0 && (
+                  <>
+                    <div className="w-full bg-black/20 rounded-full h-1 overflow-hidden">
+                      <div className="bg-purple-500 h-full animate-pulse" style={{ width: '0%' }} />
+                    </div>
+                    <p className="text-[8px] opacity-40 uppercase">Helping the community scale</p>
+                  </>
+                )}
               </div>
             </div>
 

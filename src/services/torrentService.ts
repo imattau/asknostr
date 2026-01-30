@@ -67,28 +67,54 @@ class TorrentService {
   /**
    * Dual-Action Preparation: Generate magnet and upload to HTTP
    * This is called when the user selects a file. It does NOT persist to DB.
+   * Returns the magnet immediately when ready, and the fallbackUrl via a promise
    */
   async prepareDualUpload(file: File, creatorPubkey: string): Promise<{ magnet: string, fallbackUrl?: string }> {
     console.log('[TorrentService] Preparing hybrid dual-action upload for:', file.name)
     
     // Step A: Local Seed (In-memory, no DB save yet)
+    // This is the primary action for "BT Share"
     const magnetPromise = swarmOrchestrator.seedFile(file, creatorPubkey, false)
     
     // Step B: Hierarchy Upload (Immediate, as we need the URL for the post)
+    // We run this in parallel but we don't necessarily want to block the magnet link
     const uploadPromise = (async () => {
       try {
-        console.log('[TorrentService] Attempting primary upload...')
-        return await mediaService.uploadFile(file)
+        console.log('[TorrentService] Attempting primary upload safety net...')
+        const timeout = new Promise<undefined>((_, reject) => 
+          setTimeout(() => reject(new Error('Upload timeout')), 30000)
+        )
+        return await Promise.race([mediaService.uploadFile(file), timeout])
       } catch (err) {
-        console.warn('[TorrentService] Preferred media servers failed, falling back to bridge...', err)
-        return await bridgeService.uploadToBridge(file).catch((bridgeErr) => {
+        console.warn('[TorrentService] Preferred media servers failed or timed out, falling back to bridge...', err)
+        try {
+          const bridgeTimeout = new Promise<undefined>((_, reject) => 
+            setTimeout(() => reject(new Error('Bridge timeout')), 20000)
+          )
+          return await Promise.race([bridgeService.uploadToBridge(file), bridgeTimeout])
+        } catch (bridgeErr) {
           console.error('[TorrentService] Bridge fallback also failed:', bridgeErr)
           return undefined
-        })
+        }
       }
     })()
 
-    const [magnet, fallbackUrl] = await Promise.all([magnetPromise, uploadPromise])
+    // We wait for the magnet because it's required for the post content
+    const magnet = await magnetPromise
+    
+    // We check if the upload is already done, otherwise we let it finish in the background
+    // but we return the magnet so the UI can proceed.
+    // To handle the case where the user hits "Transmit" before the upload finishes,
+    // we return the promise for the fallbackUrl or the value if it's already there.
+    
+    const fallbackUrl = await Promise.race([
+      uploadPromise,
+      new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 2000))
+    ])
+
+    if (!fallbackUrl) {
+      console.log('[TorrentService] Magnet ready, upload still pending or failed. Returning magnet only.')
+    }
     
     return { magnet, fallbackUrl }
   }

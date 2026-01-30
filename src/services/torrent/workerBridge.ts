@@ -1,9 +1,17 @@
+export interface TorrentFileMetadata {
+  name: string
+  length: number
+  path: string
+}
+
 export interface TorrentState {
   infoHash: string
   magnetURI: string
   name?: string
   progress: number
   numPeers: number
+  files?: TorrentFileMetadata[]
+  isReady?: boolean
 }
 
 export class TorrentWorkerBridge {
@@ -20,49 +28,74 @@ export class TorrentWorkerBridge {
     const { type, payload } = e.data
     
     switch (type) {
-      case 'SEED_READY':
-        this.torrents.set(payload.infoHash.toLowerCase(), {
-          infoHash: payload.infoHash,
-          magnetURI: payload.magnetURI,
-          progress: 1,
-          numPeers: 0
-        })
-        const seedCb = this.callbacks.get(payload.name)
-        if (seedCb) {
-          seedCb(payload)
-          this.callbacks.delete(payload.name)
+      case 'HASH_READY':
+        const hashCb = this.callbacks.get(`hash-${payload.name}`)
+        if (hashCb) {
+          hashCb(payload.hash)
+          this.callbacks.delete(`hash-${payload.name}`)
         }
         break;
 
-      case 'TORRENT_ADDED':
-        this.torrents.set(payload.infoHash.toLowerCase(), {
-          infoHash: payload.infoHash,
-          magnetURI: payload.magnetURI,
-          progress: 0,
-          numPeers: 0
+      case 'SEED_READY':
+      case 'TORRENT_READY':
+        this.updateTorrentState(payload.infoHash, {
+          ...payload,
+          isReady: true
         })
-        const addCb = this.callbacks.get(payload.infoHash.toLowerCase())
-        if (addCb) {
-          addCb(payload)
+        const cb = this.callbacks.get(payload.name) || this.callbacks.get(payload.infoHash.toLowerCase())
+        if (cb) {
+          cb(payload)
+          this.callbacks.delete(payload.name)
           this.callbacks.delete(payload.infoHash.toLowerCase())
         }
         break;
 
+      case 'TORRENT_ADDED':
+        this.updateTorrentState(payload.infoHash, {
+          ...payload,
+          isReady: false
+        })
+        break;
+
       case 'HEALTH_UPDATE':
         payload.reports.forEach((report: any) => {
-          const existing = this.torrents.get(report.infoHash.toLowerCase())
-          if (existing) {
-            existing.progress = report.progress
-            existing.numPeers = report.peerCount
-          }
+          this.updateTorrentState(report.infoHash, {
+            progress: report.progress,
+            numPeers: report.peerCount
+          })
         })
         break;
     }
   }
 
+  private updateTorrentState(infoHash: string, data: Partial<TorrentState>) {
+    const id = infoHash.toLowerCase()
+    const existing = this.torrents.get(id) || {
+      infoHash,
+      magnetURI: '',
+      progress: 0,
+      numPeers: 0
+    }
+    
+    this.torrents.set(id, {
+      ...existing,
+      ...data
+    })
+  }
+
+  hashFile(file: File): Promise<string> {
+    return new Promise((resolve) => {
+      this.callbacks.set(`hash-${file.name}`, resolve)
+      this.worker.postMessage({
+        type: 'HASH_FILE',
+        payload: { file, name: file.name }
+      })
+    })
+  }
+
   get(infoHashOrMagnet: string): TorrentState | undefined {
     const infoHashMatch = infoHashOrMagnet.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
-    const id = infoHashMatch ? infoHashMatch[1].toLowerCase() : infoHashOrMagnet.toLowerCase()
+    const id = (infoHashMatch ? infoHashMatch[1] : infoHashOrMagnet).toLowerCase()
     return this.torrents.get(id)
   }
 

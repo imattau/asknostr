@@ -15,8 +15,10 @@ const DEFAULT_QUOTA_MB = 500
 
 export class PersistenceManager {
   async saveSeed(record: SeededFileRecord) {
-    await this.enforceQuota()
+    // Save first to ensure the new record is counted
     await set(`${STORAGE_KEY_PREFIX}${record.infoHash}`, record)
+    // Then enforce quota asynchronously to not block the current operation
+    this.enforceQuota().catch(err => console.error('[Persistence] Quota enforcement failed:', err))
   }
 
   async getSeed(infoHash: string): Promise<SeededFileRecord | undefined> {
@@ -54,25 +56,35 @@ export class PersistenceManager {
     const seedKeys = await this.getAllSeedKeys()
     if (seedKeys.length === 0) return
 
-    // We still need to calculate size, but we do it more carefully
-    const records: SeededFileRecord[] = []
+    // Load only metadata first if possible, but idb-keyval doesn't support that.
+    // However, we can at least avoid holding all Blobs in an array simultaneously.
+    
+    const quotaBytes = quotaMB * 1024 * 1024
+    let currentSize = 0
+    const metadata: { infoHash: string, size: number, addedAt: number }[] = []
+
     for (const key of seedKeys) {
       const r = await get<SeededFileRecord>(key)
-      if (r) records.push(r)
+      if (r) {
+        currentSize += r.data.size
+        metadata.push({
+          infoHash: r.infoHash,
+          size: r.data.size,
+          addedAt: r.addedAt
+        })
+      }
     }
-
-    let currentSize = records.reduce((acc, s) => acc + s.data.size, 0)
-    const quotaBytes = quotaMB * 1024 * 1024
 
     if (currentSize <= quotaBytes) return
 
-    console.log(`[Persistence] Storage quota exceeded. Pruning...`)
-    const oldestFirst = records.sort((a, b) => a.addedAt - b.addedAt)
+    console.log(`[Persistence] Storage quota exceeded (${(currentSize / 1024 / 1024).toFixed(2)}MB > ${quotaMB}MB). Pruning...`)
+    const oldestFirst = metadata.sort((a, b) => a.addedAt - b.addedAt)
 
-    for (const seed of oldestFirst) {
+    for (const item of oldestFirst) {
       if (currentSize <= quotaBytes) break
-      await this.removeSeed(seed.infoHash)
-      currentSize -= seed.data.size
+      await this.removeSeed(item.infoHash)
+      currentSize -= item.size
+      console.log(`[Persistence] Pruned ${item.infoHash} (${(item.size / 1024 / 1024).toFixed(2)}MB)`)
     }
   }
 }

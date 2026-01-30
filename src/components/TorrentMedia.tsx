@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { torrentService } from '../services/torrentService'
-// @ts-ignore
-import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
 import { Loader2, Share2, Users, Download, AlertCircle } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
+import type { TorrentState } from '../services/torrent/workerBridge'
 
 interface TorrentMediaProps {
   magnetUri: string
@@ -11,16 +10,16 @@ interface TorrentMediaProps {
 }
 
 export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackUrl }) => {
-  const [torrent, setTorrent] = useState<WebTorrent.Torrent | null>(null)
+  const [torrentState, setTorrentState] = useState<TorrentState | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isReady, setIsRevealed] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [numPeers, setNumPeers] = useState(0)
-  const numPeersRef = useRef(0)
-  const isReadyRef = useRef(false)
   const [useFallback, setUseFallback] = useState(false)
+  const [isReady, setIsReady] = useState(false)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const mediaRef = useRef<HTMLDivElement>(null)
   const { theme } = useUiStore()
+
+  const infoHashMatch = magnetUri.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
+  const infoHash = infoHashMatch ? infoHashMatch[1].toLowerCase() : null
 
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
   const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
@@ -28,11 +27,11 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
 
   useEffect(() => {
     let mounted = true
-    let interval: ReturnType<typeof setTimeout>
+    let interval: ReturnType<typeof setInterval>
     
     // The 5-Second Rule: Fallback to HTTP if swarm is cold
     const fallbackTimer = setTimeout(() => {
-      if (mounted && numPeersRef.current === 0 && !isReadyRef.current && fallbackUrl) {
+      if (mounted && (!torrentState || torrentState.numPeers === 0) && !isReady && fallbackUrl) {
         console.log('[TorrentMedia] Swarm cold after 5s, falling back to HTTP...')
         setUseFallback(true)
       }
@@ -40,38 +39,20 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
 
     const initTorrent = async () => {
       try {
-        const t = await torrentService.addTorrent(magnetUri)
-        if (!mounted) return
-        setTorrent(t)
-
-        t.on('ready', () => {
-          console.log('[TorrentMedia] Torrent ready:', t.name)
-          if (mounted) {
-            isReadyRef.current = true
-            setIsRevealed(true) // Update state for re-render
-            setUseFallback(false)
-          }
-        })
-
-        t.on('error', (err: any) => {
-          console.error('[TorrentMedia] Torrent error:', err)
-          if (mounted) setError(typeof err === 'string' ? err : err.message)
-        })
+        await torrentService.addTorrent(magnetUri)
+        if (infoHash) {
+          torrentService.prioritizeInitialChunks(infoHash)
+        }
 
         interval = setInterval(() => {
-          if (mounted && t) {
-            setProgress(t.progress)
-            numPeersRef.current = t.numPeers
-            setNumPeers(t.numPeers)
-            if (t.numPeers > 0) setUseFallback(false)
+          if (!mounted) return
+          const state = torrentService.getActiveTorrents().find(t => t.infoHash.toLowerCase() === infoHash)
+          if (state) {
+            setTorrentState({ ...state })
+            if (state.isReady) setIsReady(true)
+            if (state.numPeers > 0) setUseFallback(false)
           }
-        }, 3000) // Reduced frequency to 3s
-
-        // If it's already ready (e.g. from service cache)
-        if (t.ready && mounted) {
-          isReadyRef.current = true
-          setIsRevealed(true) // Update state for re-render
-        }
+        }, 2000)
       } catch (err) {
         console.error('[TorrentMedia] Failed to add torrent:', err)
         if (mounted && !fallbackUrl) setError('Failed to join swarm')
@@ -85,31 +66,13 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
       mounted = false
       clearInterval(interval)
       clearTimeout(fallbackTimer)
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
     }
-  }, [magnetUri, fallbackUrl])
+  }, [magnetUri, fallbackUrl, infoHash])
 
-  useEffect(() => {
-    if (isReady && torrent && mediaRef.current && !useFallback) {
-      const file = torrent.files.find((f: any) => 
-        f.name.match(/\.(mp4|webm|mov|png|jpg|jpeg|gif|webp|mp3|wav|ogg)$/i)
-      ) || torrent.files[0]
-
-      if (file && mediaRef.current.childNodes.length === 0) {
-        // Use appendTo for general element creation within the div
-        file.appendTo(mediaRef.current, (err: any, elem: any) => {
-          if (err) console.error('[TorrentMedia] Render error:', err)
-          if (elem) {
-            elem.className = 'max-h-[500px] w-full object-contain'
-            if (elem.tagName === 'VIDEO' || elem.tagName === 'AUDIO') {
-              (elem as HTMLMediaElement).controls = true
-            }
-          }
-        })
-      }
-    }
-  }, [isReady, torrent, useFallback])
-
-  if (useFallback && fallbackUrl) {
+  // For now, if we have a fallback URL and it's a video/audio, we'll use it for better streaming performance
+  // while the worker seeds in the background.
+  if ((useFallback || !isReady) && fallbackUrl) {
     const isVideo = fallbackUrl.match(/\.(mp4|webm|mov)$/i)
     const isAudio = fallbackUrl.match(/\.(mp3|wav|ogg)$/i)
 
@@ -124,7 +87,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
         )}
         <div className="absolute top-2 right-2 flex gap-2">
           <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[8px] font-mono text-amber-400 border border-amber-500/30 flex items-center gap-1">
-            HTTP_FALLBACK_ACTIVE
+            {isReady ? 'HYBRID_MODE_ACTIVE' : 'HTTP_FALLBACK_ACTIVE'}
           </div>
         </div>
       </div>
@@ -149,25 +112,35 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
             <p className={`text-[10px] font-mono uppercase tracking-widest ${mutedText}`}>Synchronizing_Swarm...</p>
             <div className="flex items-center gap-4 mt-2 justify-center">
               <span className="flex items-center gap-1 text-[9px] font-bold text-cyan-500">
-                <Users size={12} /> {numPeers} PEERS
+                <Users size={12} /> {torrentState?.numPeers || 0} PEERS
               </span>
               <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-500">
-                <Download size={12} /> {(progress * 100).toFixed(1)}%
+                <Download size={12} /> {((torrentState?.progress || 0) * 100).toFixed(1)}%
               </span>
             </div>
           </div>
         </div>
       )}
 
-      <div ref={mediaRef} className={(isReady && !useFallback) ? 'block' : 'hidden'} />
+      {isReady && !useFallback && (
+        <div className="p-12 flex flex-col items-center justify-center space-y-4">
+           <Share2 size={48} className="text-purple-500 opacity-50" />
+           <p className="text-[10px] font-mono uppercase tracking-widest opacity-50">
+             Stream_Available_Via_Worker
+           </p>
+           <p className="text-[8px] opacity-30 text-center max-w-[200px]">
+             Direct P2P rendering is currently being optimized for the worker bridge.
+           </p>
+        </div>
+      )}
 
       {isReady && !useFallback && (
         <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[8px] font-mono text-purple-400 border border-purple-500/30 flex items-center gap-1">
-            <Share2 size={10} /> P2P_STREAM
+            <Share2 size={10} /> P2P_ACTIVE
           </div>
           <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[8px] font-mono text-cyan-400 border border-cyan-500/20 flex items-center gap-1">
-            <Users size={10} /> {numPeers}
+            <Users size={10} /> {torrentState?.numPeers || 0}
           </div>
         </div>
       )}

@@ -1,12 +1,6 @@
 import { useStore } from '../store/useStore'
 import { signerService } from './signer'
-
-async function computeSha256(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer()
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-}
+import { TorrentClient } from './torrent/client'
 
 function utf8ToBase64(str: string): string {
   return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => {
@@ -23,7 +17,8 @@ class MediaService {
       throw new Error('No media servers configured')
     }
 
-    const sha256 = await computeSha256(file)
+    // Offload hashing to BitTorrent worker to avoid main-thread stutter
+    const sha256 = await TorrentClient.get().hashFile(file)
     let lastError: Error | null = null
 
     // Try all configured servers in order
