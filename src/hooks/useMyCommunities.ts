@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
@@ -7,6 +7,7 @@ import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export const useMyCommunities = () => {
   const { user, relays: storeRelays, administeredStations, setAdministeredStations } = useStore()
+  const queryClient = useQueryClient()
 
   return useQuery<CommunityDefinition[]>({
     queryKey: ['my-communities', user.pubkey, storeRelays],
@@ -27,8 +28,14 @@ export const useMyCommunities = () => {
           if (timeoutId) clearTimeout(timeoutId)
           subRef?.close()
           const uniqueFinal = Array.from(
-            new Map(owned.map(item => [item.id, item])).values()
+            new Map(owned.map(item => [`${item.creator}:${item.id}`, item])).values()
           )
+          
+          // Seed the individual query cache for each discovered community
+          uniqueFinal.forEach(comm => {
+            queryClient.setQueryData(['community', comm.id, comm.creator], comm)
+          })
+
           if (uniqueFinal.length > administeredStations.length) {
             setAdministeredStations(uniqueFinal)
           }
@@ -45,16 +52,11 @@ export const useMyCommunities = () => {
             seen.add(event.id)
             const definition = parseCommunityEvent(event)
             if (definition) {
-              // Check if we already have this station (either from local or previous network event)
-              const existingIndex = owned.findIndex(s => s.id === definition.id)
-              
+              const existingIndex = owned.findIndex(s => s.id === definition.id && s.creator === definition.creator)
               if (existingIndex === -1) {
-                // New station found
                 owned.push(definition)
               } else {
-                // Update if potentially newer (though we can't easily check created_at here without expanding the type, 
-                // typically network results might be fresher or same)
-                // For now, we just ensure we don't duplicate.
+                owned[existingIndex] = definition
               }
             }
           },
