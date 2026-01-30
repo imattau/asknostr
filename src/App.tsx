@@ -64,90 +64,21 @@ function App() {
 
   
 
-    // Use the new useFeed hook for event data
-
-    const feedFilters = useMemo(() => [{ kinds: [1], limit: 50 }], []);
-
-    const { data: events = [], isLoading: isFeedLoading, isFetching: isFeedFetching, fetchMore, isFetchingMore } = useFeed({ 
-
-      filters: feedFilters,
-
-      live: false // Disable live updates for background discovery feed
-
-    });
-
-  
-
-    useEffect(() => {
-
-      // Process new events for social seeding during idle time
-
-      if (!events.length) return
-
-  
-
-      const processEvents = () => {
-
-        // Only process the most recent events to save CPU
-
-        const recent = events.slice(0, 50)
-
-        recent.forEach(e => torrentService.processEvent(e))
-
-      }
-
-  
-
-      if ('requestIdleCallback' in window) {
-
-        window.requestIdleCallback(processEvents)
-
-      } else {
-
-        setTimeout(processEvents, 1000)
-
-      }
-
-    }, [events])
-
-  
-
-    const deletionEvents = useMemo(() => events.slice(0, 500), [events])
-
-    const { data: deletedIds = [] } = useDeletions(deletionEvents)
-
-    const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
-
-  
+    // Discovery logic removed from App shell to prevent redraws
+    // Social seeding will be handled by the active feed components instead
 
     // Set default view for logged-in users on mobile
-
     useEffect(() => {
-
       if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
-
         resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
-
       }
-
     }, [user.pubkey, layout])
 
-  
-
-
-
   const [composerCollapsed, setComposerCollapsed] = useState(false)
-
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
 
   const feedRef = useRef<any>(null)
   const lastScrollTop = useRef(0)
-
-
-
-
-
-
 
   const handleFeedScroll = useCallback(
     (scrollTop: number) => {
@@ -167,8 +98,6 @@ function App() {
     []
   )
   
-
-
   const renderLayerContent = useCallback((layer: Layer) => {
     switch (layer.type) {
       case 'sidebar':
@@ -180,24 +109,21 @@ function App() {
         const tagFilter = params?.filter?.['#t']
         const firstTag = tagFilter?.[0]
         
-        // Local component to handle filtering and prevent App re-renders from filtering on every tick
         return (
-          <FeedContainer 
-            events={events}
+          <MainFeed 
             firstTag={firstTag}
-            deletedSet={deletedSet}
-            muted={muted}
             user={user}
             composerCollapsed={composerCollapsed}
             setComposerCollapsed={setComposerCollapsed}
             isHeaderHidden={isHeaderHidden}
-            isFetchingMore={isFetchingMore}
-            fetchMore={fetchMore}
             handleFeedScroll={handleFeedScroll}
             feedRef={feedRef}
+            muted={muted}
           />
         )
       }
+// ... (rest of renderLayerContent remains similar)
+
       case 'thread': return (
         <Thread 
           eventId={layer.params?.eventId as string} 
@@ -289,9 +215,8 @@ function FeedContainer({
       setTheme={setTheme}
       renderLayerContent={renderLayerContent}
       isHeaderHidden={isHeaderHidden}
-      events={events}
-      isFeedLoading={isFeedLoading}
-      isFeedFetching={isFeedFetching}
+      isFeedLoading={false} // Loading handled internally now
+      isFeedFetching={false}
       isConnected={isConnected}
       user={user}
       login={login}
@@ -300,6 +225,55 @@ function FeedContainer({
       popLayer={popLayer}
       pushLayer={pushLayer}
     />
+  )
+}
+
+function MainFeed({ 
+  firstTag, user, composerCollapsed, setComposerCollapsed, 
+  isHeaderHidden, handleFeedScroll, feedRef, muted 
+}: any) {
+  const feedFilters = useMemo(() => [{ kinds: [1], limit: 50 }], []);
+  const { data: events = [], fetchMore, isFetchingMore } = useFeed({ 
+    filters: feedFilters,
+    live: true // Enable live for active view
+  });
+
+  useEffect(() => {
+    if (!events.length) return
+    const processEvents = () => {
+      events.slice(0, 50).forEach(e => torrentService.processEvent(e))
+    }
+    if ('requestIdleCallback' in window) window.requestIdleCallback(processEvents)
+    else setTimeout(processEvents, 1000)
+  }, [events])
+
+  const { data: deletedIds = [] } = useDeletions(events.slice(0, 500))
+  const deletedSet = useMemo(() => new Set(deletedIds), [deletedIds])
+
+  const filteredEvents = useMemo(() => {
+    return (firstTag 
+      ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
+      : events).filter(e => !deletedSet.has(e.id) && !muted.includes(e.pubkey))
+  }, [events, firstTag, deletedSet, muted])
+
+  return (
+    <div className="h-full flex flex-col">
+      <FeedComposer 
+        user={user} 
+        collapsed={composerCollapsed} 
+        setCollapsed={setComposerCollapsed} 
+        isHidden={isHeaderHidden} 
+      />
+      <div className="flex-1 min-h-0 relative">
+        <VirtualFeed 
+          ref={feedRef} 
+          events={filteredEvents} 
+          isLoadingMore={isFetchingMore} 
+          onLoadMore={() => fetchMore()} 
+          onScroll={handleFeedScroll} 
+        />
+      </div>
+    </div>
   )
 }
 

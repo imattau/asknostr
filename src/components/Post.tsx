@@ -394,7 +394,7 @@ const PostComponent: React.FC<PostProps> = ({
     }
   }
 
-  const renderContent = () => {
+  const contentBody = useMemo(() => {
     const mediaRegexNoCapture = /https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov)/gi
     const magnetRegexNoCapture = /magnet:\?xt=urn:btih:[a-zA-Z0-9]+[^\s]*/gi
     
@@ -476,7 +476,7 @@ const PostComponent: React.FC<PostProps> = ({
         {finalContent}
       </div>
     )
-  }
+  }, [event.content, isThreadView, isHidden, theme]) // Re-run if content or vital display state changes
 
   const currentLayer = stack[stack.length - 1]
   const layerParams = currentLayer?.params as { moderators?: string[] } | undefined
@@ -678,7 +678,7 @@ const PostComponent: React.FC<PostProps> = ({
       </div>
       
       <div className="relative mb-4">
-        {renderContent()}
+        {contentBody}
         {isHidden && (
           <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-white/90' : 'bg-slate-950/70'} border border-red-500/30 rounded-lg`}>
             <div className="flex flex-col items-center gap-2 text-center px-4">

@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useEffect, useMemo } from 'react'
-import { List, useDynamicRowHeight, useListRef } from 'react-window'
+import { List, useDynamicRowHeight, useListRef, areEqual } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
 import { Post } from './Post'
@@ -13,8 +13,9 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-const Row = (props: any): React.ReactElement | null => {
-  const { index, style, events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = props
+const Row = React.memo((props: any) => {
+  const { index, style, data } = props
+  const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
 
   const rowRef = useRef<HTMLDivElement>(null)
 
@@ -58,7 +59,9 @@ const Row = (props: any): React.ReactElement | null => {
       <Post event={event} depth={0} />
     </div>
   )
-}
+}, areEqual)
+
+Row.displayName = 'VirtualFeedRow'
 
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
   ({ events = [], isLoadingMore, onLoadMore, onScroll, header }, ref) => {
