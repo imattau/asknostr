@@ -59,7 +59,7 @@ function App() {
       if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
         resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
       }
-    }, [user.pubkey, layout])
+    }, [user.pubkey, layout, stack.length, resetStack])
 
   const [composerCollapsed, setComposerCollapsed] = useState(false)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
@@ -109,9 +109,6 @@ function App() {
           />
         )
       }
-// ... (rest of the file remains similar)
-
-// ... (rest of renderLayerContent remains similar)
 
       case 'thread': return (
         <Thread 
@@ -139,7 +136,7 @@ function App() {
       case 'profile-view': return <ProfileView pubkey={layer.params?.pubkey as string | undefined} />
       default: return <div className="p-4 opacity-50 font-mono">[CONTENT_UNAVAILABLE]</div>
     }
-  }, [user, composerCollapsed, isHeaderHidden, handleFeedScroll, muted]) // Removed outdated dependencies
+  }, [user, composerCollapsed, isHeaderHidden, handleFeedScroll, muted, pushLayer, feedRef]) 
 
   if (layout === 'swipe') {
     return (
@@ -189,10 +186,20 @@ function MainFeed({
   const { data: events = [], fetchMore, isFetchingMore, pendingCount, flushBuffer } = useFeed({ 
     filters: feedFilters,
     live: true,
-    manualFlush: true // Enable manual control
+    manualFlush: true 
   });
 
-  // ... (existing useEffect and deletedSet logic)
+  useEffect(() => {
+    if (!events || events.length === 0) return
+    const processEvents = () => {
+      events.slice(0, 50).forEach(e => torrentService.processEvent(e))
+    }
+    if ('requestIdleCallback' in window) window.requestIdleCallback(processEvents)
+    else setTimeout(processEvents, 1000)
+  }, [events])
+
+  const { data: deletedIds = [] } = useDeletions(events ? events.slice(0, 500) : [])
+  const deletedSet = useMemo(() => new Set(deletedIds || []), [deletedIds])
 
   const filteredEvents = useMemo(() => {
     if (!events) return []
@@ -217,7 +224,9 @@ function MainFeed({
           <button
             onClick={() => {
               flushBuffer(50)
-              feedRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })
+              // Scroll to top
+              const scroller = document.querySelector('.virtuoso-scroller');
+              if (scroller) scroller.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="bg-cyan-500 text-black text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400 hover:bg-cyan-400 transition-all flex items-center gap-2"
           >
