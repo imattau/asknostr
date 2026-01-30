@@ -216,14 +216,14 @@ function MainFeed({
   }, [events, firstTag, deletedSet, muted])
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       <FeedComposer 
         user={user} 
         collapsed={composerCollapsed} 
         setCollapsed={setComposerCollapsed} 
         isHidden={isHeaderHidden} 
       />
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-0 relative w-full">
         <VirtualFeed 
           ref={feedRef} 
           events={filteredEvents} 
