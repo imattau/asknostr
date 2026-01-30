@@ -14,7 +14,6 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
-// Extract Row to a memoized component outside the main class to prevent re-renders
 const Row = memo(({
   index,
   style,
@@ -65,6 +64,15 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     const rowCount = events.length + (header ? 1 : 0) + 1
     const { theme } = useUiStore()
 
+    // Stable key generator to prevent unnecessary re-mounts
+    const getKey = (index: number, data: any) => {
+      const { events, header } = data;
+      if (header && index === 0) return 'header';
+      const adjustedIndex = header ? index - 1 : index;
+      if (adjustedIndex === events.length) return 'load-more';
+      return events[adjustedIndex]?.id || `idx-${index}`;
+    };
+
     return (
       <div className="h-full w-full">
         <AutoSizer
@@ -78,12 +86,13 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 width={width}
                 itemCount={rowCount}
                 itemSize={260}
+                itemKey={getKey}
                 itemData={{ 
                   events, 
                   isLoadingMore, 
                   onLoadMore, 
                   header,
-                  theme // Pass theme via itemData instead of individual hook calls
+                  theme 
                 }}
                 onScroll={(e: any) => {
                   if (onScroll) {

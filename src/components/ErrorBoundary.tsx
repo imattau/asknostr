@@ -4,22 +4,24 @@ import { errorReporter } from '../services/errorReporter'
 interface ErrorBoundaryState {
   hasError: boolean
   errorId: string | null
+  errorMessage: string | null
 }
 
 export class ErrorBoundary extends React.Component<React.PropsWithChildren<object>, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
-    errorId: null
+    errorId: null,
+    errorMessage: null
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMessage: error.message }
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
     console.error('[ErrorBoundary] captured', error, info.componentStack)
     const report = errorReporter.reportError(error, info.componentStack ?? undefined)
-    this.setState({ errorId: report.id })
+    this.setState({ errorId: report.id, errorMessage: error instanceof Error ? error.message : String(error) })
   }
 
   handleReload = () => {
@@ -61,8 +63,13 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren<objec
             Something went wrong during execution. Our telemetry has captured the following incident identifier:
           </p>
           
-          <div className="bg-black/40 rounded-xl p-3 border border-white/5 flex items-center justify-center">
-            <code className="text-xs font-mono text-red-300 select-all break-all">{this.state.errorId || 'PROCESSING...'}</code>
+          <div className="bg-black/40 rounded-xl p-3 border border-white/5 space-y-2">
+            <code className="text-xs font-mono text-red-300 select-all break-all block text-center">{this.state.errorId || 'PROCESSING...'}</code>
+            {this.state.errorMessage && (
+              <p className="text-[9px] font-mono text-slate-500 border-t border-white/5 pt-2 italic truncate text-center">
+                ERR: {this.state.errorMessage}
+              </p>
+            )}
           </div>
         </div>
 

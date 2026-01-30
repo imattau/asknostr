@@ -46,14 +46,15 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           {
             onEose: () => {
               cleanup();
-              resolve(events.sort((a, b) => b.created_at - a.created_at));
+              // Stable sort: Created at descending, then ID for tie-breaker
+              resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)));
             }
           }
         ).then(s => {
           sub = s;
           setTimeout(() => {
             cleanup();
-            resolve(events.sort((a, b) => b.created_at - a.created_at));
+            resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)));
           }, 5000);
         }).catch(reject);
       });
@@ -75,27 +76,24 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
       limit
     }));
 
-    console.log('[useFeed] Fetching more history before:', oldestTimestamp);
-
     return new Promise<void>((resolve) => {
       let sub: { close: () => void } | undefined;
-      const newEvents: Event[] = [];
+      const newEventsBatch: Event[] = [];
 
       nostrService.subscribe(
         paginatedFilters,
         (event) => {
-          if (!newEvents.some(e => e.id === event.id)) newEvents.push(event);
+          if (!newEventsBatch.some(e => e.id === event.id)) newEventsBatch.push(event);
         },
         customRelays,
         {
           onEose: () => {
             sub?.close();
             queryClient.setQueryData<Event[]>(queryKey, (old = []) => {
-              const combined = [...old, ...newEvents];
-              // Ensure uniqueness and maintain sort order
+              const combined = [...old, ...newEventsBatch];
               const uniqueMap = new Map();
               combined.forEach(e => uniqueMap.set(e.id, e));
-              return Array.from(uniqueMap.values()).sort((a, b) => b.created_at - a.created_at);
+              return Array.from(uniqueMap.values()).sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id));
             });
             setIsFetchingMore(false);
             resolve();
@@ -126,7 +124,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         limit: undefined
       }));
 
-      // Set up the interval to flush the buffer every 4 seconds for better stability
       flushIntervalRef.current = setInterval(() => {
         if (eventBufferRef.current.length === 0) return;
 
@@ -134,18 +131,13 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         eventBufferRef.current = [];
 
         queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
-          // Efficiently merge using a Map to avoid O(n^2) behavior
           const mergedMap = new Map<string, Event>();
-          
-          // Add old events first
           oldEvents.forEach(e => mergedMap.set(e.id, e));
-          
-          // Add new events (will overwrite duplicates if they somehow arrived again)
           newEventsBatch.forEach(e => mergedMap.set(e.id, e));
           
           return Array.from(mergedMap.values())
-            .sort((a, b) => b.created_at - a.created_at)
-            .slice(0, 800); // Slightly smaller cap for better scrolling performance
+            .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+            .slice(0, 1000);
         });
       }, 4000);
 
