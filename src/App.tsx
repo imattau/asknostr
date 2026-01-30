@@ -60,8 +60,20 @@ function App() {  const { isConnected, user, login, logout } = useStore()
         });
 
   useEffect(() => {
-    // Process new events for social seeding
-    events.forEach(e => torrentService.processEvent(e))
+    // Process new events for social seeding during idle time
+    if (!events.length) return
+
+    const processEvents = () => {
+      // Only process the most recent events to save CPU
+      const recent = events.slice(0, 50)
+      recent.forEach(e => torrentService.processEvent(e))
+    }
+
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(processEvents)
+    } else {
+      setTimeout(processEvents, 1000)
+    }
   }, [events])
 
   

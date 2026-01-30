@@ -1,61 +1,64 @@
-// @ts-ignore
-import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
 import { TorrentClient, TRACKERS } from './client'
 import { persistenceManager, type SeededFileRecord } from './persistence'
 import { useStore } from '../../store/useStore'
 import type { Event } from 'nostr-tools'
 
 export class SwarmOrchestrator {
-  private followedPubkeys: Set<string> = new Set()
   private healthReportInterval: ReturnType<typeof setInterval> | null = null
+  private following: string[] = []
+  private socialSwarmCount = 0
+  private readonly MAX_SOCIAL_SWARMS = 10
 
   constructor() {
     this.startHealthReporting()
   }
 
   updateFollows(pubkeys: string[]) {
-    this.followedPubkeys = new Set(pubkeys)
+    this.following = pubkeys
   }
 
-  /**
-   * Automatically join swarms for events from followed users
-   */
   async handleIncomingEvent(event: Event) {
-    if (event.kind !== 1) return
-    if (!this.followedPubkeys.has(event.pubkey)) return
+    // Only auto-join swarms from people we follow to save resources
+    if (!this.following.includes(event.pubkey)) return
+    
+    // Hard limit on auto-joined social swarms to prevent memory exhaustion
+    if (this.socialSwarmCount >= this.MAX_SOCIAL_SWARMS) return
 
-    // Extract magnet links
     const magnetRegex = /magnet:\?xt=urn:btih:([a-zA-Z0-9]+)/gi
     const matches = [...event.content.matchAll(magnetRegex)]
     
-    if (matches.length > 0) {
-      for (const match of matches) {
-        const magnet = match[0]
-        console.log(`[Orchestrator] Social Seed Trigger: Following ${event.pubkey}, auto-joining swarm...`)
-        try {
-          await this.addTorrent(magnet)
-        } catch (err: any) {
-          console.error('[Orchestrator] Failed to auto-join social swarm:', err)
-        }
+    for (const match of matches) {
+      const infoHash = match[1].toLowerCase()
+      const client = TorrentClient.get()
+      
+      const existing = client.get(infoHash)
+      if (existing) continue
+
+      console.log('[Orchestrator] Auto-joining social swarm for follow:', infoHash)
+      try {
+        await this.addTorrent(match[0])
+        this.socialSwarmCount++
+      } catch (e) {
+        // ignore
       }
     }
   }
 
-  async addTorrent(magnetUri: string, _creatorPubkey?: string): Promise<WebTorrent.Torrent> {
-    const client = TorrentClient.get()
-    const existing = await client.get(magnetUri)
-    
-    if (existing) {
-      return existing
-    }
-
+  async addTorrent(magnetUri: string): Promise<any> {
     return new Promise((resolve, reject) => {
+      const client = TorrentClient.get()
+      
+      // If already added, return existing
+      const existing = client.get(magnetUri)
+      if (existing) return resolve(existing)
+
       client.add(magnetUri, { announce: TRACKERS }, (torrent: any) => {
-        console.log('[Orchestrator] Swarm joined:', torrent.infoHash)
         resolve(torrent)
       })
 
-      client.on('error', (err: any) => reject(err))
+      client.on('error', (err: any) => {
+        reject(err)
+      })
     })
   }
 
@@ -71,8 +74,6 @@ export class SwarmOrchestrator {
       client.seed(file, options, async (torrent: any) => {
         console.log('[Orchestrator] Local seeding initialized:', torrent.infoHash)
         
-        // Only save to IndexedDB if explicitly requested (e.g. during restoration)
-        // For new uploads, we wait for finalizePersistence to be called after publication
         if (shouldSave) {
           await this.persistSeed(file, torrent.magnetURI, torrent.infoHash, _creatorPubkey)
         }
@@ -122,9 +123,9 @@ export class SwarmOrchestrator {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reports, timestamp: Date.now() })
-      }).catch(() => { /* Silent fallback */ })
+      }).catch(() => { /* silent */ })
       
-    }, 60000) // Report every minute
+    }, 60000)
   }
 
   stop() {
