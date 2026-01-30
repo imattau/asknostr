@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect, useMemo } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { List, useDynamicRowHeight, useListRef } from 'react-window'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import type { Event } from 'nostr-tools'
@@ -13,14 +13,23 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
+// In react-window v2 (and v1), if you use rowComponent, it receives props.index, props.style, and props.rowProps (v2) or props.data (v1)
 const Row = React.memo((props: any) => {
-  const { index, style, data } = props
+  const { index, style, rowProps } = props
+  // Check if it's v2 (rowProps) or v1 (data)
+  const data = rowProps || props.data
+  
+  if (!data) {
+    console.error('[VirtualFeed] Row rendered without data at index:', index)
+    return <div style={style} />
+  }
+
   const { events, isLoadingMore, onLoadMore, header, theme, dynamicRowHeight } = data
 
   const rowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (rowRef.current) {
+    if (rowRef.current && dynamicRowHeight) {
       return dynamicRowHeight.observeRowElements([rowRef.current])
     }
   }, [dynamicRowHeight])
@@ -60,12 +69,13 @@ const Row = React.memo((props: any) => {
     </div>
   )
 }, (prev, next) => {
-  // Custom comparison to mimic areEqual: check if relevant props or data changed
+  const prevData = prev.rowProps || prev.data
+  const nextData = next.rowProps || next.data
   return prev.index === next.index && 
          prev.style === next.style && 
-         prev.data.events === next.data.events &&
-         prev.data.theme === next.data.theme &&
-         prev.data.isLoadingMore === next.data.isLoadingMore
+         prevData?.events === nextData?.events &&
+         prevData?.theme === nextData?.theme &&
+         prevData?.isLoadingMore === nextData?.isLoadingMore
 })
 
 Row.displayName = 'VirtualFeedRow'
@@ -75,9 +85,6 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
     const internalListRef = useListRef()
     const { theme } = useUiStore()
     
-    // We want to clear cache when the list is REFRESHED (e.g. navigation or manual refresh)
-    // but not necessarily on every tiny update. 
-    // However, if the first item's ID changes, it's likely a significant enough change to reset.
     const firstEventId = events[0]?.id || 'empty'
     
     const dynamicRowHeight = useDynamicRowHeight({
@@ -104,7 +111,17 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 rowCount={rowCount}
                 rowHeight={dynamicRowHeight}
                 overscanCount={5}
+                // In v2, rowProps is the way to pass data to rowComponent
                 rowProps={{ 
+                  events, 
+                  isLoadingMore, 
+                  onLoadMore, 
+                  header,
+                  theme,
+                  dynamicRowHeight
+                }}
+                // Support both v1 and v2 just in case
+                itemData={{
                   events, 
                   isLoadingMore, 
                   onLoadMore, 
