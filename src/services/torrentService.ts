@@ -150,7 +150,7 @@ class TorrentService {
   /**
    * Health: Returns list of active torrents
    */
-  getTorrents() {
+  getActiveTorrents() {
     return TorrentClient.get().getAllTorrents()
   }
 

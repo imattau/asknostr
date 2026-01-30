@@ -12,7 +12,7 @@ export class TorrentWorkerBridge {
   private torrents: Map<string, TorrentState> = new Map()
 
   constructor() {
-    this.worker = new Worker('/torrent-worker.js', { type: 'module' })
+    this.worker = new Worker('/torrent-worker.js')
     this.worker.onmessage = (e) => this.handleMessage(e)
   }
 
