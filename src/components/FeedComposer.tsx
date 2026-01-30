@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import { Paperclip, Loader2, Share2 } from 'lucide-react'
 import { MentionsInput, Mention } from 'react-mentions'
 import { nip19, type Event } from 'nostr-tools'
@@ -50,7 +50,7 @@ const mentionStyle = {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const HashtagTextarea = ({ value, onChange, placeholder, disabled, onUserSearch }: any) => {
+const HashtagTextarea = React.memo(({ value, onChange, placeholder, disabled, onUserSearch }: any) => {
   return (
     <div className="relative w-full min-h-[4rem] mt-3 font-sans text-sm leading-6">
       <MentionsInput
@@ -82,7 +82,9 @@ const HashtagTextarea = ({ value, onChange, placeholder, disabled, onUserSearch 
       </MentionsInput>
     </div>
   )
-}
+})
+
+HashtagTextarea.displayName = 'HashtagTextarea'
 
 interface FeedComposerProps {
   user: { pubkey: string | null; profile: any | null }
@@ -91,7 +93,7 @@ interface FeedComposerProps {
   isHidden: boolean
 }
 
-export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, setCollapsed, isHidden }) => {
+export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidden }: FeedComposerProps) => {
   const [postContent, setPostContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isNsfw, setIsNsfw] = useState(false)
@@ -141,7 +143,6 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
   const handlePublish = async () => {
     if (!postContent.trim() || !user.pubkey) return
     setIsPublishing(true)
-    console.log('[FeedComposer] Initiating publication...')
     try {
       const tags: string[][] = []
       if (isNsfw) tags.push(['content-warning', 'nsfw'])
@@ -158,7 +159,6 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
         }
       }
 
-      // Extract hashtags from #[tag] markup
       const hashtags = postContent.match(/#\[(\w+)\]/g)
       if (hashtags) {
         hashtags.forEach(match => {
@@ -169,13 +169,12 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
         })
       }
 
-      // Extract Mentions from nostr:[npub1...] markup
       const mentionRegex = /nostr:\[(npub1[a-z0-9]+|nprofile1[a-z0-9]+)\]/gi
       const mentions = postContent.match(mentionRegex)
       if (mentions) {
         mentions.forEach(m => {
           try {
-            const entity = m.slice(7, -1) // remove nostr:[ and ]
+            const entity = m.slice(7, -1)
             const decoded = nip19.decode(entity)
             if (decoded.type === 'npub') {
               tags.push(['p', decoded.data as string])
@@ -195,7 +194,6 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
       const success = await nostrService.createAndPublishPost(cleanContent, tags)
       
       if (success) {
-        console.log('[FeedComposer] Publication success! Finalizing torrent transaction...')
         if (pendingFile && pendingMagnet) {
           await torrentService.finalizePublication(pendingFile, pendingMagnet, pendingFallbackUrl, user.pubkey)
         }
@@ -205,18 +203,17 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
         setPendingFile(undefined)
         setPendingMagnet(undefined)
       } else {
-        alert('Publication failed. Relays might be unreachable.')
+        alert('Publication failed.')
       }
     } catch (e) {
       console.error('[FeedComposer] Publication error:', e)
-      alert('Failed to publish post. Check connection.')
+      alert('Failed to publish post.')
     } finally {
       setIsPublishing(false)
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleUserSearch = async (query: string, callback: any) => {
+  const handleUserSearch = useCallback(async (query: string, callback: any) => {
     if (query.length < 2) return
     const sub = await nostrService.subscribe(
       [{ kinds: [0], search: query, limit: 10 }],
@@ -236,7 +233,7 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
       nostrService.getSearchRelays()
     )
     setTimeout(() => sub.close(), 2000)
-  }
+  }, [])
 
   return (
     <div className={`mx-4 mb-2 transition-all duration-300 ease-in-out overflow-hidden ${isHidden ? 'max-h-0 opacity-0 mb-0' : 'max-h-96 opacity-100'}`}>
@@ -284,4 +281,6 @@ export const FeedComposer: React.FC<FeedComposerProps> = ({ user, collapsed, set
       <div className={`glassmorphism rounded-full shadow-inner px-4 py-1 text-[9px] uppercase tracking-[0.3em] text-cyan-300/60 text-center cursor-pointer transition-all duration-300 hover:text-cyan-200 hover:bg-white/10 ${collapsed ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none h-0 py-0 overflow-hidden'}`} onClick={() => setCollapsed(false)}>Open composer</div>
     </div>
   )
-}
+})
+
+FeedComposer.displayName = 'FeedComposer'
