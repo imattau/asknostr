@@ -76,7 +76,8 @@ class TorrentService {
   private async bootstrapPing(magnet: string, url: string) {
     try {
       const bridgeUrl = useStore.getState().bridgeUrl
-      fetch(`${bridgeUrl.replace(/\/$/, '')}/api/v1/bootstrap`, {
+      const baseUrl = bridgeUrl ? bridgeUrl.replace(/\/$/, '') : ''
+      fetch(`${baseUrl}/api/v1/bootstrap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ magnet, url, timestamp: Date.now() })

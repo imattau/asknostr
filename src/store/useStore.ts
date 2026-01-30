@@ -98,7 +98,7 @@ export const useStore = create<NostrState>()(
       },
       lastRead: {},
       nwcUrl: null,
-      bridgeUrl: 'https://bridge.asknostr.com',
+      bridgeUrl: '',
       administeredStations: [],
       addOptimisticReaction: (eventId, pubkey, emoji) => set((state) => {
         const currentEvent = state.optimisticReactions[eventId] || {}

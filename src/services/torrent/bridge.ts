@@ -3,13 +3,14 @@ import { useStore } from '../../store/useStore'
 export class BridgeService {
   async uploadToBridge(file: File): Promise<string> {
     const bridgeUrl = useStore.getState().bridgeUrl
-    console.log(`[BridgeService] Attempting safety net upload to ${bridgeUrl}...`)
+    const baseUrl = bridgeUrl ? bridgeUrl.replace(/\/$/, '') : ''
+    console.log(`[BridgeService] Attempting safety net upload to ${baseUrl || 'current domain'}...`)
     
     const formData = new FormData()
     formData.append('file', file)
 
     try {
-      const response = await fetch(`${bridgeUrl.replace(/\/$/, '')}/api/v1/upload`, {
+      const response = await fetch(`${baseUrl}/api/v1/upload`, {
         method: 'POST',
         body: formData
       })

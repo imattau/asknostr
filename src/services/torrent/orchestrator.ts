@@ -102,7 +102,8 @@ export class SwarmOrchestrator {
 
       // Ping Bridge Server (Silent failure as it's a heartbeat)
       const bridgeUrl = useStore.getState().bridgeUrl
-      fetch(`${bridgeUrl.replace(/\/$/, '')}/api/v1/report-health`, {
+      const baseUrl = bridgeUrl ? bridgeUrl.replace(/\/$/, '') : ''
+      fetch(`${baseUrl}/api/v1/report-health`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reports, timestamp: Date.now() })

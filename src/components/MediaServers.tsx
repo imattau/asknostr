@@ -79,7 +79,7 @@ export const MediaServers: React.FC = () => {
           <input
             value={tempBridgeUrl}
             onChange={(e) => setTempBridgeUrl(e.target.value)}
-            placeholder="https://bridge.example.com"
+            placeholder="Leave blank for same domain..."
             className="flex-1 terminal-input rounded-xl px-4 py-3 text-xs font-mono"
           />
           <button
@@ -90,7 +90,7 @@ export const MediaServers: React.FC = () => {
           </button>
         </div>
         <p className={`text-[9px] ${mutedText} italic font-mono px-1`}>
-          This server bootstraps your social swarm from HTTP sources and acts as a persistent peer.
+          {tempBridgeUrl ? `Bootstrapping via ${tempBridgeUrl}` : 'Currently using the main app domain for bootstrap API calls.'}
         </p>
       </section>
 
