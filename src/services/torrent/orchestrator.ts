@@ -1,4 +1,4 @@
-import { TorrentClient, TRACKERS } from './client'
+import { TorrentClient } from './client'
 import { persistenceManager, type SeededFileRecord } from './persistence'
 import { useStore } from '../../store/useStore'
 import type { Event } from 'nostr-tools'
@@ -45,44 +45,26 @@ export class SwarmOrchestrator {
   }
 
   async addTorrent(magnetUri: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const client = TorrentClient.get()
-      
-      // If already added, return existing
-      const existing = client.get(magnetUri)
-      if (existing) return resolve(existing)
+    const client = TorrentClient.get()
+    
+    // If already added, return existing
+    const existing = client.get(magnetUri)
+    if (existing) return existing
 
-      client.add(magnetUri, { announce: TRACKERS }, (torrent: any) => {
-        resolve(torrent)
-      })
-
-      client.on('error', (err: any) => {
-        reject(err)
-      })
-    })
+    return await client.add(magnetUri)
   }
 
   async seedFile(file: File, _creatorPubkey?: string, shouldSave = true): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const client = TorrentClient.get()
-      
-      const options: any = {
-        name: file.name,
-        announce: TRACKERS
-      }
-
-      client.seed(file, options, async (torrent: any) => {
-        console.log('[Orchestrator] Local seeding initialized:', torrent.infoHash)
-        
-        if (shouldSave) {
-          await this.persistSeed(file, torrent.magnetURI, torrent.infoHash, _creatorPubkey)
-        }
-        
-        resolve(torrent.magnetURI)
-      })
-
-      client.on('error', (err: any) => reject(err))
-    })
+    const client = TorrentClient.get()
+    
+    const result = await client.seed(file)
+    console.log('[Orchestrator] Local seeding initialized in worker:', result.infoHash)
+    
+    if (shouldSave) {
+      await this.persistSeed(file, result.magnetURI, result.infoHash, _creatorPubkey)
+    }
+    
+    return result.magnetURI
   }
 
   async persistSeed(file: File, magnetUri: string, infoHash: string, creatorPubkey?: string) {
@@ -102,7 +84,7 @@ export class SwarmOrchestrator {
   private startHealthReporting() {
     this.healthReportInterval = setInterval(() => {
       const client = TorrentClient.get()
-      const torrents = client.torrents
+      const torrents = client.getAllTorrents()
       
       if (torrents.length === 0) return
 
@@ -112,7 +94,7 @@ export class SwarmOrchestrator {
         return
       }
 
-      const reports = torrents.map((t: any) => ({
+      const reports = torrents.map((t) => ({
         infoHash: t.infoHash,
         peerCount: t.numPeers,
         progress: t.progress

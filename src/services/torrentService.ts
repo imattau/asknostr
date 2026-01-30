@@ -137,10 +137,16 @@ class TorrentService {
     return swarmOrchestrator.addTorrent(magnetUri)
   }
 
-  getActiveTorrents() {
-    return TorrentClient.get().torrents
+  /**
+   * Health: Returns list of active torrents
+   */
+  getTorrents() {
+    return TorrentClient.get().getAllTorrents()
   }
 
+  /**
+   * Remove a torrent
+   */
   removeTorrent(magnetUri: string) {
     TorrentClient.get().remove(magnetUri)
   }

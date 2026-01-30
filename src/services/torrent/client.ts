@@ -1,19 +1,18 @@
-// @ts-ignore
-import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
+import { TorrentWorkerBridge } from './workerBridge'
 
 export class TorrentClient {
-  private static instance: WebTorrent.Instance | null = null
+  private static instance: TorrentWorkerBridge | null = null
 
-  static get(): WebTorrent.Instance {
+  static get(): TorrentWorkerBridge {
     if (!this.instance) {
-      this.instance = new WebTorrent()
+      this.instance = new TorrentWorkerBridge()
     }
     return this.instance
   }
 
   static destroy() {
     if (this.instance) {
-      this.instance.destroy()
+      this.instance.terminate()
       this.instance = null
     }
   }
