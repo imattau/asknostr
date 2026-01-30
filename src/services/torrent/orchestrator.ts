@@ -105,20 +105,24 @@ export class SwarmOrchestrator {
       
       if (torrents.length === 0) return
 
+      const bridgeUrl = useStore.getState().bridgeUrl
+      // If no bridge is configured and we're on localhost, skip reporting to avoid noisy 404s
+      if (!bridgeUrl && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return
+      }
+
       const reports = torrents.map((t: any) => ({
         infoHash: t.infoHash,
         peerCount: t.numPeers,
         progress: t.progress
       }))
 
-      // Ping Bridge Server (Silent failure as it's a heartbeat)
-      const bridgeUrl = useStore.getState().bridgeUrl
       const baseUrl = bridgeUrl ? bridgeUrl.replace(/\/$/, '') : ''
       fetch(`${baseUrl}/api/v1/report-health`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reports, timestamp: Date.now() })
-      }).catch(() => { /* Bridge might be offline */ })
+      }).catch(() => { /* Silent fallback */ })
       
     }, 60000) // Report every minute
   }
