@@ -54,7 +54,7 @@ class NostrService {
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
   private validationCache = new Map<string, boolean>()
-  private maxActiveRelays: number = 4 // Reduced to 4 to prevent browser connection limits
+  private maxActiveRelays: number = 4
   private activeWorkerRequests: number = 0
   private readonly MAX_CONCURRENT_VERIFICATIONS = 50
   private readonly MAX_CACHE_SIZE = 10000
@@ -62,8 +62,8 @@ class NostrService {
   // Rate Limiting & Queuing
   private subscriptionQueue: SubscriptionRequest[] = []
   private activeSubscriptionsCount = 0
-  private readonly MAX_CONCURRENT_SUBS = 10 // Reduced from 20 to prevent relay overload
-  private readonly SUB_BURST_INTERVAL_MS = 250 // Increased from 50 to give relays breathing room
+  private readonly MAX_CONCURRENT_SUBS = 10
+  private readonly SUB_BURST_INTERVAL_MS = 250
 
   // Batching System
   private batchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -184,7 +184,7 @@ class NostrService {
     if (type === 'replies') this.replyCountBatch.add(id)
 
     if (!this.batchTimeout) {
-      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1500) // Increased window for larger batches
+      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1500) 
     }
 
     return () => {
@@ -212,8 +212,6 @@ class NostrService {
     if (zaps.length) filters.push({ kinds: [9735], '#e': zaps })
     if (replies.length) filters.push({ kinds: [1], '#e': replies })
 
-    console.log(`[NostrBatch] Flushing batch: ${profiles.length} profiles, ${reactions.length} reactions, ${zaps.length} zaps, ${replies.length} replies`)
-
     const sub = this.subscribe(filters, (event) => {
       if (event.kind === 0) {
         this.listeners.get(`profile:${event.pubkey}`)?.forEach(cb => cb(event))
@@ -226,7 +224,7 @@ class NostrService {
       }
     }, this.getDiscoveryRelays(), { priority: SubscriptionPriority.LOW })
 
-    setTimeout(() => sub.close(), 10000) // Metadata snapshots close faster
+    setTimeout(() => sub.close(), 10000)
   }
 
   // --- End Batching System ---
@@ -285,7 +283,7 @@ class NostrService {
     }
 
     const slotsAvailable = this.MAX_CONCURRENT_SUBS - this.activeSubscriptionsCount
-    const toProcess = Math.min(slotsAvailable, 2) // Reduced burst size to 2
+    const toProcess = Math.min(slotsAvailable, 2)
 
     for (let i = 0; i < toProcess; i++) {
       if (this.subscriptionQueue.length === 0) break
@@ -317,10 +315,9 @@ class NostrService {
     }
 
     try {
-      // Using subscribeMany instead of subscribeMap to consolidate REQs
-      const subscription = this.pool.subscribeMany(
-        urls,
-        cleanFilters,
+      // Reverting to subscribeMap because some relays reject the subscribeMany array structure
+      const subscription = this.pool.subscribeMap(
+        urls.flatMap(url => cleanFilters.map(f => ({ url, filter: f }))),
         {
           onevent: wrappedCallback,
           oneose: () => options?.onEose?.(),
