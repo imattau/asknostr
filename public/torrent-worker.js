@@ -32,6 +32,17 @@ self.onmessage = (e) => {
       });
       break;
 
+    case 'PRIORITIZE':
+      const tToPrioritize = client.get(payload.infoHash);
+      if (tToPrioritize) {
+        // In WebTorrent, you can select specific pieces.
+        // For simplicity, we'll use bitfield-based selection if we wanted precise control,
+        // but WebTorrent's file.select() is usually easier if we know which file.
+        // For now, let's prioritize the whole torrent if it's small, or use select(start, end)
+        tToPrioritize.select(payload.start, payload.end, 1);
+      }
+      break;
+
     case 'REMOVE':
       const torrent = client.get(payload.magnetUri);
       if (torrent) {

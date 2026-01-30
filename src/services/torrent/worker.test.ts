@@ -37,6 +37,18 @@ describe('TorrentWorkerBridge', () => {
     })
   })
 
+  it('should send a prioritize command to the worker', () => {
+    const infoHash = 'abc'
+    const postMessageSpy = vi.spyOn((bridge as any).worker, 'postMessage')
+    
+    bridge.prioritize(infoHash, 0, 10)
+    
+    expect(postMessageSpy).toHaveBeenCalledWith({
+      type: 'PRIORITIZE',
+      payload: { infoHash, start: 0, end: 10 }
+    })
+  })
+
   it('should send a remove command to the worker', async () => {
     const magnet = 'magnet:?xt=urn:btih:abc'
     const postMessageSpy = vi.spyOn((bridge as any).worker, 'postMessage')

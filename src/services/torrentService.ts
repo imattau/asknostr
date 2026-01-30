@@ -138,6 +138,16 @@ class TorrentService {
   }
 
   /**
+   * Prioritize the first few megabytes for faster initial playback
+   */
+  prioritizeInitialChunks(infoHash: string) {
+    console.log('[TorrentService] Prioritizing initial chunks for:', infoHash)
+    // 5MB is a good initial chunk size for most media
+    const CHUNK_SIZE = 5 * 1024 * 1024
+    TorrentClient.get().prioritize(infoHash, 0, CHUNK_SIZE)
+  }
+
+  /**
    * Health: Returns list of active torrents
    */
   getTorrents() {

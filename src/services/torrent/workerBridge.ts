@@ -14,9 +14,6 @@ export class TorrentWorkerBridge {
   constructor() {
     this.worker = new Worker('/torrent-worker.js', { type: 'module' })
     this.worker.onmessage = (e) => this.handleMessage(e)
-    
-    // Request initial state or start a heartbeat for health reports
-    this.startHealthSync()
   }
 
   private handleMessage(e: MessageEvent) {
@@ -63,10 +60,6 @@ export class TorrentWorkerBridge {
     }
   }
 
-  private startHealthSync() {
-    // We'll let the worker push health updates every few seconds
-  }
-
   get(infoHashOrMagnet: string): TorrentState | undefined {
     const infoHashMatch = infoHashOrMagnet.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
     const id = infoHashMatch ? infoHashMatch[1].toLowerCase() : infoHashOrMagnet.toLowerCase()
@@ -97,6 +90,13 @@ export class TorrentWorkerBridge {
         type: 'ADD',
         payload: { magnetUri }
       })
+    })
+  }
+
+  prioritize(infoHash: string, start: number, end: number) {
+    this.worker.postMessage({
+      type: 'PRIORITIZE',
+      payload: { infoHash, start, end }
     })
   }
 
