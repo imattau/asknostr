@@ -6,34 +6,23 @@ export const useReplyCount = (eventId: string) => {
   return useQuery({
     queryKey: ['reply-count', eventId],
     queryFn: async () => {
-      // 1. Check local store buffer first for instant data
-      const localCount = 0
-
       return new Promise<number>((resolve) => {
-        let count = localCount
-        let sub: any = null
+        let count = 0
         let resolved = false
 
         const finish = () => {
           if (resolved) return
           resolved = true
-          if (sub) sub.close()
+          cleanup()
           resolve(count)
         }
 
-        // 2. Subscribe to find replies we don't have in local buffer
-        nostrService.subscribe(
-          [{ kinds: [1], '#e': [eventId], limit: 100 }],
-          () => {
-            count++
-          },
-          undefined,
-          { onEose: finish }
-        ).then(s => {
-          sub = s
-          // Safety timeout
-          setTimeout(finish, 2000)
-        })
+        const cleanup = nostrService.requestMetadata('replies', eventId, () => {
+          count++
+        });
+
+        // Batch window for gathering initial counts
+        setTimeout(finish, 3000)
       })
     },
     staleTime: 1000 * 60 * 2, // 2 minutes

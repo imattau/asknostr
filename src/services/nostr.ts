@@ -33,17 +33,38 @@ export const SEARCH_RELAYS = [
   'wss://relay.noswhere.com'
 ]
 
+interface SubscriptionRequest {
+  filters: Filter[]
+  onEvent: (event: Event) => void
+  relays: string[]
+  options?: { onEose?: () => void }
+  resolve: (closer: { close: () => void }) => void
+}
+
 class NostrService {
   private pool: SimplePool
   private relays: string[]
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
   private validationCache = new Map<string, boolean>()
-  private globalSeenIds = new Set<string>()
-  private maxActiveRelays: number = 8
+  private maxActiveRelays: number = 4 // Reduced from 8
   private activeWorkerRequests: number = 0
   private readonly MAX_CONCURRENT_VERIFICATIONS = 50
-  private readonly MAX_CACHE_SIZE = 5000
+  private readonly MAX_CACHE_SIZE = 10000
+
+  // Rate Limiting & Queuing
+  private subscriptionQueue: SubscriptionRequest[] = []
+  private activeSubscriptionsCount = 0
+  private readonly MAX_CONCURRENT_SUBS = 3 // Reduced from 5
+  private readonly SUB_COOLDOWN_MS = 500 // Increased from 250
+
+  // Batching System
+  private batchTimeout: ReturnType<typeof setTimeout> | null = null
+  private profileBatch = new Set<string>()
+  private reactionBatch = new Set<string>()
+  private zapBatch = new Set<string>()
+  private replyCountBatch = new Set<string>()
+  private listeners = new Map<string, Set<(event: Event) => void>>()
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
@@ -143,66 +164,164 @@ class NostrService {
     })
   }
 
+  // --- Metadata Batching System ---
+
+  requestMetadata(type: 'profile' | 'reactions' | 'zaps' | 'replies', id: string, onEvent: (event: Event) => void) {
+    const key = `${type}:${id}`
+    if (!this.listeners.has(key)) this.listeners.set(key, new Set())
+    this.listeners.get(key)!.add(onEvent)
+
+    if (type === 'profile') this.profileBatch.add(id)
+    if (type === 'reactions') this.reactionBatch.add(id)
+    if (type === 'zaps') this.zapBatch.add(id)
+    if (type === 'replies') this.replyCountBatch.add(id)
+
+    if (!this.batchTimeout) {
+      this.batchTimeout = setTimeout(() => this.flushMetadataBatch(), 1500) // Even more aggressive batching window
+    }
+
+    return () => {
+      this.listeners.get(key)?.delete(onEvent)
+    }
+  }
+
+  private async flushMetadataBatch() {
+    this.batchTimeout = null
+    const profiles = Array.from(this.profileBatch)
+    const reactions = Array.from(this.reactionBatch)
+    const zaps = Array.from(this.zapBatch)
+    const replies = Array.from(this.replyCountBatch)
+
+    this.profileBatch.clear()
+    this.reactionBatch.clear()
+    this.zapBatch.clear()
+    this.replyCountBatch.clear()
+
+    if (!profiles.length && !reactions.length && !zaps.length && !replies.length) return
+
+    const filters: Filter[] = []
+    if (profiles.length) filters.push({ kinds: [0], authors: profiles })
+    if (reactions.length) filters.push({ kinds: [7], '#e': reactions })
+    if (zaps.length) filters.push({ kinds: [9735], '#e': zaps })
+    if (replies.length) filters.push({ kinds: [1], '#e': replies })
+
+    console.log(`[NostrBatch] Flushing batch: ${profiles.length} profiles, ${reactions.length} reactions, ${zaps.length} zaps, ${replies.length} replies`)
+
+    const sub = this.subscribe(filters, (event) => {
+      if (event.kind === 0) {
+        this.listeners.get(`profile:${event.pubkey}`)?.forEach(cb => cb(event))
+      } else if (event.kind === 7 || event.kind === 9735 || event.kind === 1) {
+        const eTag = event.tags.find(t => t[0] === 'e')?.[1]
+        if (eTag) {
+          const type = event.kind === 7 ? 'reactions' : event.kind === 9735 ? 'zaps' : 'replies'
+          this.listeners.get(`${type}:${eTag}`)?.forEach(cb => cb(event))
+        }
+      }
+    }, this.getDiscoveryRelays())
+
+    // Snapshot mode: metadata batch subscriptions close after gathering initial results
+    setTimeout(() => sub.close(), 10000)
+  }
+
+  // --- End Batching System ---
+
   subscribe(
     filters: Filter[],
     onEvent: (event: Event) => void,
     customRelays?: string[],
     options?: { onEose?: () => void }
   ) {
-    const sourceRelays = customRelays && customRelays.length > 0 ? customRelays : this.relays
-    const urls = this.normalizeRelays(sourceRelays.slice(0, this.maxActiveRelays))
-    
-    if (!Array.isArray(filters) || filters.length === 0) {
-      return { close: () => {} }
+    // 1. Wrap in a stable return object
+    let underlyingSub: { close: () => void } | null = null
+    let isClosed = false
+
+    const closer = {
+      close: () => {
+        isClosed = true
+        if (underlyingSub) {
+          underlyingSub.close()
+          this.activeSubscriptionsCount--
+          this.processQueue()
+        } else {
+          // Still in queue, remove it
+          this.subscriptionQueue = this.subscriptionQueue.filter(req => req.resolve !== resolveRequest)
+        }
+      }
     }
 
+    const resolveRequest = (sub: { close: () => void }) => {
+      if (isClosed) {
+        sub.close()
+        this.activeSubscriptionsCount--
+        this.processQueue()
+      } else {
+        underlyingSub = sub
+      }
+    }
+
+    const request: SubscriptionRequest = {
+      filters,
+      onEvent,
+      relays: customRelays || this.relays,
+      options,
+      resolve: resolveRequest
+    }
+
+    this.subscriptionQueue.push(request)
+    this.processQueue()
+
+    return closer
+  }
+
+  private processQueue() {
+    if (this.activeSubscriptionsCount >= this.MAX_CONCURRENT_SUBS || this.subscriptionQueue.length === 0) {
+      return
+    }
+
+    const request = this.subscriptionQueue.shift()!
+    this.activeSubscriptionsCount++
+
+    // Execute the actual pool subscription
+    const { filters, onEvent, relays, options, resolve } = request
+    const urls = this.normalizeRelays(relays.slice(0, this.maxActiveRelays))
     const cleanFilters = filters.filter(f => f && typeof f === 'object' && Object.keys(f).length > 0)
-    if (cleanFilters.length === 0) {
-      return { close: () => {} }
-    }
 
-    if (urls.length === 0) {
-      return { close: () => {} }
+    if (urls.length === 0 || cleanFilters.length === 0) {
+      this.activeSubscriptionsCount--
+      resolve({ close: () => {} })
+      this.processQueue()
+      return
     }
 
     const subscriptionSeenIds = new Set<string>()
-
     const wrappedCallback = async (event: Event) => {
       if (subscriptionSeenIds.has(event.id)) return
       subscriptionSeenIds.add(event.id)
-
       const isValid = await this.verifyInWorker(event)
-      if (isValid) {
-        onEvent(event)
-      }
+      if (isValid) onEvent(event)
     }
 
     try {
-      const requests = urls.flatMap(url => 
-        cleanFilters.map(filter => ({ url, filter }))
-      )
-
       const subscription = this.pool.subscribeMap(
-        requests,
+        urls.flatMap(url => cleanFilters.map(f => ({ url, filter: f }))),
         {
           onevent: wrappedCallback,
-          oneose: () => {
-            options?.onEose?.()
-          },
-          onclose: (reasons: string[]) => {
-            // silent
-          }
+          oneose: () => options?.onEose?.(),
+          onclose: () => {}
         }
       )
 
-      return {
-        close: () => {
-          subscription.close()
-        }
-      }
+      resolve({
+        close: () => subscription.close()
+      })
+
+      // Throttle next processing to avoid relay REQ bursts
+      setTimeout(() => this.processQueue(), this.SUB_COOLDOWN_MS)
     } catch (e) {
-      console.error('[Nostr] Subscription critical failure:', e)
-      return { close: () => {} }
+      console.error('[Nostr] Pool subscription failed:', e)
+      this.activeSubscriptionsCount--
+      resolve({ close: () => {} })
+      this.processQueue()
     }
   }
 
@@ -214,7 +333,7 @@ class NostrService {
       const fallbackUrls = this.normalizeRelays(this.relays)
       const urls = Array.from(new Set([...discoveryUrls, ...fallbackUrls]))
 
-      this.subscribe(
+      const sub = this.subscribe(
         [{ kinds: [10002, 10001, 3], authors: [pubkey], limit: 1 }],
         (event: Event) => {
           if (!latestEvent || event.created_at > latestEvent.created_at) {
@@ -222,32 +341,32 @@ class NostrService {
           }
         },
         urls
-      ).then(sub => {
-        setTimeout(() => {
-          sub.close()
-          if (!latestEvent) {
-            resolve([])
-            return
-          }
+      )
 
-          let relays: string[] = []
-          if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
-            relays = latestEvent.tags
-              .filter(t => t[0] === 'r')
-              .map(t => t[1])
-          } else if (latestEvent.kind === 3) {
-            try {
-              const content = JSON.parse(latestEvent.content)
-              relays = Object.keys(content)
-            } catch {
-              // Ignore
-            }
-          }
+      setTimeout(() => {
+        sub.close()
+        if (!latestEvent) {
+          resolve([])
+          return
+        }
 
-          const filtered = relays.filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
-          resolve(filtered)
-        }, 6000)
-      })
+        let relays: string[] = []
+        if (latestEvent.kind === 10002 || latestEvent.kind === 10001) {
+          relays = latestEvent.tags
+            .filter(t => t[0] === 'r')
+            .map(t => t[1])
+        } else if (latestEvent.kind === 3) {
+          try {
+            const content = JSON.parse(latestEvent.content)
+            relays = Object.keys(content)
+          } catch {
+            // Ignore
+          }
+        }
+
+        const filtered = relays.filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
+        resolve(filtered)
+      }, 6000)
     })
   }
 

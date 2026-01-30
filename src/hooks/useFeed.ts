@@ -12,14 +12,15 @@ interface UseFeedOptions {
   limit?: number;
 }
 
-const MAX_FEED_SIZE = 500;
+const MAX_FEED_SIZE = 200; // Even tighter for performance
+const FLUSH_INTERVAL_MS = 3000; // Flush more often
+const PENDING_FLUSH_CHUNK = 100; // Larger chunks
 
-export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 30 }: UseFeedOptions) => {
+export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 20 }: UseFeedOptions) => {
   const queryClient = useQueryClient();
   
-  // Use string keys for stability in dependency arrays and query keys
-  const filtersKey = JSON.stringify(filters);
-  const relaysKey = JSON.stringify(customRelays);
+  const filtersKey = JSON.stringify(filters || []);
+  const relaysKey = JSON.stringify(customRelays || null);
   
   const queryKey = ['feed-events', filtersKey, relaysKey];
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -30,8 +31,8 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   const query = useQuery<Event[], Error>({
     queryKey,
     queryFn: async ({ queryKey, signal }) => {
-      const currentFilters = JSON.parse(queryKey[1] as string).map((f: any) => ({ ...f, limit }));
-      const currentCustomRelays = JSON.parse(queryKey[2] as string) as string[] | undefined;
+      const currentFilters = JSON.parse(queryKey[1] as string || '[]').map((f: any) => ({ ...f, limit }));
+      const currentCustomRelays = JSON.parse(queryKey[2] as string || 'null') as string[] | undefined;
 
       return new Promise<Event[]>((resolve, reject) => {
         const events: Event[] = [];
@@ -45,7 +46,6 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           {
             onEose: () => {
               sub.close();
-              // Stable sort: Created at descending, then ID for tie-breaker
               resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
             }
           }
@@ -55,18 +55,17 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
           sub.close();
         };
 
-        // Safety timeout for EOSE
         setTimeout(() => {
           sub.close();
           resolve(events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)).slice(0, MAX_FEED_SIZE));
-        }, 5000);
+        }, 4000);
       });
     },
     enabled,
-    staleTime: Infinity,
+    staleTime: 1000 * 60 * 5,
   });
 
-  // Manual "Load More" function for pagination
+  // Manual "Load More" function
   const fetchMore = async () => {
     const currentEvents = query.data || [];
     if (currentEvents.length === 0 || isFetchingMore) return;
@@ -114,13 +113,35 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
     });
   };
 
-  // 2. Real-time Subscription: Listens for new incoming events with throttling
+  // 2. Real-time Subscription with Gradual Chunked Flushing
   useEffect(() => {
     if (!enabled || !live) return;
 
     let activeSub: { close: () => void } | null = null;
     let isEffectMounted = true;
     let flushInterval: ReturnType<typeof setInterval> | null = null;
+
+    const flushBuffer = () => {
+      if (!isEffectMounted || eventBufferRef.current.length === 0) return;
+
+      // Extract a manageable chunk
+      const chunk = eventBufferRef.current.splice(0, PENDING_FLUSH_CHUNK);
+
+      queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
+        const mergedMap = new Map<string, Event>();
+        oldEvents.forEach(e => mergedMap.set(e.id, e));
+        chunk.forEach(e => mergedMap.set(e.id, e));
+        
+        return Array.from(mergedMap.values())
+          .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+          .slice(0, MAX_FEED_SIZE);
+      });
+
+      // If more left in buffer, schedule another immediate-ish chunk flush
+      if (eventBufferRef.current.length > 0) {
+        setTimeout(flushBuffer, 100);
+      }
+    };
 
     const startLiveSubscription = () => {
       const liveFilters = JSON.parse(filtersKey).map((f: any) => ({
@@ -129,22 +150,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         limit: undefined
       }));
 
-      flushInterval = setInterval(() => {
-        if (!isEffectMounted || eventBufferRef.current.length === 0) return;
-
-        const newEventsBatch = [...eventBufferRef.current];
-        eventBufferRef.current = [];
-
-        queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
-          const mergedMap = new Map<string, Event>();
-          oldEvents.forEach(e => mergedMap.set(e.id, e));
-          newEventsBatch.forEach(e => mergedMap.set(e.id, e));
-          
-          return Array.from(mergedMap.values())
-            .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
-            .slice(0, MAX_FEED_SIZE);
-        });
-      }, 4000);
+      flushInterval = setInterval(flushBuffer, FLUSH_INTERVAL_MS);
 
       activeSub = nostrService.subscribe(
         liveFilters,

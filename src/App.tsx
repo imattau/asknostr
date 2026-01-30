@@ -169,7 +169,7 @@ function App() {
   
 
 
-  const renderLayerContent = (layer: Layer) => {
+  const renderLayerContent = useCallback((layer: Layer) => {
     switch (layer.type) {
       case 'sidebar':
         return <Sidebar />
@@ -179,28 +179,23 @@ function App() {
         const params = layer.params as { filter?: { '#t'?: string[] } } | undefined
         const tagFilter = params?.filter?.['#t']
         const firstTag = tagFilter?.[0]
-        const filteredEvents = (firstTag 
-          ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
-          : events).filter(e => !deletedSet.has(e.id) && !muted.includes(e.pubkey))
-
+        
+        // Local component to handle filtering and prevent App re-renders from filtering on every tick
         return (
-          <div className="h-full flex flex-col">
-            <FeedComposer 
-              user={user} 
-              collapsed={composerCollapsed} 
-              setCollapsed={setComposerCollapsed} 
-              isHidden={isHeaderHidden} 
-            />
-            <div className="flex-1 min-h-0 relative">
-              <VirtualFeed 
-                ref={feedRef} 
-                events={filteredEvents} 
-                isLoadingMore={isFetchingMore} 
-                onLoadMore={() => fetchMore()} 
-                onScroll={handleFeedScroll} 
-              />
-            </div>
-          </div>
+          <FeedContainer 
+            events={events}
+            firstTag={firstTag}
+            deletedSet={deletedSet}
+            muted={muted}
+            user={user}
+            composerCollapsed={composerCollapsed}
+            setComposerCollapsed={setComposerCollapsed}
+            isHeaderHidden={isHeaderHidden}
+            isFetchingMore={isFetchingMore}
+            fetchMore={fetchMore}
+            handleFeedScroll={handleFeedScroll}
+            feedRef={feedRef}
+          />
         )
       }
       case 'thread': return (
@@ -229,7 +224,41 @@ function App() {
       case 'profile-view': return <ProfileView pubkey={layer.params?.pubkey as string | undefined} />
       default: return <div className="p-4 opacity-50 font-mono">[CONTENT_UNAVAILABLE]</div>
     }
-  }
+  }, [events, deletedSet, muted, user, composerCollapsed, isHeaderHidden, isFetchingMore, fetchMore, handleFeedScroll])
+
+// ... (existing code below)
+
+function FeedContainer({ 
+  events, firstTag, deletedSet, muted, user, 
+  composerCollapsed, setComposerCollapsed, isHeaderHidden, 
+  isFetchingMore, fetchMore, handleFeedScroll, feedRef 
+}: any) {
+  const filteredEvents = useMemo(() => {
+    return (firstTag 
+      ? events.filter(e => e.tags.some(t => t[0] === 't' && t[1]?.toLowerCase() === firstTag.toLowerCase()))
+      : events).filter(e => !deletedSet.has(e.id) && !muted.includes(e.pubkey))
+  }, [events, firstTag, deletedSet, muted])
+
+  return (
+    <div className="h-full flex flex-col">
+      <FeedComposer 
+        user={user} 
+        collapsed={composerCollapsed} 
+        setCollapsed={setComposerCollapsed} 
+        isHidden={isHeaderHidden} 
+      />
+      <div className="flex-1 min-h-0 relative">
+        <VirtualFeed 
+          ref={feedRef} 
+          events={filteredEvents} 
+          isLoadingMore={isFetchingMore} 
+          onLoadMore={() => fetchMore()} 
+          onScroll={handleFeedScroll} 
+        />
+      </div>
+    </div>
+  )
+}
 
 
 

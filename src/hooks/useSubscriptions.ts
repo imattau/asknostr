@@ -22,18 +22,17 @@ export const useSubscriptions = () => {
         let latest: Event | null = null
         let found = false
         let resolved = false
-        let subRef: { close: () => void } | null = null
         let timeoutId: ReturnType<typeof setTimeout> | null = null
 
         const finish = (value: Event | null) => {
           if (resolved) return
           resolved = true
           if (timeoutId) clearTimeout(timeoutId)
-          subRef?.close()
+          sub.close()
           resolve(value)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [30001], authors: [user.pubkey as string], '#d': ['communities'], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
@@ -44,16 +43,11 @@ export const useSubscriptions = () => {
           },
           nostrService.getDiscoveryRelays(),
           { onEose: () => finish(found ? latest : cached || null) }
-        ).then(sub => {
-          subRef = sub
-          if (resolved) {
-            sub.close()
-            return
-          }
-          timeoutId = setTimeout(() => {
-            finish(found ? latest : cached || null)
-          }, 6000)
-        })
+        );
+
+        timeoutId = setTimeout(() => {
+          finish(found ? latest : cached || null)
+        }, 6000)
       })
     },
     staleTime: 1000 * 60 * 15,

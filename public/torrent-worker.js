@@ -1,5 +1,6 @@
 // BitTorrent Background Worker
-importScripts('https://unpkg.com/webtorrent@2.8.5/dist/webtorrent.min.js');
+// Using a more robust CDN URL format
+importScripts('https://cdn.jsdelivr.net/npm/webtorrent/dist/webtorrent.min.js');
 
 const client = new WebTorrent();
 

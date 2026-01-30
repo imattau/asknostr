@@ -23,13 +23,11 @@ if (typeof window !== 'undefined') {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </ErrorBoundary>
-  </StrictMode>,
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </ErrorBoundary>,
 )
 
 const registerServiceWorker = () => {

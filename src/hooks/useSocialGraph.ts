@@ -22,16 +22,15 @@ export const useSocialGraph = () => {
         let latest: Event | null = null
         let found = false
         let resolved = false
-        let subRef: { close: () => void } | null = null
 
         const finish = (value: Event | null) => {
           if (resolved) return
           resolved = true
-          subRef?.close()
+          sub.close()
           resolve(value)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [3], authors: [user.pubkey as string], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
@@ -42,10 +41,9 @@ export const useSocialGraph = () => {
           },
           undefined,
           { onEose: () => finish(found ? latest : cached || null) }
-        ).then(sub => {
-          subRef = sub
-          setTimeout(() => finish(found ? latest : cached || null), 4000)
-        })
+        );
+
+        setTimeout(() => finish(found ? latest : cached || null), 4000)
       })
     },
     staleTime: 1000 * 60 * 30,
@@ -64,16 +62,15 @@ export const useSocialGraph = () => {
         let latest: Event | null = null
         let found = false
         let resolved = false
-        let subRef: { close: () => void } | null = null
 
         const finish = (value: Event | null) => {
           if (resolved) return
           resolved = true
-          subRef?.close()
+          sub.close()
           resolve(value)
         }
 
-        nostrService.subscribe(
+        const sub = nostrService.subscribe(
           [{ kinds: [10000], authors: [user.pubkey as string], limit: 1 }],
           (event: Event) => {
             if (!latest || event.created_at > latest.created_at) {
@@ -84,10 +81,9 @@ export const useSocialGraph = () => {
           },
           undefined,
           { onEose: () => finish(found ? latest : cached || null) }
-        ).then(sub => {
-          subRef = sub
-          setTimeout(() => finish(found ? latest : cached || null), 4000)
-        })
+        );
+
+        setTimeout(() => finish(found ? latest : cached || null), 4000)
       })
     },
     staleTime: 1000 * 60 * 30,

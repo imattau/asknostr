@@ -32,27 +32,22 @@ export const useProfile = (pubkey: string) => {
         // Timeout: If network is slow, resolve with cache if available, else null
         const timeout = setTimeout(() => {
           if (!found) {
-            sub.close()
             resolve(cached || null)
           }
         }, 4000)
 
-        const sub = nostrService.subscribe(
-          [{ kinds: [0], authors: [pubkey], limit: 1 }],
-          (event: Event) => {
-            try {
-              const profile = normalizeProfile(JSON.parse(event.content))
-              found = true
-              clearTimeout(timeout)
-              sub.close()
-              set(cacheKey, profile)
-              resolve(profile)
-            } catch (e) {
-              // Parse error, keep waiting or timeout
-            }
-          },
-          DISCOVERY_RELAYS
-        );
+        const cleanup = nostrService.requestMetadata('profile', pubkey, (event: Event) => {
+          try {
+            const profile = normalizeProfile(JSON.parse(event.content))
+            found = true
+            clearTimeout(timeout)
+            cleanup()
+            set(cacheKey, profile)
+            resolve(profile)
+          } catch (e) {
+            // Parse error
+          }
+        })
       })
     },
     // Keep profiles fresh for 30 mins, purge if unused for 1 hour

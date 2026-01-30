@@ -24,37 +24,31 @@ export const useReactions = (eventId: string) => {
           if (resolved) return
           resolved = true
           if (timeoutId) clearTimeout(timeoutId)
-          sub.close()
+          cleanup()
           resolve({ reactions, aggregated })
         }
 
-        const sub = nostrService.subscribe(
-          [{ kinds: [7], '#e': [eventId] }],
-          (event: Event) => {
-            if (seen.has(event.id)) return
-            seen.add(event.id)
-            
-            const emoji = event.content || '+'
-            
-            const isDuplicate = reactions.some(r => r.pubkey === event.pubkey && (r.content || '+') === emoji)
-            
-            reactions.push(event)
-            
-            if (!isDuplicate) {
-              if (!aggregated[emoji]) {
-                aggregated[emoji] = { count: 0, pubkeys: [] }
-              }
-              aggregated[emoji].count++
-              if (!aggregated[emoji].pubkeys.includes(event.pubkey)) {
-                aggregated[emoji].pubkeys.push(event.pubkey)
-              }
+        const cleanup = nostrService.requestMetadata('reactions', eventId, (event: Event) => {
+          if (seen.has(event.id)) return
+          seen.add(event.id)
+          
+          const emoji = event.content || '+'
+          const isDuplicate = reactions.some(r => r.pubkey === event.pubkey && (r.content || '+') === emoji)
+          
+          reactions.push(event)
+          
+          if (!isDuplicate) {
+            if (!aggregated[emoji]) {
+              aggregated[emoji] = { count: 0, pubkeys: [] }
             }
-          },
-          undefined,
-          { onEose: finish }
-        );
+            aggregated[emoji].count++
+            if (!aggregated[emoji].pubkeys.includes(event.pubkey)) {
+              aggregated[emoji].pubkeys.push(event.pubkey)
+            }
+          }
+        });
 
-        timeoutId = setTimeout(finish, 1500)
+        timeoutId = setTimeout(finish, 2500)
       })
     },
     staleTime: 1000 * 60 * 1, // 1 minute
