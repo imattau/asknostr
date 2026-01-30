@@ -17,7 +17,8 @@ interface VirtualFeedProps {
 const Row = ({
   index,
   style,
-  data
+  data,
+  isScrolling
 }: any): React.ReactElement | null => {
   const { events, isLoadingMore, onLoadMore, header } = data || {}
   const { theme } = useUiStore()
@@ -51,6 +52,15 @@ const Row = ({
   const event = events[adjustedIndex]
   if (!event) return <div style={style} />
 
+  // If scrolling fast, render a simplified version to keep FPS high
+  if (isScrolling) {
+    return (
+      <div style={style} className="px-4 py-2">
+        <div className={`w-full h-full glassmorphism animate-pulse rounded-xl border border-slate-800/50`} />
+      </div>
+    )
+  }
+
   return (
     <div style={style} className="px-4 py-2">
       <Post event={event} depth={0} />
@@ -75,6 +85,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
                 width={width}
                 itemCount={rowCount}
                 itemSize={260} // Use fixed size for stability with List
+                useIsScrolling // Enable scroll detection
                 itemData={{ events, isLoadingMore, onLoadMore, header }}
                 onScroll={(e: any) => {
                   if (onScroll) {

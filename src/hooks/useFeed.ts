@@ -126,7 +126,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         limit: undefined
       }));
 
-      // Set up the interval to flush the buffer every 3 seconds
+      // Set up the interval to flush the buffer every 4 seconds for better stability
       flushIntervalRef.current = setInterval(() => {
         if (eventBufferRef.current.length === 0) return;
 
@@ -134,13 +134,20 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
         eventBufferRef.current = [];
 
         queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
-          const filteredNew = newEventsBatch.filter(ne => !oldEvents.some(oe => oe.id === ne.id));
-          if (filteredNew.length === 0) return oldEvents;
+          // Efficiently merge using a Map to avoid O(n^2) behavior
+          const mergedMap = new Map<string, Event>();
           
-          const updated = [...filteredNew, ...oldEvents];
-          return updated.sort((a, b) => b.created_at - a.created_at).slice(0, 1000); // Cap size for performance
+          // Add old events first
+          oldEvents.forEach(e => mergedMap.set(e.id, e));
+          
+          // Add new events (will overwrite duplicates if they somehow arrived again)
+          newEventsBatch.forEach(e => mergedMap.set(e.id, e));
+          
+          return Array.from(mergedMap.values())
+            .sort((a, b) => b.created_at - a.created_at)
+            .slice(0, 800); // Slightly smaller cap for better scrolling performance
         });
-      }, 3000);
+      }, 4000);
 
       sub = await nostrService.subscribe(
         liveFilters,

@@ -39,6 +39,8 @@ class NostrService {
   private worker: Worker | null = null
   private pendingValidations = new Map<string, { resolve: (ok: boolean) => void, timeoutId: ReturnType<typeof setTimeout> }>()
   private maxActiveRelays: number = 8
+  private activeWorkerRequests: number = 0
+  private readonly MAX_CONCURRENT_VERIFICATIONS = 50
 
   constructor(relays: string[] = DEFAULT_RELAYS) {
     this.pool = new SimplePool()
@@ -47,6 +49,7 @@ class NostrService {
     if (typeof window !== 'undefined') {
       this.worker = new Worker('/event-worker.js', { type: 'module' })
       this.worker.addEventListener('message', (e: MessageEvent) => {
+        this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
         const { id, isValid } = e.data || {}
         if (!id) return
         const pending = this.pendingValidations.get(id)
@@ -86,27 +89,34 @@ class NostrService {
 
   private async verifyInWorker(event: Event): Promise<boolean> {
     if (!this.worker) return true
+    
+    // If we're already checking this ID, don't double-post
     if (this.pendingValidations.has(event.id)) {
       return new Promise((resolve) => {
         const existing = this.pendingValidations.get(event.id)
         if (!existing) return resolve(true)
-        const chainedResolve = (ok: boolean) => resolve(ok)
         const originalResolve = existing.resolve
         existing.resolve = (ok: boolean) => {
           originalResolve(ok)
-          chainedResolve(ok)
+          resolve(ok)
         }
       })
     }
 
+    // Backpressure: If too many requests are active, wait a bit or skip for low-priority
+    if (this.activeWorkerRequests > this.MAX_CONCURRENT_VERIFICATIONS) {
+      await new Promise(r => setTimeout(r, 100))
+    }
+
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
+        this.activeWorkerRequests = Math.max(0, this.activeWorkerRequests - 1)
         this.pendingValidations.delete(event.id)
-        console.warn('[Nostr] Verify timeout, allowing event:', event.id)
         resolve(true)
-      }, 1500)
+      }, 3000)
 
       this.pendingValidations.set(event.id, { resolve, timeoutId })
+      this.activeWorkerRequests++
       this.worker?.postMessage({ event })
     })
   }
