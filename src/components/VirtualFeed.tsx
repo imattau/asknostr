@@ -19,8 +19,10 @@ const Row = ({
   style,
   data
 }: any): React.ReactElement | null => {
-  const { events, isLoadingMore, onLoadMore, header } = data
+  const { events, isLoadingMore, onLoadMore, header } = data || {}
   const { theme } = useUiStore()
+
+  if (!events) return <div style={style} />
 
   if (header && index === 0) {
     return (

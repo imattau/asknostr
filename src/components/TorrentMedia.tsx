@@ -16,6 +16,8 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
   const [isReady, setIsRevealed] = useState(false)
   const [progress, setProgress] = useState(0)
   const [numPeers, setNumPeers] = useState(0)
+  const numPeersRef = useRef(0)
+  const isReadyRef = useRef(false)
   const [useFallback, setUseFallback] = useState(false)
   const mediaRef = useRef<HTMLDivElement>(null)
   const { theme } = useUiStore()
@@ -30,7 +32,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
     
     // The 5-Second Rule: Fallback to HTTP if swarm is cold
     const fallbackTimer = setTimeout(() => {
-      if (mounted && numPeers === 0 && !isReady && fallbackUrl) {
+      if (mounted && numPeersRef.current === 0 && !isReadyRef.current && fallbackUrl) {
         console.log('[TorrentMedia] Swarm cold after 5s, falling back to HTTP...')
         setUseFallback(true)
       }
@@ -45,8 +47,9 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
         t.on('ready', () => {
           console.log('[TorrentMedia] Torrent ready:', t.name)
           if (mounted) {
-            setIsRevealed(true)
-            setUseFallback(false) // Found peers or data, cancel fallback if it happened to trigger
+            isReadyRef.current = true
+            setIsRevealed(true) // Update state for re-render
+            setUseFallback(false)
           }
         })
 
@@ -58,6 +61,7 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
         interval = setInterval(() => {
           if (mounted && t) {
             setProgress(t.progress)
+            numPeersRef.current = t.numPeers
             setNumPeers(t.numPeers)
             if (t.numPeers > 0) setUseFallback(false)
           }
@@ -65,7 +69,8 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
 
         // If it's already ready (e.g. from service cache)
         if (t.ready && mounted) {
-          setIsRevealed(true)
+          isReadyRef.current = true
+          setIsRevealed(true) // Update state for re-render
         }
       } catch (err) {
         console.error('[TorrentMedia] Failed to add torrent:', err)
