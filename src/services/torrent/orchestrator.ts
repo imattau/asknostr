@@ -2,10 +2,8 @@
 import WebTorrent from 'webtorrent/dist/webtorrent.min.js'
 import { TorrentClient, TRACKERS } from './client'
 import { persistenceManager, type SeededFileRecord } from './persistence'
+import { useStore } from '../../store/useStore'
 import type { Event } from 'nostr-tools'
-
-// Placeholder for Bridge Server URL - in a real app this would be in config
-const BRIDGE_SERVER_URL = 'https://bridge.asknostr.com'
 
 export class SwarmOrchestrator {
   private followedPubkeys: Set<string> = new Set()
@@ -103,7 +101,8 @@ export class SwarmOrchestrator {
       }))
 
       // Ping Bridge Server (Silent failure as it's a heartbeat)
-      fetch(`${BRIDGE_SERVER_URL}/api/v1/report-health`, {
+      const bridgeUrl = useStore.getState().bridgeUrl
+      fetch(`${bridgeUrl.replace(/\/$/, '')}/api/v1/report-health`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reports, timestamp: Date.now() })

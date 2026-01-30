@@ -3,11 +3,10 @@ import { persistenceManager } from './torrent/persistence'
 import { bridgeService } from './torrent/bridge'
 import { TorrentClient } from './torrent/client'
 import { mediaService } from './mediaService'
+import { useStore } from '../store/useStore'
 import type { Event } from 'nostr-tools'
 
 class TorrentService {
-  private static BRIDGE_URL = 'https://bridge.asknostr.com'
-
   /**
    * Initialize and restore previously seeded files
    */
@@ -76,7 +75,8 @@ class TorrentService {
    */
   private async bootstrapPing(magnet: string, url: string) {
     try {
-      fetch(`${TorrentService.BRIDGE_URL}/api/v1/bootstrap`, {
+      const bridgeUrl = useStore.getState().bridgeUrl
+      fetch(`${bridgeUrl.replace(/\/$/, '')}/api/v1/bootstrap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ magnet, url, timestamp: Date.now() })

@@ -1,14 +1,15 @@
-export class BridgeService {
-  private static BRIDGE_URL = 'https://bridge.asknostr.com'
+import { useStore } from '../../store/useStore'
 
+export class BridgeService {
   async uploadToBridge(file: File): Promise<string> {
-    console.log('[BridgeService] Attempting safety net upload...')
+    const bridgeUrl = useStore.getState().bridgeUrl
+    console.log(`[BridgeService] Attempting safety net upload to ${bridgeUrl}...`)
     
     const formData = new FormData()
     formData.append('file', file)
 
     try {
-      const response = await fetch(`${BridgeService.BRIDGE_URL}/api/v1/upload`, {
+      const response = await fetch(`${bridgeUrl.replace(/\/$/, '')}/api/v1/upload`, {
         method: 'POST',
         body: formData
       })
