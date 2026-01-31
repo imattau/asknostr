@@ -38,6 +38,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   const [pendingCount, setPendingCount] = useState(0);
   
   const eventBufferRef = useRef<Event[]>([]);
+  const isBufferPausedRef = useRef(false);
 
   const query = useQuery<Event[], Error>({
     queryKey,
@@ -57,7 +58,11 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
     if (eventBufferRef.current.length === 0) return;
 
     const chunk = eventBufferRef.current.splice(-maxItems);
-    setPendingCount(eventBufferRef.current.length);
+    const remaining = eventBufferRef.current.length;
+    setPendingCount(remaining);
+    if (remaining < MAX_BUFFER_SIZE) {
+      isBufferPausedRef.current = false;
+    }
 
     queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
       const mergedMap = new Map<string, Event>();
@@ -127,8 +132,11 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
 
     const handleEvent = (event: Event) => {
       if (!isMounted) return;
+      if (isBufferPausedRef.current) return;
       if (eventBufferRef.current.length >= MAX_BUFFER_SIZE) {
-        eventBufferRef.current.shift()
+        isBufferPausedRef.current = true;
+        setPendingCount(eventBufferRef.current.length);
+        return;
       }
 
       const currentData = queryClient.getQueryData<Event[]>(queryKey) || [];
