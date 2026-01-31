@@ -56,7 +56,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   const flushBuffer = useCallback((maxItems: number = PENDING_FLUSH_CHUNK) => {
     if (eventBufferRef.current.length === 0) return;
 
-    const chunk = eventBufferRef.current.splice(0, maxItems);
+    const chunk = eventBufferRef.current.splice(-maxItems);
     setPendingCount(eventBufferRef.current.length);
 
     queryClient.setQueryData<Event[]>(queryKey, (oldEvents = []) => {
@@ -127,7 +127,9 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
 
     const handleEvent = (event: Event) => {
       if (!isMounted) return;
-      if (eventBufferRef.current.length >= MAX_BUFFER_SIZE) return;
+      if (eventBufferRef.current.length >= MAX_BUFFER_SIZE) {
+        eventBufferRef.current.shift()
+      }
 
       const currentData = queryClient.getQueryData<Event[]>(queryKey) || [];
       if (currentData.some(e => e.id === event.id) || eventBufferRef.current.some(e => e.id === event.id)) {
