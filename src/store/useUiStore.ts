@@ -19,6 +19,7 @@ interface UiState {
   pushLayer: (layer: Layer) => void
   popLayer: () => void
   resetStack: (layer: Layer) => void
+  clearStack: () => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -36,6 +37,7 @@ export const useUiStore = create<UiState>()(
         stack: state.stack.slice(0, -1) 
       })),
       resetStack: (layer) => set({ stack: [layer] }),
+      clearStack: () => set({ stack: [] }),
     }),
     {
       name: 'asknostr-ui-storage',

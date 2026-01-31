@@ -37,7 +37,7 @@ import type { Event } from 'nostr-tools'
 function App() {
   const { isConnected, user, login, logout } = useStore()
 
-  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
+  const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, clearStack } = useUiStore()
   const hasSetMobileDefaultRef = useRef(false)
 
     const { muted = [], following = [] } = useSocialGraph()
@@ -66,10 +66,10 @@ function App() {
     useEffect(() => {
       if (hasSetMobileDefaultRef.current) return
       if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
-        resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
+        clearStack()
         hasSetMobileDefaultRef.current = true
       }
-    }, [user.pubkey, layout, stack.length, resetStack])
+    }, [user.pubkey, layout, stack.length, clearStack])
 
   // Fetch global events for trends
   const { data: trendEvents = [] } = useFeed({ 

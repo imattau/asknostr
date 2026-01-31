@@ -1,0 +1,9 @@
+{
+  "name": "asknostr",
+  "goals": [
+    "Be a helpful AI assistant for this project."
+  ],
+  "conventions": [
+    "Adhere to existing code style."
+  ]
+}
