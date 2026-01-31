@@ -19,8 +19,8 @@ interface UseFeedOptions {
 
 const MAX_FEED_SIZE = 200; 
 const FLUSH_INTERVAL_MS = 3000;
-const PENDING_FLUSH_CHUNK = 100;
-const MAX_BUFFER_SIZE = 200;
+const PENDING_FLUSH_CHUNK = 50;
+const MAX_BUFFER_SIZE = 100;
 
 export const useFeed = ({ filters, customRelays, enabled = true, live = true, limit = 20, manualFlush = false }: UseFeedOptions) => {
   const queryClient = useQueryClient();
