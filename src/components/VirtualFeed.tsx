@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useContext, useMemo, useRef } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import type { Event } from 'nostr-tools'
 import { Post } from './Post'
@@ -12,23 +12,24 @@ interface VirtualFeedProps {
   header?: React.ReactNode
 }
 
+const HeaderContentContext = React.createContext<React.ReactNode>(null)
+
+const VirtualFeedHeader: React.FC = () => {
+  const headerContent = useContext(HeaderContentContext)
+  if (!headerContent) return null
+  return <div className="w-full">{headerContent}</div>
+}
+
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
   ({ events = [], isLoadingMore, onLoadMore, onScroll, header }, ref) => {
     const { theme } = useUiStore()
-    const headerRef = useRef<React.ReactNode>(null)
     const isLoadingMoreRef = useRef(isLoadingMore)
     const onLoadMoreRef = useRef(onLoadMore)
     const themeRef = useRef(theme)
 
-    headerRef.current = header
     isLoadingMoreRef.current = isLoadingMore
     onLoadMoreRef.current = onLoadMore
     themeRef.current = theme
-
-    const Header = useCallback(() => {
-      if (!headerRef.current) return null
-      return <div className="w-full">{headerRef.current}</div>
-    }, [])
 
     const Footer = useCallback(() => {
       return (
@@ -46,39 +47,41 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
 
     const components = useMemo(
       () => ({
-        Header,
+        Header: VirtualFeedHeader,
         Footer,
       }),
-      [Header, Footer]
+      [Footer]
     )
 
     return (
-      <div className="h-full w-full relative">
-        <Virtuoso
-          ref={ref}
-          data={events}
-          useWindowScroll={false}
-          style={{ height: '100%', width: '100%' }}
-          increaseViewportBy={200}
-          endReached={() => {
-            if (!isLoadingMore && events.length > 0) {
-              onLoadMore()
-            }
-          }}
-          onScroll={(e: any) => {
-            if (onScroll) {
-              const offset = e.target?.scrollTop;
-              if (offset !== undefined) onScroll(offset);
-            }
-          }}
-          components={components}
-          itemContent={(_index, event) => (
-            <div className="px-4 py-2 border-b border-white/5">
-              <Post event={event} depth={0} />
-            </div>
-          )}
-        />
-      </div>
+      <HeaderContentContext.Provider value={header}>
+        <div className="h-full w-full relative">
+          <Virtuoso
+            ref={ref}
+            data={events}
+            useWindowScroll={false}
+            style={{ height: '100%', width: '100%' }}
+            increaseViewportBy={200}
+            endReached={() => {
+              if (!isLoadingMore && events.length > 0) {
+                onLoadMore()
+              }
+            }}
+            onScroll={(e: any) => {
+              if (onScroll) {
+                const offset = e.target?.scrollTop;
+                if (offset !== undefined) onScroll(offset);
+              }
+            }}
+            components={components}
+            itemContent={(_index, event) => (
+              <div className="px-4 py-2 border-b border-white/5">
+                <Post event={event} depth={0} />
+              </div>
+            )}
+          />
+        </div>
+      </HeaderContentContext.Provider>
     )
   }
 )
