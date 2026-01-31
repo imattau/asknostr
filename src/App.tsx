@@ -235,7 +235,7 @@ function MainFeed({
       />
       
       {pendingCount > 0 && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className={`absolute left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-4 duration-300 ${isHeaderHidden ? 'top-2' : composerCollapsed ? 'top-14' : 'top-28'}`}>
           <button
             onClick={() => {
               flushBuffer(100)
