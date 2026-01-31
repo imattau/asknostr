@@ -33,7 +33,7 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   const snapshotLimit = Math.max(limit, MAX_FEED_SIZE);
   const feedKey = useMemo(() => nostrService.getFeedKey(parsedFilters, normalizedRelayList, snapshotLimit), [parsedFilters, normalizedRelayList, snapshotLimit]);
 
-  const queryKey = ['feed-events', filtersKey, relaysKey];
+  const queryKey = ['feed-events', filtersKey, relaysKey, manualFlush ? 'manual' : 'auto'];
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   
