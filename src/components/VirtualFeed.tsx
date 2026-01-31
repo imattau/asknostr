@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useMemo, useRef } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import type { Event } from 'nostr-tools'
 import { Post } from './Post'
@@ -15,6 +15,42 @@ interface VirtualFeedProps {
 export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
   ({ events = [], isLoadingMore, onLoadMore, onScroll, header }, ref) => {
     const { theme } = useUiStore()
+    const headerRef = useRef<React.ReactNode>(null)
+    const isLoadingMoreRef = useRef(isLoadingMore)
+    const onLoadMoreRef = useRef(onLoadMore)
+    const themeRef = useRef(theme)
+
+    headerRef.current = header
+    isLoadingMoreRef.current = isLoadingMore
+    onLoadMoreRef.current = onLoadMore
+    themeRef.current = theme
+
+    const Header = useCallback(() => {
+      if (!headerRef.current) return null
+      return <div className="w-full">{headerRef.current}</div>
+    }, [])
+
+    const Footer = useCallback(() => {
+      return (
+        <div className="px-4 py-4 pb-20">
+          <button
+            onClick={() => onLoadMoreRef.current()}
+            className={`w-full glassmorphism p-3 rounded-lg text-[10px] ${themeRef.current === 'light' ? 'text-slate-600' : 'opacity-50'} uppercase font-bold`}
+            disabled={isLoadingMoreRef.current}
+          >
+            {isLoadingMoreRef.current ? 'Loading...' : 'Load More'}
+          </button>
+        </div>
+      )
+    }, [])
+
+    const components = useMemo(
+      () => ({
+        Header,
+        Footer,
+      }),
+      [Header, Footer]
+    )
 
     return (
       <div className="h-full w-full relative">
@@ -35,24 +71,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
               if (offset !== undefined) onScroll(offset);
             }
           }}
-          components={{
-            Header: () => (
-              <>
-                {header && <div className="w-full">{header}</div>}
-              </>
-            ),
-            Footer: () => (
-              <div className="px-4 py-4 pb-20">
-                <button
-                  onClick={onLoadMore}
-                  className={`w-full glassmorphism p-3 rounded-lg text-[10px] ${theme === 'light' ? 'text-slate-600' : 'opacity-50'} uppercase font-bold`}
-                  disabled={isLoadingMore}
-                >
-                  {isLoadingMore ? 'Loading...' : 'Load More'}
-                </button>
-              </div>
-            )
-          }}
+          components={components}
           itemContent={(_index, event) => (
             <div className="px-4 py-2 border-b border-white/5">
               <Post event={event} depth={0} />
