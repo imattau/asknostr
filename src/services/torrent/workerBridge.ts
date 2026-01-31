@@ -86,8 +86,18 @@ export class TorrentWorkerBridge {
   }
 
   hashFile(file: File): Promise<string> {
-    return new Promise((resolve) => {
-      this.callbacks.set(`hash-${file.name}`, resolve)
+    if (!this.worker) return Promise.reject(new Error('Torrent worker unavailable'))
+    return new Promise((resolve, reject) => {
+      const key = `hash-${file.name}`
+      const timeoutId = setTimeout(() => {
+        if (this.callbacks.delete(key)) {
+          reject(new Error('Hashing timed out'))
+        }
+      }, 15000)
+      this.callbacks.set(key, (data: any) => {
+        clearTimeout(timeoutId)
+        resolve(data)
+      })
       this.worker?.postMessage({
         type: 'HASH_FILE',
         payload: { file, name: file.name }
@@ -106,8 +116,18 @@ export class TorrentWorkerBridge {
   }
 
   seed(file: File): Promise<any> {
-    return new Promise((resolve) => {
-      this.callbacks.set(file.name, resolve)
+    if (!this.worker) return Promise.reject(new Error('Torrent worker unavailable'))
+    return new Promise((resolve, reject) => {
+      const key = file.name
+      const timeoutId = setTimeout(() => {
+        if (this.callbacks.delete(key)) {
+          reject(new Error('Seeding timed out'))
+        }
+      }, 20000)
+      this.callbacks.set(key, (data: any) => {
+        clearTimeout(timeoutId)
+        resolve(data)
+      })
       this.worker?.postMessage({
         type: 'SEED',
         payload: { file, name: file.name, type: file.type }
@@ -116,11 +136,20 @@ export class TorrentWorkerBridge {
   }
 
   add(magnetUri: string): Promise<any> {
+    if (!this.worker) return Promise.reject(new Error('Torrent worker unavailable'))
     const infoHashMatch = magnetUri.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
     const id = infoHashMatch ? infoHashMatch[1].toLowerCase() : magnetUri.toLowerCase()
 
-    return new Promise((resolve) => {
-      this.callbacks.set(id, resolve)
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.callbacks.delete(id)) {
+          reject(new Error('Torrent add timed out'))
+        }
+      }, 20000)
+      this.callbacks.set(id, (data: any) => {
+        clearTimeout(timeoutId)
+        resolve(data)
+      })
       this.worker?.postMessage({
         type: 'ADD',
         payload: { magnetUri }

@@ -4,7 +4,7 @@ import { useApprovals } from '../hooks/useApprovals'
 import { useStore } from '../store/useStore'
 import { Post } from './Post'
 import { VirtualFeed } from './VirtualFeed'
-import { Shield, Info, Filter, RefreshCw, Pin, Paperclip, Loader2, Share2 } from 'lucide-react'
+import { Shield, Info, Filter, RefreshCw, Pin } from 'lucide-react'
 import { nostrService } from '../services/nostr'
 import { signerService } from '../services/signer'
 import { mediaService } from '../services/mediaService'
@@ -16,98 +16,9 @@ import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useLabels } from '../hooks/useLabels'
 import { useSocialGraph } from '../hooks/useSocialGraph'
 import { nip19, type Event } from 'nostr-tools'
-import { MentionsInput, Mention } from 'react-mentions'
 import { useFeed } from '../hooks/useFeed'
+import { Composer } from './Composer'
 
-
-const mentionStyle = {
-  control: {
-    backgroundColor: 'transparent',
-    fontSize: 12,
-    lineHeight: '1.25rem',
-    fontFamily: 'inherit',
-  },
-  '&multiLine': {
-    control: {
-      minHeight: 40,
-    },
-    highlighter: {
-      padding: 0,
-      border: 'none',
-    },
-    input: {
-      padding: 0,
-      margin: 0,
-      border: 'none',
-      outline: 'none',
-      color: 'inherit',
-    },
-  },
-  suggestions: {
-    list: {
-      backgroundColor: 'var(--background)',
-      border: '1px solid var(--border-slate)',
-      fontSize: 11,
-      borderRadius: 12,
-      overflow: 'hidden',
-    },
-    item: {
-      padding: '6px 10px',
-      borderBottom: '1px solid var(--border-slate)',
-      color: 'var(--muted)',
-      '&focused': {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        color: 'var(--accent-cyan)',
-      },
-    },
-  },
-}
-
-const HashtagTextarea = ({
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  onUserSearch
-}: {
-  value: string;
-  onChange: (event: { target: { value: string; }; }, newValue: string, newPlainTextValue: string, mentions: any[]) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  onUserSearch: (query: string, callback: (data: { id: string; display: string }[]) => void) => void;
-}) => {
-  return (
-    <div className="relative w-full min-h-[2.5rem] mt-1 font-sans text-xs leading-5">
-      <MentionsInput
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        style={mentionStyle}
-        classNames={{
-          input: 'focus:ring-0 w-full',
-        }}
-      >
-        <Mention
-          trigger="@"
-          data={onUserSearch}
-          displayTransform={(_id: string, display: string) => `@${display}`}
-          markup="nostr:[id]"
-          className="text-cyan-400 font-bold bg-cyan-500/10 px-0.5 rounded"
-          appendSpaceOnAdd
-        />
-        <Mention
-          trigger="#"
-          data={(query: string) => [{ id: query, display: query }]}
-          displayTransform={(_id: string, display: string) => `#${display}`}
-          markup="#[id]"
-          className="text-purple-400 font-bold bg-purple-500/10 px-0.5 rounded"
-          appendSpaceOnAdd
-        />
-      </MentionsInput>
-    </div>
-  )
-}
 
 interface CommunityFeedProps {
   communityId: string
@@ -390,6 +301,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
 
   return (
     <div className={`flex flex-col h-full ${containerBg}`}>
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
+      <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" />
       <div className={`shrink-0 z-10 ${headerBg} backdrop-blur-xl border-b ${borderClass}`}>
         <div className="p-4 space-y-4">
           <div className="flex items-start justify-between">
@@ -424,37 +337,29 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({ communityId, creat
           header={
             <div className="p-4 space-y-4">
               <div className={`glassmorphism p-3 rounded-xl ${theme === 'light' ? 'border-slate-300' : 'border-slate-800/50'}`}>
-                                    <HashtagTextarea 
-                                      value={postContent} 
-                                      onChange={(_event: any, newValue: any) => setPostContent(newValue)} 
-                                      disabled={!user.pubkey || isPublishing} 
-                                      placeholder={`Post to c/${communityId}...`} 
-                                      onUserSearch={handleUserSearch}
-                                    />              <div className={`flex items-center justify-between mt-2 pt-2 border-t ${theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
-                  <label className={`flex items-center gap-2 text-[8px] font-mono uppercase ${mutedText}`}><input type="checkbox" checked={isNsfw} onChange={(e) => setIsNsfw(e.target.checked)} className="accent-red-500" /> NSFW</label>
-                  <div className="flex items-center gap-2">
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
-                    <input type="file" ref={torrentInputRef} onChange={handleTorrentSeed} className="hidden" accept="image/*,video/*,audio/*" />
-                    
-                    <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} ${secondaryText} transition-colors disabled:opacity-50`} title="Attach Media">
-                      {isUploadingMedia ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
-                    </button>
-
-                    <button type="button" disabled={isUploadingMedia || isSeeding || !user.pubkey} onClick={() => torrentInputRef.current?.click()} className={`p-1.5 rounded-lg ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/5'} text-purple-400 transition-colors disabled:opacity-50`} title="Seed via BitTorrent">
-                      {isSeeding ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
-                    </button>
-
-                    <button onClick={handlePublish} disabled={!user.pubkey || !postContent.trim() || isPublishing || isSeeding} className="terminal-button rounded py-1 px-3 text-[9px]">{isPublishing ? '...' : 'Post'}</button>
-                  </div>
-                  {seedingStatus && (
-                    <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300 text-right">
-                      {seedingStatus.status === 'in-progress' && !seedingStatus.magnet && <>Seeding {seedingStatus.name}…</>}
-                      {seedingStatus.status === 'in-progress' && seedingStatus.magnet && <>Uploading Web Mirror…</>}
-                      {seedingStatus.status === 'ready' && <>Magnet & Mirror Ready</>}
-                      {seedingStatus.status === 'failed' && <>Failed to seed {seedingStatus.name}</>}
-                    </p>
-                  )}
-                </div>
+                <Composer
+                  value={postContent}
+                  onChange={setPostContent}
+                  disabled={!user.pubkey || isPublishing}
+                  placeholder={`Post to c/${communityId}...`}
+                  onUserSearch={handleUserSearch}
+                  isNsfw={isNsfw}
+                  onNsfwChange={setIsNsfw}
+                  onAttachMedia={() => fileInputRef.current?.click()}
+                  onAttachTorrent={() => torrentInputRef.current?.click()}
+                  onPublish={handlePublish}
+                  publishLabel="Post"
+                  publishingLabel="..."
+                  isPublishing={isPublishing}
+                  isUploadingMedia={isUploadingMedia}
+                  isSeeding={isSeeding}
+                  seedingStatus={seedingStatus}
+                  variant="community"
+                  theme={theme}
+                  borderClassName={theme === 'light' ? 'border-slate-200' : 'border-white/5'}
+                  mutedTextClassName={mutedText}
+                  secondaryTextClassName={secondaryText}
+                />
               </div>
               {community?.rules && <div className="glassmorphism p-3 rounded-xl border-yellow-500/20 bg-yellow-500/5"><h4 className="flex items-center gap-2 font-mono font-bold text-[9px] text-yellow-500 uppercase mb-1 tracking-widest"><Info size={10} /> Rules</h4><div className={`text-[10px] ${secondaryText} font-sans leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all cursor-pointer`}>{community.rules}</div></div>}
               {pinnedEvents.length > 0 && <div className="space-y-4 mb-8"><h4 className="flex items-center gap-2 font-mono font-bold text-[10px] text-purple-500 uppercase tracking-widest px-2"><Pin size={12} className="rotate-45" /> Pinned</h4><div className="space-y-4">{pinnedEvents.map(event => <Post key={event.id} event={event} isModerator={moderators.includes(event.pubkey)} isApproved={true} depth={0} />)}</div><div className={`h-px ${borderClass} mx-4`} /></div>}

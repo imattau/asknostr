@@ -17,8 +17,6 @@ class MediaService {
       throw new Error('No media servers configured')
     }
 
-    // Offload hashing to BitTorrent worker to avoid main-thread stutter
-    const sha256 = await TorrentClient.get().hashFile(file)
     let lastError: Error | null = null
 
     // Try all configured servers in order
@@ -26,6 +24,7 @@ class MediaService {
       try {
         console.log(`[MediaService] Attempting upload to ${server.url} (${server.type})...`)
         if (server.type === 'blossom') {
+          const sha256 = await this.hashFileWithFallback(file)
           return await this.uploadToBlossom(server.url, file, sha256)
         } else {
           return await this.uploadToGeneric(server.url, file)
@@ -112,6 +111,23 @@ class MediaService {
       }
       throw err
     }
+  }
+
+  private async hashFileWithFallback(file: File): Promise<string> {
+    try {
+      return await TorrentClient.get().hashFile(file)
+    } catch (err) {
+      console.warn('[MediaService] Worker hashing failed, falling back to main thread:', err)
+    }
+
+    if (typeof window === 'undefined' || !window.crypto?.subtle) {
+      throw new Error('Secure context required for hashing')
+    }
+
+    const buffer = await file.arrayBuffer()
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 }
 
