@@ -57,6 +57,14 @@ export const useFeed = ({ filters, customRelays, enabled = true, live = true, li
   const flushBuffer = useCallback((maxItems: number = PENDING_FLUSH_CHUNK) => {
     if (eventBufferRef.current.length === 0) return;
 
+    const existingIds = new Set((queryClient.getQueryData<Event[]>(queryKey) || []).map(e => e.id))
+    eventBufferRef.current = eventBufferRef.current.filter(e => !existingIds.has(e.id))
+    if (eventBufferRef.current.length === 0) {
+      setPendingCount(0)
+      isBufferPausedRef.current = false
+      return
+    }
+
     const chunk = eventBufferRef.current.splice(-maxItems);
     const remaining = eventBufferRef.current.length;
     setPendingCount(remaining);
