@@ -38,6 +38,7 @@ function App() {
   const { isConnected, user, login, logout } = useStore()
 
   const { layout, setLayout, theme, setTheme, stack, popLayer, pushLayer, resetStack } = useUiStore()
+  const hasSetMobileDefaultRef = useRef(false)
 
     const { muted = [], following = [] } = useSocialGraph()
 
@@ -61,10 +62,12 @@ function App() {
       }
     }, [user.pubkey])
 
-    // Set default view for logged-in users on mobile
+    // Set default view for logged-in users on mobile (once per app load)
     useEffect(() => {
+      if (hasSetMobileDefaultRef.current) return
       if (user.pubkey && layout === 'swipe' && stack.length === 1 && stack[0].type === 'feed') {
         resetStack({ id: 'system-control', type: 'sidebar', title: 'System_Control' })
+        hasSetMobileDefaultRef.current = true
       }
     }, [user.pubkey, layout, stack.length, resetStack])
 
@@ -235,10 +238,10 @@ function MainFeed({
       />
       
       {pendingCount > 0 && (
-        <div className={`absolute left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-4 duration-300 ${isHeaderHidden ? 'top-2' : composerCollapsed ? 'top-14' : 'top-28'}`}>
+        <div className={`absolute left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-4 duration-300 ${isHeaderHidden ? 'top-2' : composerCollapsed ? 'top-14' : 'top-36'}`}>
           <button
             onClick={() => {
-              flushBuffer(100)
+              flushBuffer()
               feedRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })
             }}
             className="bg-cyan-500 text-black text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400 hover:bg-cyan-400 transition-all flex items-center gap-2"
