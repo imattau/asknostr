@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { nip19, type Event } from 'nostr-tools'
 import { formatPubkey, shortenPubkey, formatDate } from '../utils/nostr'
-import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, CheckCircle, AlertTriangle, Share2, Hash, MessageSquare } from 'lucide-react'
+import { Heart, Repeat2, Zap, Trash2, Maximize2, Shield, ShieldAlert, ShieldCheck, CheckCircle, AlertTriangle, Share2, Hash, MessageSquare } from 'lucide-react'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useProfile } from '../hooks/useProfile'
 import { useReactions } from '../hooks/useReactions'
 import { useZaps } from '../hooks/useZaps'
 import { useReplyCount } from '../hooks/useReplyCount'
+import { useSocialGraph } from '../hooks/useSocialGraph'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
 import { nostrService } from '../services/nostr'
@@ -140,6 +141,10 @@ const PostComponent: React.FC<PostProps> = ({
     const interval = setInterval(checkSeeding, 10000)
     return () => clearInterval(interval)
   }, [event.content])
+
+  const { muted, toggleMute, isUpdating: isSocialUpdating } = useSocialGraph()
+  const isMuted = muted.includes(event.pubkey)
+  const isSelf = user.pubkey === event.pubkey
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const secondaryText = theme === 'light' ? 'text-slate-600' : 'text-slate-300'
@@ -910,6 +915,17 @@ const PostComponent: React.FC<PostProps> = ({
           <AlertTriangle size={12} />
           <span className="leading-none">Report</span>
         </button>
+
+        {!isSelf && user.pubkey && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); triggerHaptic(15); toggleMute(event.pubkey); }}
+            disabled={isSocialUpdating}
+            className={`flex items-center gap-1.5 transition-colors group/btn opacity-30 hover:opacity-100 ${isMuted ? 'text-red-500' : `hover:text-red-500 ${mutedText}`}`}
+          >
+            {isMuted ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
+            <span className="leading-none">{isMuted ? 'Unblock' : 'Block'}</span>
+          </button>
+        )}
       </div>
     </div>
   )

@@ -78,6 +78,10 @@ function App() {
     live: true
   });
 
+  const filteredTrendEvents = useMemo(() => {
+    return trendEvents.filter(e => !muted.includes(e.pubkey))
+  }, [trendEvents, muted])
+
   const [composerCollapsed, setComposerCollapsed] = useState(false)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
 
@@ -191,7 +195,7 @@ function App() {
       stack={stack}
       popLayer={popLayer}
       pushLayer={pushLayer}
-      events={trendEvents}
+      events={filteredTrendEvents}
     />
   )
 }

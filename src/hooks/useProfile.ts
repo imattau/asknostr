@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { nostrService } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import { get, set } from 'idb-keyval'
+import { errorReporter } from '../services/errorReporter'
 import type { UserProfile } from '../store/useStore'
 
 const normalizeProfile = (raw: Record<string, string | undefined>): UserProfile => {
@@ -21,7 +22,7 @@ export const fetchProfile = async (pubkey: string): Promise<UserProfile | null> 
   if (!pubkey) return null
   
   const cacheKey = `profile-${pubkey}`
-  const cached = await get(cacheKey) as UserProfile | undefined
+  const cached = await errorReporter.withDBHandling(() => get(cacheKey), 'Profile_Restore') as UserProfile | undefined
   
   return new Promise<UserProfile | null>((resolve) => {
     let found = false
@@ -39,7 +40,7 @@ export const fetchProfile = async (pubkey: string): Promise<UserProfile | null> 
         found = true
         clearTimeout(timeout)
         cleanup()
-        set(cacheKey, profile)
+        errorReporter.withDBHandling(() => set(cacheKey, profile), 'Profile_Persist')
         resolve(profile)
       } catch (e) {
         // Parse error

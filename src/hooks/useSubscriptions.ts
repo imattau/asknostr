@@ -5,6 +5,7 @@ import { signerService } from '../services/signer'
 import type { Event } from 'nostr-tools'
 import { triggerHaptic } from '../utils/haptics'
 import { get, set } from 'idb-keyval'
+import { errorReporter } from '../services/errorReporter'
 
 export const useSubscriptions = () => {
   const { user, relays: storeRelays } = useStore()
@@ -16,7 +17,7 @@ export const useSubscriptions = () => {
       if (!user.pubkey) return null
       
       const cacheKey = `subs-${user.pubkey}`
-      const cached = await get(cacheKey)
+      const cached = await errorReporter.withDBHandling(() => get(cacheKey), 'Subscriptions_Restore')
 
       return new Promise<Event | null>((resolve) => {
         let latest: Event | null = null
@@ -38,7 +39,7 @@ export const useSubscriptions = () => {
             if (!latest || event.created_at > latest.created_at) {
               latest = event
               found = true
-              set(cacheKey, event)
+              errorReporter.withDBHandling(() => set(cacheKey, event), 'Subscriptions_Persist')
             }
           },
           nostrService.getDiscoveryRelays(),
@@ -78,7 +79,7 @@ export const useSubscriptions = () => {
 
       const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
-      await set(`subs-${user.pubkey}`, signedEvent)
+      await errorReporter.withDBHandling(() => set(`subs-${user.pubkey}`, signedEvent), 'Subscriptions_Update')
       return signedEvent
     },
     onSuccess: (newEvent) => {

@@ -44,6 +44,25 @@ export const errorReporter = {
 
     return report
   },
+  
+  /**
+   * Specifically handles common browser storage errors like 
+   * "Internal error opening backing store for indexedDB.open"
+   */
+  async withDBHandling<T>(fn: () => Promise<T>, context?: string): Promise<T | undefined> {
+    try {
+      return await fn()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('indexedDB') || message.includes('backing store')) {
+        this.reportError(error, context || 'IndexedDB_Critical_Failure')
+      } else {
+        console.warn(`[ErrorReporter] Non-DB error in withDBHandling: ${message}`)
+      }
+      return undefined
+    }
+  },
+
   getReports() {
     return [...errors]
   },

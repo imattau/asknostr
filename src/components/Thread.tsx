@@ -5,6 +5,7 @@ import { signerService } from '../services/signer'
 import { Post } from './Post'
 import { useStore } from '../store/useStore'
 import { useUiStore } from '../store/useUiStore'
+import { useSocialGraph } from '../hooks/useSocialGraph'
 import { MessageSquare, RefreshCw } from 'lucide-react'
 import { triggerHaptic } from '../utils/haptics'
 
@@ -27,6 +28,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
   const [isNsfw, setIsNsfw] = useState(false)
   const { user } = useStore()
   const { theme } = useUiStore()
+  const { muted } = useSocialGraph()
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to selected reply once loaded
@@ -222,11 +224,13 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
   const threadTree = useMemo(() => {
     const nodes: Record<string, ThreadNode> = {}
     
-    allEvents.forEach(event => {
+    const filteredEvents = allEvents.filter(e => !muted.includes(e.pubkey))
+    
+    filteredEvents.forEach(event => {
       nodes[event.id] = { event, replies: [] }
     })
 
-    allEvents.forEach(event => {
+    filteredEvents.forEach(event => {
       const parentId = deriveParentId(event)
       if (parentId && nodes[parentId] && parentId !== event.id) {
         nodes[parentId].replies.push(nodes[event.id])
@@ -264,7 +268,7 @@ export const Thread: React.FC<ThreadProps> = ({ eventId, rootEvent, forceFullThr
       const parentId = deriveParentId(node.event)
       return !parentId || !nodes[parentId]
     })
-  }, [allEvents, eventId, rootId, forceFullThread, deriveParentId])
+  }, [allEvents, eventId, rootId, forceFullThread, deriveParentId, muted])
 
   const renderNode = (node: ThreadNode, depth = 0) => {
     return (

@@ -6,6 +6,7 @@ import { resolveNip05 } from '../utils/nip05'
 import type { Event } from 'nostr-tools'
 import { Post } from './Post'
 import { triggerHaptic } from '../utils/haptics'
+import { useSocialGraph } from '../hooks/useSocialGraph'
 
 interface SearchParams {
   initialQuery?: string;
@@ -20,6 +21,8 @@ export const Search: React.FC = () => {
   const [results, setResults] = useState<Event[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [nip05Result, setNip05Result] = useState<{ pubkey: string, identifier: string } | null>(null)
+
+  const { muted } = useSocialGraph()
 
   const primaryText = theme === 'light' ? 'text-slate-900' : 'text-slate-50'
   const mutedText = theme === 'light' ? 'text-slate-500' : 'text-slate-400'
@@ -121,12 +124,13 @@ export const Search: React.FC = () => {
   }, [initialQuery, setIsSearching, setResults, setNip05Result]);
 
   const categorizedResults = useMemo(() => {
+    const filtered = results.filter(e => !muted.includes(e.pubkey))
     return {
-      communities: results.filter(e => e.kind === 34550),
-      profiles: results.filter(e => e.kind === 0),
-      posts: results.filter(e => e.kind === 1)
+      communities: filtered.filter(e => e.kind === 34550),
+      profiles: filtered.filter(e => e.kind === 0),
+      posts: filtered.filter(e => e.kind === 1)
     }
-  }, [results])
+  }, [results, muted])
 
   return (
     <div className={`p-6 space-y-8 ${theme === 'light' ? 'bg-slate-50' : ''}`}>
@@ -156,7 +160,7 @@ export const Search: React.FC = () => {
       </form>
 
       {/* NIP-05 Result */}
-      {nip05Result && (
+      {nip05Result && !muted.includes(nip05Result.pubkey) && (
         <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
           <h3 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
             <Globe size={14} className="text-green-500" /> Verified_Identity_Found

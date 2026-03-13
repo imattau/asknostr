@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../store/useStore'
 import { nostrService, DEFAULT_RELAYS } from '../services/nostr'
 import { get, set } from 'idb-keyval'
+import { errorReporter } from '../services/errorReporter'
 
 export const useRelays = () => {
   const { user, setRelays: setStoreRelays } = useStore()
@@ -14,13 +15,13 @@ export const useRelays = () => {
       }
       
       const cacheKey = `relays-${user.pubkey}`
-      const cached = await get(cacheKey)
+      const cached = await errorReporter.withDBHandling(() => get(cacheKey), 'Relays_Restore')
 
       try {
         const relays = await nostrService.fetchRelayList(user.pubkey)
         
         if (relays && relays.length > 0) {
-          await set(cacheKey, relays)
+          await errorReporter.withDBHandling(() => set(cacheKey, relays), 'Relays_Persist')
           nostrService.setRelays(relays)
           setStoreRelays(relays)
           return relays

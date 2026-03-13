@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { nostrService, SubscriptionPriority } from '../services/nostr'
 import type { Event } from 'nostr-tools'
 import { get, set } from 'idb-keyval'
+import { errorReporter } from '../services/errorReporter'
 import { parseCommunityEvent } from '../utils/nostr-parsers'
 
 export interface CommunityDefinition {
@@ -25,7 +26,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
     queryFn: async () => {
       // 1. Check IndexedDB
       const cacheKey = `community-${creatorPubkey}-${communityId}`
-      const cached = await get(cacheKey)
+      const cached = await errorReporter.withDBHandling(() => get(cacheKey), 'Community_Restore')
       if (cached) {
         return cached as CommunityDefinition
       }
@@ -54,7 +55,7 @@ export const useCommunity = (communityId: string, creatorPubkey: string) => {
             const definition = parseCommunityEvent(event)
             if (definition && definition.id === communityId && definition.creator === creatorPubkey) {
               found = true
-              set(cacheKey, definition)
+              errorReporter.withDBHandling(() => set(cacheKey, definition), 'Community_Persist')
               sub.close()
               finish(definition)
             }

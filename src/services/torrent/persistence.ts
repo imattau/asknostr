@@ -1,4 +1,5 @@
 import { get, set, del, keys } from 'idb-keyval'
+import { errorReporter } from '../errorReporter'
 
 export interface SeededFileRecord {
   name: string
@@ -16,24 +17,24 @@ const DEFAULT_QUOTA_MB = 500
 export class PersistenceManager {
   async saveSeed(record: SeededFileRecord) {
     // Save first to ensure the new record is counted
-    await set(`${STORAGE_KEY_PREFIX}${record.infoHash}`, record)
+    await errorReporter.withDBHandling(() => set(`${STORAGE_KEY_PREFIX}${record.infoHash}`, record), 'Persistence_Save')
     // Then enforce quota asynchronously to not block the current operation
     this.enforceQuota().catch(err => console.error('[Persistence] Quota enforcement failed:', err))
   }
 
   async getSeed(infoHash: string): Promise<SeededFileRecord | undefined> {
-    return await get(`${STORAGE_KEY_PREFIX}${infoHash}`)
+    return await errorReporter.withDBHandling(() => get(`${STORAGE_KEY_PREFIX}${infoHash}`), 'Persistence_Get')
   }
 
   async removeSeed(infoHash: string) {
-    await del(`${STORAGE_KEY_PREFIX}${infoHash}`)
+    await errorReporter.withDBHandling(() => del(`${STORAGE_KEY_PREFIX}${infoHash}`), 'Persistence_Remove')
   }
 
   /**
    * Retrieves keys only to avoid loading large blobs into memory all at once
    */
   async getAllSeedKeys(): Promise<string[]> {
-    const allKeys = await keys()
+    const allKeys = await errorReporter.withDBHandling(() => keys(), 'Persistence_Keys') || []
     return allKeys
       .filter(k => typeof k === 'string' && k.startsWith(STORAGE_KEY_PREFIX))
       .map(k => k as string)
@@ -45,7 +46,7 @@ export class PersistenceManager {
     
     // Load sequentially to prevent I/O burst
     for (const key of seedKeys) {
-      const record = await get<SeededFileRecord>(key)
+      const record = await errorReporter.withDBHandling(() => get<SeededFileRecord>(key), 'Persistence_BatchGet')
       if (record) records.push(record)
     }
     
@@ -64,7 +65,7 @@ export class PersistenceManager {
     const metadata: { infoHash: string, size: number, addedAt: number }[] = []
 
     for (const key of seedKeys) {
-      const r = await get<SeededFileRecord>(key)
+      const r = await errorReporter.withDBHandling(() => get<SeededFileRecord>(key), 'Persistence_QuotaCheck')
       if (r) {
         currentSize += r.data.size
         metadata.push({

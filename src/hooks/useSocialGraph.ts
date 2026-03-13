@@ -5,6 +5,7 @@ import { signerService } from '../services/signer'
 import type { Event } from 'nostr-tools'
 import { triggerHaptic } from '../utils/haptics'
 import { get, set } from 'idb-keyval'
+import { errorReporter } from '../services/errorReporter'
 
 export const useSocialGraph = () => {
   const { user } = useStore()
@@ -16,7 +17,7 @@ export const useSocialGraph = () => {
     queryFn: async () => {
       if (!user.pubkey) return null
       const cacheKey = `contacts-${user.pubkey}`
-      const cached = await get(cacheKey)
+      const cached = await errorReporter.withDBHandling(() => get(cacheKey), 'SocialGraph_Restore')
 
       return new Promise<Event | null>((resolve) => {
         let latest: Event | null = null
@@ -36,7 +37,7 @@ export const useSocialGraph = () => {
             if (!latest || event.created_at > latest.created_at) {
               latest = event
               found = true
-              set(cacheKey, event)
+              errorReporter.withDBHandling(() => set(cacheKey, event), 'Database_Persist')
             }
           },
           undefined,
@@ -59,7 +60,7 @@ export const useSocialGraph = () => {
     queryFn: async () => {
       if (!user.pubkey) return null
       const cacheKey = `mutes-${user.pubkey}`
-      const cached = await get(cacheKey)
+      const cached = await errorReporter.withDBHandling(() => get(cacheKey), 'MuteList_Restore')
 
       return new Promise<Event | null>((resolve) => {
         let latest: Event | null = null
@@ -79,7 +80,7 @@ export const useSocialGraph = () => {
             if (!latest || event.created_at > latest.created_at) {
               latest = event
               found = true
-              set(cacheKey, event)
+              errorReporter.withDBHandling(() => set(cacheKey, event), 'Database_Persist')
             }
           },
           undefined,
@@ -110,8 +111,30 @@ export const useSocialGraph = () => {
       }
       const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
-      await set(`contacts-${user.pubkey}`, signedEvent)
+      await errorReporter.withDBHandling(() => set(`contacts-${user.pubkey}`, signedEvent), 'SocialGraph_Update')
       return signedEvent
+    },
+    onMutate: async (newFollowing) => {
+      await queryClient.cancelQueries({ queryKey: ['contacts', user.pubkey] })
+      const previousContacts = queryClient.getQueryData(['contacts', user.pubkey])
+      
+      // Create a fake event for optimistic UI
+      const optimisticEvent = {
+        kind: 3,
+        pubkey: user.pubkey,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: newFollowing.map(p => ['p', p]),
+        content: contactEvent?.content || '',
+        id: 'optimistic-' + Date.now()
+      }
+      
+      queryClient.setQueryData(['contacts', user.pubkey], optimisticEvent)
+      return { previousContacts }
+    },
+    onError: (err, newFollowing, context) => {
+      if (context?.previousContacts) {
+        queryClient.setQueryData(['contacts', user.pubkey], context.previousContacts)
+      }
     },
     onSuccess: (newEvent) => {
       queryClient.setQueryData(['contacts', user.pubkey], newEvent)
@@ -130,8 +153,29 @@ export const useSocialGraph = () => {
       }
       const signedEvent = await signerService.signEvent(eventTemplate)
       await nostrService.publish(signedEvent)
-      await set(`mutes-${user.pubkey}`, signedEvent)
+      await errorReporter.withDBHandling(() => set(`mutes-${user.pubkey}`, signedEvent), 'MuteList_Update')
       return signedEvent
+    },
+    onMutate: async (newMuted) => {
+      await queryClient.cancelQueries({ queryKey: ['mutes', user.pubkey] })
+      const previousMutes = queryClient.getQueryData(['mutes', user.pubkey])
+      
+      const optimisticEvent = {
+        kind: 10000,
+        pubkey: user.pubkey,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: newMuted.map(p => ['p', p]),
+        content: '',
+        id: 'optimistic-' + Date.now()
+      }
+      
+      queryClient.setQueryData(['mutes', user.pubkey], optimisticEvent)
+      return { previousMutes }
+    },
+    onError: (err, newMuted, context) => {
+      if (context?.previousMutes) {
+        queryClient.setQueryData(['mutes', user.pubkey], context.previousMutes)
+      }
     },
     onSuccess: (newEvent) => {
       queryClient.setQueryData(['mutes', user.pubkey], newEvent)

@@ -95,7 +95,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ pubkey }) => {
             </div>
 
             {!isSelf && user.pubkey && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2">
                 <button
                   onClick={() => { triggerHaptic(15); toggleFollow(pubkey); }}
                   disabled={isUpdating}
