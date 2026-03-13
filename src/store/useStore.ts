@@ -79,7 +79,7 @@ declare global {
 
 export const useStore = create<NostrState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       optimisticReactions: {},
       optimisticDeletions: [],
       optimisticApprovals: [],
@@ -100,7 +100,7 @@ export const useStore = create<NostrState>()(
       nwcUrl: null,
       bridgeUrl: '',
       administeredStations: [],
-      addOptimisticReaction: (eventId, pubkey, emoji) => set((state) => {
+      addOptimisticReaction: (eventId: string, pubkey: string, emoji: string) => set((state: NostrState) => {
         const currentEvent = state.optimisticReactions[eventId] || {}
         const currentEmoji = currentEvent[emoji] || []
         if (currentEmoji.includes(pubkey)) return state
@@ -119,39 +119,38 @@ export const useStore = create<NostrState>()(
 
         return { optimisticReactions: nextReactions }
       }),
-      addOptimisticDeletion: (eventId) => set((state) => ({
+      addOptimisticDeletion: (eventId: string) => set((state: NostrState) => ({
         optimisticDeletions: [...state.optimisticDeletions, eventId].slice(-100)
       })),
-      addOptimisticApproval: (eventId) => set((state) => ({
+      addOptimisticApproval: (eventId: string) => set((state: NostrState) => ({
         optimisticApprovals: [...state.optimisticApprovals, eventId].slice(-100)
       })),
-      setRelays: (relays) => set({ relays: sanitizeRelayUrls(relays) }),
-      setMediaServers: (mediaServers) => set({ mediaServers }),
-      addMediaServer: (server) => set((state) => ({
+      setRelays: (relays: string[]) => set({ relays: sanitizeRelayUrls(relays) }),
+      setMediaServers: (mediaServers: MediaServer[]) => set({ mediaServers }),
+      addMediaServer: (server: MediaServer) => set((state: NostrState) => ({
         mediaServers: state.mediaServers.find(s => s.id === server.id || s.url === server.url)
           ? state.mediaServers
           : [...state.mediaServers, server]
       })),
-      removeMediaServer: (id) => set((state) => ({
+      removeMediaServer: (id: string) => set((state: NostrState) => ({
         mediaServers: state.mediaServers.filter(server => server.id !== id)
       })),
-      setConnected: (connected) => set({ isConnected: connected }),
-      setUser: (pubkey) => set((state) => ({ user: { ...state.user, pubkey } })),
-      setProfile: (profile) => set((state) => ({ user: { ...state.user, profile } })),
-      setLoginMethod: (method) => set({ loginMethod: method }),
-      setRemoteSigner: (signer) => set({ remoteSigner: signer }),
-      setNwcUrl: (url) => set({ nwcUrl: url }),
-      setBridgeUrl: (url) => set({ bridgeUrl: url }),
-      setAdministeredStations: (administeredStations) => set({ administeredStations }),
-      markAsRead: (aTag) => set((state) => ({
+      setConnected: (connected: boolean) => set({ isConnected: connected }),
+      setUser: (pubkey: string | null) => set((state: NostrState) => ({ user: { ...state.user, pubkey } })),
+      setProfile: (profile: UserProfile) => set((state: NostrState) => ({ user: { ...state.user, profile } })),
+      setLoginMethod: (method: 'nip07' | 'nip46' | 'local' | null) => set({ loginMethod: method }),
+      setRemoteSigner: (signer: { pubkey: string | null, relays: string[], secret: string | null }) => set({ remoteSigner: signer }),
+      setNwcUrl: (url: string | null) => set({ nwcUrl: url }),
+      setBridgeUrl: (url: string) => set({ bridgeUrl: url }),
+      setAdministeredStations: (administeredStations: any[]) => set({ administeredStations }),
+      markAsRead: (aTag: string) => set((state: NostrState) => ({
         lastRead: { ...state.lastRead, [aTag]: Math.floor(Date.now() / 1000) }
       })),
       login: async () => {
         if (window.nostr) {
           try {
             const pubkey = await window.nostr.getPublicKey()
-            const state = get()
-            set(() => ({ 
+            set((state: NostrState) => ({ 
               user: { ...state.user, pubkey },
               loginMethod: 'nip07'
             }))

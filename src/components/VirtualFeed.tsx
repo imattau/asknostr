@@ -74,7 +74,7 @@ export const VirtualFeed = React.forwardRef<any, VirtualFeedProps>(
               }
             }}
             components={components}
-            itemContent={(_index, event) => (
+            itemContent={(_index: number, event: Event) => (
               <div className="px-4 py-2 border-b border-white/5">
                 <Post event={event} depth={0} />
               </div>

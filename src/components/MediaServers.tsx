@@ -141,11 +141,11 @@ export const MediaServers: React.FC = () => {
         </form>
 
         <div className="grid gap-4">
-          {mediaServers.map((server) => (
+          {mediaServers.map((server: any) => (
             <div key={server.id} className={`p-4 glassmorphism border ${borderClass} rounded-xl flex items-center justify-between gap-4`}>
               <div className="min-w-0">
                 <div className={`text-xs font-mono ${theme === 'light' ? 'text-slate-700' : 'text-slate-100'} truncate`}>{server.url}</div>
-                <div className={`text-[9px] ${mutedText} font-mono uppercase`}>{typeLabels[server.type]}</div>
+                <div className={`text-[9px] ${mutedText} font-mono uppercase`}>{typeLabels[server.type as MediaServerType]}</div>
               </div>
               <button
                 onClick={() => removeMediaServer(server.id)}

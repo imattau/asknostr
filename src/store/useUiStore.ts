@@ -40,18 +40,18 @@ export const useUiStore = create<UiState>()(
       // Start with Global Feed as the default active layer
       stack: [{ id: 'root-feed', type: 'feed', title: 'Global_Feed' }],
       lightbox: { isOpen: false, media: [], index: 0 },
-      setTheme: (theme) => set({ theme }),
-      setLayout: (layout) => set({ layout }),
-      pushLayer: (layer) => set((state) => ({ stack: [...state.stack, layer] })),
-      popLayer: () => set((state) => ({ 
+      setTheme: (theme: 'terminal' | 'modern' | 'light') => set({ theme }),
+      setLayout: (layout: 'classic' | 'swipe') => set({ layout }),
+      pushLayer: (layer: Layer) => set((state: UiState) => ({ stack: [...state.stack, layer] })),
+      popLayer: () => set((state: UiState) => ({ 
         // Allow stack to go empty so implicit Sidebar becomes the only layer visible
         stack: state.stack.slice(0, -1) 
       })),
-      resetStack: (layer) => set({ stack: [layer] }),
+      resetStack: (layer: Layer) => set({ stack: [layer] }),
       clearStack: () => set({ stack: [] }),
-      openLightbox: (media, index = 0) => set({ lightbox: { isOpen: true, media, index } }),
-      closeLightbox: () => set((state) => ({ lightbox: { ...state.lightbox, isOpen: false } })),
-      setLightboxIndex: (index) => set((state) => ({ lightbox: { ...state.lightbox, index } })),
+      openLightbox: (media: { url: string; type: 'image' | 'video' }[], index = 0) => set({ lightbox: { isOpen: true, media, index } }),
+      closeLightbox: () => set((state: UiState) => ({ lightbox: { ...state.lightbox, isOpen: false } })),
+      setLightboxIndex: (index: number) => set((state: UiState) => ({ lightbox: { ...state.lightbox, index } })),
     }),
     {
       name: 'asknostr-ui-storage',

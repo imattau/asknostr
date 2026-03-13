@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ChevronLeft, ChevronRight, Download, ExternalLink } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
 
 export const Lightbox: React.FC = () => {

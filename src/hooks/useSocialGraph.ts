@@ -131,7 +131,7 @@ export const useSocialGraph = () => {
       queryClient.setQueryData(['contacts', user.pubkey], optimisticEvent)
       return { previousContacts }
     },
-    onError: (err, newFollowing, context) => {
+    onError: (_err, _newFollowing, context) => {
       if (context?.previousContacts) {
         queryClient.setQueryData(['contacts', user.pubkey], context.previousContacts)
       }
@@ -172,7 +172,7 @@ export const useSocialGraph = () => {
       queryClient.setQueryData(['mutes', user.pubkey], optimisticEvent)
       return { previousMutes }
     },
-    onError: (err, newMuted, context) => {
+    onError: (_err, _newMuted, context) => {
       if (context?.previousMutes) {
         queryClient.setQueryData(['mutes', user.pubkey], context.previousMutes)
       }
