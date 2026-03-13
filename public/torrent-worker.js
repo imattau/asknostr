@@ -68,6 +68,22 @@ self.onmessage = async (e) => {
       if (t && t.files[0]) t.files[0].select(payload.start, payload.end, 1);
       break;
 
+    case 'GET_BLOB_URL':
+      const torrentForBlob = client.get(payload.infoHash);
+      if (!torrentForBlob || !torrentForBlob.files || torrentForBlob.files.length === 0) {
+        self.postMessage({ type: 'BLOB_URL_READY', payload: { infoHash: payload.infoHash, error: 'Torrent_Not_Found_Or_No_Files' } });
+        break;
+      }
+      torrentForBlob.files[0].getBlob((err, blob) => {
+        if (err || !blob) {
+          self.postMessage({ type: 'BLOB_URL_READY', payload: { infoHash: payload.infoHash, error: err ? err.message : 'Blob_Unavailable' } });
+          return;
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        self.postMessage({ type: 'BLOB_URL_READY', payload: { infoHash: payload.infoHash, blobUrl } });
+      });
+      break;
+
     case 'REMOVE':
       const tr = client.get(payload.magnetUri);
       if (tr) tr.destroy();

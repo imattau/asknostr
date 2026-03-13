@@ -51,8 +51,7 @@ export const useGlobalDiscovery = () => {
       )
       return { communities: uniqueFinal, usedFallback }
     },
-    staleTime: Infinity, // Cache indefinitely
+    staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   })
 }

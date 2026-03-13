@@ -24,13 +24,17 @@ class TorrentService {
   private isInitialized = false
   private initPromise: Promise<void> | null = null
   private seedList: SeedListEntry[] = []
+  private _seedListRestored = false
 
   /**
    * Initialize and restore previously seeded files with staggering to avoid main-thread lockup
    */
   constructor() {
     this.loadSeedListFromStorage()
-    void this.restoreSeedsFromSeedList()
+    if (!this._seedListRestored) {
+      this._seedListRestored = true
+      void this.restoreSeedsFromSeedList()
+    }
   }
   async init() {
     if (this.isInitialized) return
@@ -154,7 +158,8 @@ class TorrentService {
   private async bootstrapPing(magnet: string, url: string) {
     try {
       const bridgeUrl = useStore.getState().bridgeUrl
-      const baseUrl = bridgeUrl ? bridgeUrl.replace(/\/$/, '') : ''
+      if (!bridgeUrl) return
+      const baseUrl = bridgeUrl.replace(/\/$/, '')
       fetch(`${baseUrl}/api/v1/bootstrap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -336,6 +341,13 @@ class TorrentService {
    */
   getActiveTorrents() {
     return TorrentClient.get().getAllTorrents()
+  }
+
+  /**
+   * Get a blob URL for the first file of a torrent by infoHash
+   */
+  getBlobUrl(infoHash: string): Promise<string> {
+    return TorrentClient.get().getBlobUrl(infoHash)
   }
 
   /**

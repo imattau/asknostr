@@ -678,9 +678,9 @@ class NostrService {
     }
   }
 
-  async createAndPublishPost(content: string, tags: string[][] = []) {
+  async createAndPublishPost(content: string, tags: string[][] = [], kind: number = 1) {
     const eventTemplate = {
-      kind: 1,
+      kind,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content: content,

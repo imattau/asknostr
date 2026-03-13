@@ -173,8 +173,8 @@ export const FeedComposer = React.memo(({ user, collapsed, setCollapsed, isHidde
   return (
     <div className={`mx-4 mb-2 transition-all duration-300 ease-in-out overflow-hidden ${isHidden ? 'max-h-0 opacity-0 mb-0' : 'max-h-96 opacity-100'}`}>
       <div
-        className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 ${ 
-          collapsed ? 'max-h-0 opacity-0 pointer-events-none hidden' : 'max-h-72 opacity-100 block'
+        className={`glassmorphism rounded-xl border-slate-800 shadow-2xl p-3 transition-all duration-200 overflow-hidden ${
+          collapsed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-72 opacity-100'
         }`}>
         <div className="flex items-center justify-between pb-2 border-b border-white/5">
           <span className="text-[9px] uppercase font-bold tracking-[0.3em] text-slate-400">Broadcast</span>

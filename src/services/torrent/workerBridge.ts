@@ -67,6 +67,15 @@ export class TorrentWorkerBridge {
           })
         })
         break;
+
+      case 'BLOB_URL_READY': {
+        const blobCb = this.callbacks.get(`bloburl-${payload.infoHash.toLowerCase()}`)
+        if (blobCb) {
+          blobCb(payload)
+          this.callbacks.delete(`bloburl-${payload.infoHash.toLowerCase()}`)
+        }
+        break;
+      }
     }
   }
 
@@ -118,7 +127,7 @@ export class TorrentWorkerBridge {
   seed(file: File): Promise<any> {
     if (!this.worker) return Promise.reject(new Error('Torrent worker unavailable'))
     return new Promise((resolve, reject) => {
-      const key = file.name
+      const key = `${file.name}-${file.size}-${Date.now()}`
       const timeoutId = setTimeout(() => {
         if (this.callbacks.delete(key)) {
           reject(new Error('Seeding timed out'))
@@ -130,7 +139,7 @@ export class TorrentWorkerBridge {
       })
       this.worker?.postMessage({
         type: 'SEED',
-        payload: { file, name: file.name, type: file.type }
+        payload: { file, name: key, type: file.type }
       })
     })
   }
@@ -172,6 +181,27 @@ export class TorrentWorkerBridge {
     this.worker?.postMessage({
       type: 'REMOVE',
       payload: { magnetUri }
+    })
+  }
+
+  getBlobUrl(infoHash: string): Promise<string> {
+    if (!this.worker) return Promise.reject(new Error('Torrent worker unavailable'))
+    return new Promise((resolve, reject) => {
+      const key = `bloburl-${infoHash.toLowerCase()}`
+      const timeoutId = setTimeout(() => {
+        if (this.callbacks.delete(key)) {
+          reject(new Error('getBlobUrl timed out'))
+        }
+      }, 30000)
+      this.callbacks.set(key, (data: any) => {
+        clearTimeout(timeoutId)
+        if (data.error) reject(new Error(data.error))
+        else resolve(data.blobUrl)
+      })
+      this.worker?.postMessage({
+        type: 'GET_BLOB_URL',
+        payload: { infoHash: infoHash.toLowerCase() }
+      })
     })
   }
 

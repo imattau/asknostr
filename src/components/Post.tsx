@@ -122,6 +122,8 @@ const PostComponent: React.FC<PostProps> = ({
   const theme = useUiStore(state => state.theme)
   
   const [isSeedingLocally, setIsSeedingLocally] = useState(false)
+  const [isZapOpen, setIsZapOpen] = useState(false)
+  const [isReposting, setIsReposting] = useState(false)
 
   useEffect(() => {
     const checkSeeding = () => {
@@ -397,6 +399,23 @@ const PostComponent: React.FC<PostProps> = ({
     } catch (err) {
       console.error('Zap failed', err)
       alert(err instanceof Error ? err.message : 'Failed to initiate zap.')
+    }
+  }
+
+  const handleRepost = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!user.pubkey || isReposting) return
+    setIsReposting(true)
+    try {
+      const tags: string[][] = [
+        ['e', event.id, '', 'mention'],
+        ['p', event.pubkey],
+      ]
+      await nostrService.createAndPublishPost(JSON.stringify(event), tags, 6)
+    } catch (err) {
+      console.error('Repost failed', err)
+    } finally {
+      setIsReposting(false)
     }
   }
 
@@ -846,9 +865,13 @@ const PostComponent: React.FC<PostProps> = ({
             )}
           </div>
         )}
-        <button className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn">
+        <button
+          onClick={handleRepost}
+          disabled={!user.pubkey || isReposting}
+          className="flex items-center gap-1.5 hover:text-cyan-500 transition-colors group/btn disabled:opacity-40"
+        >
           <Repeat2 size={12} className="group-hover/btn:scale-110 transition-transform" />
-          <span className="leading-none">Repost</span>
+          <span className="leading-none">{isReposting ? 'Reposting...' : 'Repost'}</span>
         </button>
         <button 
           onClick={(e) => { e.stopPropagation(); handleLike(); }}
@@ -858,25 +881,27 @@ const PostComponent: React.FC<PostProps> = ({
           <span className="leading-none">{likeCount || 0} Like{likeCount === 1 ? '' : 's'}</span>
         </button>
         <div className="relative group/zap">
-          <button 
-            onClick={(e) => { e.stopPropagation(); triggerHaptic(20); }}
+          <button
+            onClick={(e) => { e.stopPropagation(); triggerHaptic(20); setIsZapOpen(prev => !prev); }}
             className="flex items-center gap-1.5 hover:text-yellow-500 transition-colors group/btn"
           >
             <Zap size={12} className={`group-hover/btn:scale-110 transition-transform ${isZapsLoading ? 'animate-pulse' : ''} ${zapData?.total ? 'text-yellow-500 fill-yellow-500/20' : ''}`} />
             <span className="leading-none">{zapData?.total ? `${zapData.total} sats` : 'Zap'}</span>
           </button>
-          
-          <div className={`absolute bottom-full left-0 mb-2 hidden group-hover/zap:flex gap-1 ${theme === 'light' ? 'bg-white' : 'bg-slate-900'} border ${borderClass} p-1 rounded-lg shadow-2xl z-50`}>
-            {[21, 100, 1000].map(amt => (
-              <button
-                key={amt}
-                onClick={(e) => { e.stopPropagation(); handleZap(amt); }}
-                className="text-[8px] font-bold px-2 py-1 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black rounded transition-all"
-              >
-                {amt}
-              </button>
-            ))}
-          </div>
+
+          {isZapOpen && (
+            <div className={`absolute bottom-full left-0 mb-2 flex gap-1 ${theme === 'light' ? 'bg-white' : 'bg-slate-900'} border ${borderClass} p-1 rounded-lg shadow-2xl z-50`}>
+              {[21, 100, 1000].map(amt => (
+                <button
+                  key={amt}
+                  onClick={(e) => { e.stopPropagation(); handleZap(amt); setIsZapOpen(false); }}
+                  className="text-[8px] font-bold px-2 py-1 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black rounded transition-all"
+                >
+                  {amt}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <button 
           onClick={(e) => { e.stopPropagation(); handleReport(); }}

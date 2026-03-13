@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { torrentService } from '../services/torrentService'
 import { Loader2, Share2, Users, Download, AlertCircle } from 'lucide-react'
 import { useUiStore } from '../store/useUiStore'
@@ -14,7 +14,8 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
   const [error, setError] = useState<string | null>(null)
   const [useFallback, setUseFallback] = useState(false)
   const [isReady, setIsReady] = useState(false)
-  const [blobUrl] = useState<string | null>(null)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const isReadyRef = useRef(false)
   const { theme } = useUiStore()
 
   const infoHashMatch = magnetUri.match(/xt=urn:btih:([a-zA-Z0-9]+)/i)
@@ -24,13 +25,19 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
   const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-800'
   const bgMuted = theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'
 
+  // Keep isReadyRef in sync with isReady state to avoid stale closures (Bug 5)
+  useEffect(() => {
+    isReadyRef.current = isReady
+  }, [isReady])
+
   useEffect(() => {
     let mounted = true
     let interval: ReturnType<typeof setInterval>
-    
-    // The 5-Second Rule: Fallback to HTTP if swarm is cold
+    let localBlobUrl: string | null = null
+
+    // The 5-Second Rule: Fallback to HTTP if swarm is cold (Bug 5: use ref, not stale closure)
     const fallbackTimer = setTimeout(() => {
-      if (mounted && (!torrentState || torrentState.numPeers === 0) && !isReady && fallbackUrl) {
+      if (mounted && (!torrentState || torrentState.numPeers === 0) && !isReadyRef.current && fallbackUrl) {
         setUseFallback(true)
       }
     }, 5000)
@@ -47,7 +54,22 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
           const state = torrentService.getActiveTorrents().find(t => t.infoHash.toLowerCase() === infoHash)
           if (state) {
             setTorrentState({ ...state })
-            if (state.isReady) setIsReady(true)
+            if (state.isReady && !isReadyRef.current) {
+              setIsReady(true)
+              // Fetch blob URL when torrent becomes ready (Bug 3+4)
+              if (infoHash && !localBlobUrl) {
+                torrentService.getBlobUrl(infoHash).then(url => {
+                  if (mounted) {
+                    localBlobUrl = url
+                    setBlobUrl(url)
+                  } else {
+                    URL.revokeObjectURL(url)
+                  }
+                }).catch(err => {
+                  console.warn('[TorrentMedia] getBlobUrl failed:', err)
+                })
+              }
+            }
             if (state.numPeers > 0) setUseFallback(false)
           }
         }, 2000)
@@ -64,7 +86,8 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
       mounted = false
       clearInterval(interval)
       clearTimeout(fallbackTimer)
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
+      // Revoke blob URL on cleanup (Bug 3+4)
+      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl)
     }
   }, [magnetUri, fallbackUrl, infoHash])
 
@@ -120,7 +143,32 @@ export const TorrentMedia: React.FC<TorrentMediaProps> = ({ magnetUri, fallbackU
         </div>
       )}
 
-      {isReady && !useFallback && (
+      {isReady && !useFallback && blobUrl && (() => {
+        const name = torrentState?.name || magnetUri
+        const isVideo = /\.(mp4|webm|mov|mkv)$/i.test(name)
+        const isAudio = /\.(mp3|wav|ogg|flac|aac)$/i.test(name)
+        const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name)
+        if (isVideo) {
+          return <video src={blobUrl} controls className="max-h-[500px] w-full object-contain" />
+        } else if (isAudio) {
+          return <audio src={blobUrl} controls className="w-full p-4" />
+        } else if (isImage) {
+          return <img src={blobUrl} alt={torrentState?.name || 'Media'} className="max-h-[500px] w-full object-contain" />
+        }
+        return (
+          <div className="p-12 flex flex-col items-center justify-center space-y-4">
+            <Share2 size={48} className="text-purple-500 opacity-50" />
+            <p className="text-[10px] font-mono uppercase tracking-widest opacity-50">
+              Stream_Available_Via_Worker
+            </p>
+            <a href={blobUrl} download={torrentState?.name} className="text-[9px] font-mono text-cyan-400 underline">
+              Download_File
+            </a>
+          </div>
+        )
+      })()}
+
+      {isReady && !useFallback && !blobUrl && (
         <div className="p-12 flex flex-col items-center justify-center space-y-4">
            <Share2 size={48} className="text-purple-500 opacity-50" />
            <p className="text-[10px] font-mono uppercase tracking-widest opacity-50">
