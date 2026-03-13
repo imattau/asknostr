@@ -25,6 +25,7 @@ import { ConnectBunker } from './components/ConnectBunker'
 import { NwcSettings } from './components/NwcSettings'
 import { Search } from './components/Search'
 import { Sidebar } from './components/Sidebar'
+import { Lightbox } from './components/Lightbox'
 import { useRelays } from './hooks/useRelays'
 import { useDeletions } from './hooks/useDeletions'
 import { useFeed } from './hooks/useFeed'
@@ -161,42 +162,48 @@ function App() {
 
   if (layout === 'swipe') {
     return (
-      <SwipeLayout
-        theme={theme}
-        layout={layout}
-        setLayout={setLayout}
-        setTheme={setTheme}
-        isHeaderHidden={isHeaderHidden}
-        user={user}
-        login={login}
-        logout={logout}
-        isFeedFetching={false}
-        isFeedLoading={false}
-        pushLayer={pushLayer}
-        renderLayerContent={renderLayerContent}
-      />
+      <>
+        <SwipeLayout
+          theme={theme}
+          layout={layout}
+          setLayout={setLayout}
+          setTheme={setTheme}
+          isHeaderHidden={isHeaderHidden}
+          user={user}
+          login={login}
+          logout={logout}
+          isFeedFetching={false}
+          isFeedLoading={false}
+          pushLayer={pushLayer}
+          renderLayerContent={renderLayerContent}
+        />
+        <Lightbox />
+      </>
     )
   }
 
   return (
-    <ClassicLayout
-      theme={theme}
-      layout={layout}
-      setLayout={setLayout}
-      setTheme={setTheme}
-      renderLayerContent={renderLayerContent}
-      isHeaderHidden={isHeaderHidden}
-      isFeedLoading={false}
-      isFeedFetching={false}
-      isConnected={isConnected}
-      user={user}
-      login={login}
-      logout={logout}
-      stack={stack}
-      popLayer={popLayer}
-      pushLayer={pushLayer}
-      events={filteredTrendEvents}
-    />
+    <>
+      <ClassicLayout
+        theme={theme}
+        layout={layout}
+        setLayout={setLayout}
+        setTheme={setTheme}
+        renderLayerContent={renderLayerContent}
+        isHeaderHidden={isHeaderHidden}
+        isFeedLoading={false}
+        isFeedFetching={false}
+        isConnected={isConnected}
+        user={user}
+        login={login}
+        logout={logout}
+        stack={stack}
+        popLayer={popLayer}
+        pushLayer={pushLayer}
+        events={filteredTrendEvents}
+      />
+      <Lightbox />
+    </>
   )
 }
 

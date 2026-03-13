@@ -120,6 +120,7 @@ const PostComponent: React.FC<PostProps> = ({
   const layout = useUiStore(state => state.layout)
   const stack = useUiStore(state => state.stack)
   const pushLayer = useUiStore(state => state.pushLayer)
+  const openLightbox = useUiStore(state => state.openLightbox)
   const theme = useUiStore(state => state.theme)
   
   const [isSeedingLocally, setIsSeedingLocally] = useState(false)
@@ -757,25 +758,36 @@ const PostComponent: React.FC<PostProps> = ({
         <div className="mt-4 space-y-2 mb-4 overflow-hidden rounded-lg relative">
           {mediaMatches.map((url, idx) => {
             const isVideo = url.match(/\.(mp4|webm|mov)$/i)
+            const mediaList = mediaMatches.map(m => ({ 
+              url: m, 
+              type: (m.match(/\.(mp4|webm|mov)$/i) ? 'video' : 'image') as 'image' | 'video' 
+            }))
+
             return (
               <div
                 key={idx}
-                className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''} min-h-[260px] sm:min-h-[300px]`}
+                className={`relative ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-900'} border ${borderClass} rounded-lg overflow-hidden group/media ${isHidden ? 'blur-sm' : ''} min-h-[260px] sm:min-h-[300px] cursor-zoom-in`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!isHidden) openLightbox(mediaList, idx)
+                }}
               >
                 {isVideo ? (
                   <div className="relative w-full h-full min-h-[260px] sm:min-h-[300px]">
                     <video
                       src={url}
                       preload="metadata"
-                      controls
                       className="absolute inset-0 w-full h-full object-contain"
-                      onClick={(e) => e.stopPropagation()}
                     />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover/media:bg-black/40 transition-colors">
+                      <div className="p-3 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white">
+                         <Maximize2 size={24} />
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <ImageTile
                     url={url}
-                    onClick={() => window.open(url, '_blank')}
                   />
                 )}
                 {isHidden && (
